@@ -49,7 +49,7 @@ def truck_base {
 	gear9:0.68
 	gear10:0.66
 
-	torque_coef:0.9
+	torque_coef:1.35
 	thorse_power:666
 	tmax_speed:60
 

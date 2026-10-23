@@ -34,7 +34,7 @@ def truck6:truck_base {
 	steer_max:45
 	
 	gear_count:10
-	torque_coef:1.6
+	torque_coef:2.4
 	gearR:5.42
 	gear1:8.0
 	gear2:4.5

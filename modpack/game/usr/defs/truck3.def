@@ -48,7 +48,7 @@ def truck3:truck_base {
 	gear8:1.15
 
 
-	torque_coef:0.8
+	torque_coef:1.2
 	thorse_power:375
 	horn_snd:"sounds/truck/ti_horn01.ogg"
 	tname:"T1000"

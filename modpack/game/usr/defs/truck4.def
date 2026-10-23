@@ -47,7 +47,7 @@ def truck4:truck_base {
 
 	tmax_speed:116
 
-	torque_coef:1.2
+	torque_coef:1.8
 	thorse_power:425
 	horn_snd:"sounds/truck/ti_horn01.ogg"
 	tname:"Brava"

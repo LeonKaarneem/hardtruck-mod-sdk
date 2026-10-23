@@ -46,7 +46,7 @@ def truck2:truck_base {
 	gear6:1.6
 
 
-	torque_coef:0.45
+	torque_coef:0.675
 	tname:"Topolino"
 	brake:88888
 	gr_x_size_l:11

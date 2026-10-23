@@ -45,7 +45,7 @@ def truck1:truck_base {
 	gear5:2.0
 	gear6:1.8
 
-	torque_coef:0.5
+	torque_coef:0.75
 	thorse_power:250
 	tname:"Rusty"
 	horn_snd:"sounds/truck/ti_horn02.ogg"
