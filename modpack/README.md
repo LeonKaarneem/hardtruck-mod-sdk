@@ -1,9 +1,11 @@
-# Hard Truck: 18 Wheels of Steel - Modern QoL Mod Pack v1
+# Hard Truck: 18 Wheels of Steel - Modern QoL Mod Pack v2
 
-A data-only quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
-2002, Prism3D engine). It uses the game's own override mechanism - any file placed in
-`game/usr/<path>` replaces the archived copy of `<path>` - so no archives are repacked
-and uninstalling is just deleting files.
+A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
+2002, Prism3D engine). Data files use the game's own override mechanism - any file
+placed in `game/usr/<path>` replaces the archived copy of `<path>` - so no archives
+are repacked and uninstalling is just deleting files. Optional binary patches
+(game.dll cameras, dx8.dll vsync) are applied with the included Python scripts and
+can be reverted byte-identically.
 
 > ## ⚠ START A NEW PROFILE - YOUR OLD SAVES WILL NOT LOAD
 >
@@ -15,14 +17,33 @@ and uninstalling is just deleting files.
 
 ## What's included
 
-| File | Effect |
+| Component | Effect |
 |---|---|
 | `game/usr/config.cfg` | Console enabled, QoL keybinds (see table), 1920x1080 default, optional-extras comments |
-| `game/usr/defs/truck_base.def` | Fleet-wide: `steer_speed` 30→40 deg/s, `brake` 120000→160000 (+33%, same ratio the official 1.2 patch used for the Topolino) |
-| `game/usr/defs/truck1.def` … `truck8.def` | Every truck now steers at 40 deg/s; weak brakes buffed +33% (truck2: 66666→88888, truck8: 30000→40000). Heavier trucks' stronger brakes kept |
+| `game/usr/defs/truck_base.def` | Fleet-wide: `steer_speed` 30→40 deg/s, `brake` 120000→160000 (+33%, same ratio the official 1.2 patch used) |
+| `game/usr/defs/truck1.def` … `truck8.def` | Every truck steers at 40 deg/s; weak brakes buffed +33% (truck2: 66666→88888, truck8: 30000→40000). Heavier trucks' stronger brakes kept |
 | `game/usr/defs/driver_base.def` | AI drivers: delay chance 0.0017→0.0005, salary demand 400→300, share demand 10%→7.5% |
 | `game/usr/defs/management/base.def` | Cargo pay `cval` +40%, damage penalty `cpen` −40% (to 60%). Built on the 1.2 patch file, so its localization fixes stay intact |
-| `patches/patch_dx8_vsync.py` | Optional: byte-patches `sys/dx8.dll` for native vsync (see below) |
+| `patches/patch_camera_mods.py` | **Camera mod (recommended):** chase cam (key 2) becomes an ETS-style mouse-orbit camera; cab view gets vertical look (±35°). Patches `game/sys/game.dll` |
+| `patches/patch_dx8_vsync.py` | Optional: byte-patches `sys/dx8.dll` for native vsync |
+
+### Camera mod - what changes
+
+- **Chase camera (press 2)**: orbit the truck with the mouse - left/right swings the
+  camera around the truck (ETS-style), up/down pitches it. The camera starts level
+  behind the truck every time you press 2.
+- **Cab camera**: mouse up/down now looks up/down (about ±35°, matched to the cab
+  geometry); left/right look still works as before.
+- Verified on Wine (see `research/camera-notes.md` for the full evidence chain);
+  byte-identical `--restore` is tested on every release of the patch.
+
+Apply it with:
+
+```
+python patches\patch_camera_mods.py "C:\Games\Hard Truck 18 WoS\game\sys\game.dll"
+```
+
+(`--check` reports status, `--restore` reverts to the pristine DLL.)
 
 ## Install
 
@@ -43,7 +64,7 @@ A `INSTALL.bat` (Windows) and `INSTALL.sh` (Linux/macOS) are provided that do th
 target directory you pass, with a confirmation prompt. They only copy files.
 
 After copying, edit `game/usr/config.cfg` if your native resolution isn't 1920x1080
-(`uset r_mode "WIDTHxHEIGHTx32"`).
+(`uset r_mode "WIDTHxHEIGHTx32"`), and run the camera patch script above if wanted.
 
 ## Windows 10/11
 
@@ -72,8 +93,17 @@ Notes:
   `prism3d.exe` directly, or close the game after the launcher and edit
   `game/usr/config.cfg` (`uset r_mode "1920x1080x32"`) - the engine enumerates real
   modes and anything it lists works.
-- **Widescreen is Vert-**: the engine renders a fixed vertical FOV, so on 16:9 you see
-  less to the left/right than on 4:3. There is no known fix for this engine.
+- **Widescreen FOV (read this before asking):** on 16:9 the engine *vertically*
+  crops the view (fixed horizontal FOV). A proper Hor+ fix was attempted
+  exhaustively and is **impossible for this engine build**: the projection matrix
+  only exists inside the renderer modules, which are protected by a runtime
+  integrity check (dlguard) that crashes the game if a single code byte changes,
+  and the engine software-transforms its vertices, so no wrapper (d3d8to9,
+  dgVoodoo2, or a Wine-side proxy - all tested/designed) ever sees the projection.
+  Full three-round proof chain in `research/fov-notes.md`. The practical options
+  are: play 16:9 Vert- (slightly zoomed), or force 4:3 (`uset r_mode "1440x1080x32"`
+  etc.) with your GPU scaling set to "preserve aspect ratio" (pillarboxed, correct
+  FOV).
 - **Cap your FPS at ~60.** There is a physics bug at high frame rates (truck can get
   stuck on terrain). Use the vsync patch, d3d8to9 with your driver's vsync, or an
   external limiter.
@@ -102,16 +132,22 @@ wine "$WINEPREFIX/drive_c/18 Wheels of Steel Hard Truck/prism3d.exe" -game game
   and Wine honors it, giving a clean 60 FPS cap (the dx8 path goes through WineD3D,
   which cannot vsync). dx8 does work via WineD3D if you prefer it.
 - **Keep FPS ≤ 60** - same physics bug as on Windows (see above).
-- 16:9 is Vert- (FOV cut), no known fix.
+- Widescreen FOV: same Vert- situation as Windows (see the note above - no fix is
+  possible; `src/htd8/` contains a complete, working Wine d3d8 COM proxy built
+  during the attempt, kept as reference).
 - The Linux vsync byte patch (`patch_dx8_vsync.py`) is pointless under Wine - use
   `gl_sync` instead.
+- Headless/automated testing notes (Xvfb + xdotool, console-driven: `map west`,
+  `ui t cosetup`) are in `research/` - useful if you want to script the game.
 
 ## Keybinds
 
-Press **`~`** in game to open the console (it is enabled by this mod: `g_console 1`).
+Press **`~`** in game to open the console (enabled by this mod: `g_console 1`).
 
 | Key | Action |
 |---|---|
+| 2 | Chase camera - **mouse-orbit around the truck** (with camera patch) |
+| 3 / 4 / 5 … | Other stock cameras (unchanged) |
 | F6 | Teleport to service station (debug impulse) |
 | F7 | Teleport to gas station |
 | F8 | Teleport to weigh station |
@@ -128,9 +164,9 @@ With the console open (`~`), type `cheat` plus one of:
 - `cheat skill <value>` - set skill
 - `cheat contracts flow skill [bonus]` - spawn contract offers
 - `cheat goto7 <x> <y> <z>` - teleport
-- `cheat dmeet` - ?
+- `cheat dmeet` - meet all drivers
 - `cheat truck [1..6]` - switch truck
-- `cheat tspeed [float]` - time scale
+- `cheat tspeed [float]` - management time-scale modifier
 
 ## Jukebox
 
@@ -141,5 +177,20 @@ Drop `.ogg` or `.wav` files into `game/usr/music/jukebox/` and press `j` in game
 
 - Remove the files you copied into `game/usr/` (or the whole `game/usr/` folder - the
   game regenerates it) to return to stock behavior. Keep your `save/` backup.
+- Revert binary patches with each script's `--restore` (game.dll cameras, dx8.dll
+  vsync).
 - If the game fails to start after editing, check `game/usr/config.cfg` for typos and
   `prism3d.log` in the game folder for def parse errors.
+
+## Repository layout
+
+```
+modpack/
+  game/               data overrides (copy into game folder)
+  patches/            patch_camera_mods.py, patch_dx8_vsync.py
+  src/htd8/           reference d3d8 COM proxy from the FOV attempt (not needed to play)
+research/
+  camera-notes.md     camera RE + full verification evidence
+  fov-notes.md        FOV/diGuard RE + the 3-round Hor+ proof chain
+specs/                original v1 design doc
+```
