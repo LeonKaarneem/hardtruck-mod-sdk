@@ -1,0 +1,280 @@
+###############################
+# basic management definitions
+###############################
+
+extdefs "/defs/management/defs.def"
+
+def scenarios {
+	scenario00:"west"
+	scenario01:"midwest"
+	scenario02:"mountains"
+	scenario03:"test"
+}
+
+def cargo_types {
+	def cargo00:/cargo {
+		name:"@@jlt_coffee@@"
+		icon:"shaders/ui/ingame/i_coffee.shd"
+		hcrt:"false"
+		frag:"0.12"
+		load00:"1.0|4"
+		cval:"1386"
+		cpen:"6300"
+		prob:0.0500
+	}
+	def cargo01:/cargo {
+		name:"@@jlt_steel@@"
+		icon:"shaders/ui/ingame/i_steel.shd"
+		hcrt:"false"
+		frag:"0.03"
+		load00:"1.0|10"
+		wght:"3000"
+		cval:"903"
+		cpen:"2628"
+		prob:0.0500
+	}
+	def cargo02:/cargo {
+		name:"@@jlt_games@@"
+		icon:"shaders/ui/ingame/i_pcgame.shd"
+		hcrt:"false"
+		frag:"0.20"
+		load00:"1.0|14"
+		cval:"1750"
+		cpen:"5340"
+		prob:0.0600
+	}
+	def cargo03:/cargo {
+		name:"@@jlt_toys@@"
+		icon:"shaders/ui/ingame/i_toy.shd"
+		hcrt:"false"
+		frag:"0.10"
+		load00:"1.0|16"
+		cval:"1183"
+		cpen:"2400"
+		prob:0.0700
+	}
+	def cargo04:/cargo {
+		name:"@@jlt_clothes@@"
+		icon:"shaders/ui/ingame/i_cloth.shd"
+		hcrt:"false"
+		frag:"0.08"
+		load00:"1.0|15"
+		cval:"1309"
+		cpen:"3180"
+		prob:0.0700
+	}
+	def cargo05:/cargo {
+		name:"@@jlt_retail@@"
+		icon:"shaders/ui/ingame/i_goods.shd"
+		hcrt:"false"
+		frag:"0.23"
+		load00:"1.0|4"
+		cval:"1624"
+		cpen:"5160"
+		prob:0.0500
+	}
+	def cargo06:/cargo {
+		name:"@@jlt_paper@@"
+		icon:"shaders/ui/ingame/i_paper.shd"
+		hcrt:"false"
+		frag:"0.10"
+		load00:"1.0|5"
+		cval:"952"
+		cpen:"2316"
+		prob:0.0500
+	}
+	def cargo07:/cargo {
+		name:"@@jlt_cola@@"
+		icon:"shaders/ui/ingame/i_cola.shd"
+		hcrt:"false"
+		frag:"0.42"
+		load00:"1.0|6"
+		cval:"1604"
+		cpen:"6000"
+		prob:0.0600
+	}
+	def cargo08:/cargo {
+		name:"@@jlt_cattle@@"
+		icon:"shaders/ui/ingame/i_cattle.shd"
+		hcrt:"false"
+		frag:"0.63"
+		load00:"1.0|7"
+		cval:"2184"
+		cpen:"9300"
+		prob:0.0300
+	}
+	def cargo09:/cargo {
+		name:"@@jlt_computers@@"
+		icon:"shaders/ui/ingame/i_comp.shd"
+		hcrt:"false"
+		frag:"0.58"
+		load00:"1.0|5"
+		cval:"2058"
+		cpen:"19200"
+		prob:0.0600
+	}
+	def cargo10:/cargo {
+		name:"@@jlt_fruits@@"
+		icon:"shaders/ui/ingame/i_melons.shd"
+		hcrt:"false"
+		frag:"0.48"
+		load00:"1.0|14"
+		cval:"1652"
+		cpen:"2160"
+		prob:0.0300
+	}
+	def cargo11:/cargo {
+		name:"@@jlt_bulbs@@"
+		icon:"shaders/ui/ingame/i_bulb.shd"
+		hcrt:"false"
+		frag:"0.52"
+		load00:"1.0|4"
+		cval:"1806"
+		cpen:"3060"
+		prob:0.0480
+	}
+	def cargo12:/cargo {
+		name:"@@jlt_waste@@"
+		icon:"shaders/ui/ingame/i_waste.shd"
+		hcrt:"false"
+		frag:"0.09"
+		load00:"1.0|1"
+		cval:"1246"
+		cpen:"1500"
+		prob:0.0500
+	}
+	def cargo13:/cargo {
+		name:"@@jlt_nuclearwaste@@"
+		icon:"shaders/ui/ingame/i_nuclear.shd"
+		hcrt:"true"
+		frag:"0.36"
+		load00:"1.0|11"
+		wght:"2000"
+		cval:"5446"
+		cpen:"72000"
+		prob:0.001
+	}
+	def cargo14:/cargo {
+		name:"@@jlt_gasoline@@"
+		icon:"shaders/ui/ingame/i_gasoline.shd"
+		hcrt:"true"
+		frag:"0.42"
+		load00:"1.0|2"
+		cval:"2380"
+		cpen:"11400"
+		prob:0.0705
+	}
+	def cargo15:/cargo {
+		name:"@@jlt_chemicals@@"
+		icon:"shaders/ui/ingame/i_chemicals.shd"
+		hcrt:"true"
+		frag:"0.47"
+		load00:"1.0|13"
+		cval:"2632"
+		cpen:"14700"
+		prob:0.0600
+	}
+	def cargo16:/cargo {
+		name:"@@jlt_medicals@@"
+		icon:"shaders/ui/ingame/i_medicals.shd"
+		hcrt:"true"
+		frag:"0.35"
+		load00:"1.0|15"
+		cval:"2002"
+		cpen:"15600"
+		prob:0.0500
+	}
+	def cargo17:/cargo {
+		name:"@@jlt_dynamite@@"
+		icon:"shaders/ui/ingame/i_dynamite.shd"
+		hcrt:"true"
+		frag:"0.48"
+		load00:"1.0|6"
+		cval:"4354"
+		cpen:"8400"
+		prob:0.0180
+	}
+	def cargo18:/cargo {
+		name:"@@jlt_cars@@"
+		icon:"shaders/ui/ingame/i_cars.shd"
+		hcrt:"false"
+		frag:"0.32"
+		load00:"1.0|9"
+		wght:"3000"
+		cval:"1960"
+		cpen:"18000"
+		prob:0.0700
+	}
+	def cargo19:/cargo {
+		name:"@@jlt_wood@@"
+		icon:"shaders/ui/ingame/i_wood.shd"
+		hcrt:"false"
+		frag:"0.02"
+		load00:"1.0|8"
+		cval:"1176"
+		wght:"2000"
+		cpen:"4500"
+		prob:0.0500
+	}
+	def cargo20:/cargo {
+		name:"@@jlt_machinery@@"
+		icon:"shaders/ui/ingame/i_machinery.shd"
+		hcrt:"true"
+		frag:"0.26"
+		load00:"1.0|12"
+		wght:"5000"
+		cval:"6370"
+		cpen:"42000"
+		prob:0.0030
+	}
+}
+
+def companies {
+	def company00:/company {
+		name:"Not Set !!"
+	}
+	def company01:/company {
+		name:"Capone International" # Capone International
+		icon:"shaders/companies/capone_ui.shd"
+	}
+	def company02:/company {
+		name:"East-West Co." # East-West Co.
+		icon:"shaders/companies/east_ui.shd"
+	}
+	def company03:/company {
+		name:"Gonzales & Son" # Gonzales & Son
+		icon:"shaders/companies/gonza_ui.shd"
+	}
+	def company04:/company {
+		name:"INTERCITY Group" # INTERCITY Group
+		icon:"shaders/companies/inter_ui.shd"
+	}
+	def company05:/company {
+		name:"Kono-Cola" # Kono-Cola
+		icon:"shaders/companies/kono_ui.shd"
+	}
+	def company06:/company {
+		name:"MACRO Mart" # MACRO Mart
+		icon:"shaders/companies/macromart_ui.shd"
+	}
+	def company07:/company {
+		name:"J. J. Marula" # J. J. Marula
+		icon:"shaders/companies/marula_ui.shd"
+	}
+	def company08:/company {
+		name:"ML & Associates, Inc." # ML & Associates, Inc.
+		icon:"shaders/companies/ml_ui.shd"
+	}
+	def company09:/company {
+		name:"PAC GreenS" # PAC GreenS
+		icon:"shaders/companies/pacgreens_ui.shd"
+	}
+	def company10:/company {
+		name:"Roznicek Industries" # Roznicek Industries
+		icon:"shaders/companies/roznicek_ui.shd"
+	}
+	def company11:/company {
+		name:"Scart ONE" # Scart ONE
+		icon:"shaders/companies/scartone_ui.shd"
+	}
+}

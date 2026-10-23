@@ -1,0 +1,52 @@
+extdefs "/defs/truck_base.def"
+
+def truck8:truck_base {
+	price:100000
+	#dashboard
+	dashboard:"ui/trucks/dashboard6.sc"
+	#car definitons
+	tmodel:"models/f1/f1.psm"
+	tshaders:"models/f1/main1.shd:models/f1/main1.shd:models/f1/main2.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main0.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd:models/f1/main1.shd"
+	tshaders_nolight:"models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main2nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main0nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd:models/f1/main1nl.shd"
+	tinside:"models/f1/interiorf1.psm"
+	tinside_shd:"models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd:models/f1/truck8.shd"
+	cabin_sc:0.4
+	#kg
+	#tweight:300
+	tweight:300
+	#m
+	theight:2.52
+	
+	#wheel defintions
+	wfmodel:"models/f1/wheelf.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/f1/wheelr.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wdmodel:"models/f1/wheelf.psm"
+	wrcount:2
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:70
+
+	gear_count:6
+	torque_coef:3.2
+	gearR:2.5
+	gear1:2.0
+	gear2:1.4
+	gear3:0.7
+	gear4:0.42
+	gear5:0.3
+	gear6:0.2
+
+	wsize:8.2
+	horn_snd:"sounds/truck/ti_horn03.ogg"
+
+	brake:40000
+}
+

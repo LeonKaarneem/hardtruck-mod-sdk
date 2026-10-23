@@ -1,0 +1,12 @@
+def driver {
+	name:"Idaho Bob"		# driver's name
+	reputation:"0.5"		# driver's reputation
+	delay_prob:"0.0005"		# delayed once in 10 min (~6 game hours)
+	delay_amount:"300"		# max 5 min delay (~3 gamne hours) 
+	damage_prob:"0.0167"		# damaged once in 1 min (~0.5 game hours)
+	damage_amount:"0.01"		# max 1 % damage
+	tbreak_prob:"2.778-e04"		# truck broken once in 60 min (~36 game hours)
+	tbreak_amount:"600"		# max 10 min delay (~12 game hours)
+	req_share:"0.075"			# requres 10% share
+	req_salary:"300"		# requires 400$ base salary
+}

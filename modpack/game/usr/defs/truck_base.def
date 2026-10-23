@@ -1,0 +1,76 @@
+def truck_base {
+	#truck definitons
+	price:1000
+	tmodel:""
+	tshaders:""
+	tinside:""
+	tinside_shd:""
+	dashboard:"ui/trucks/dashboard1.sc"
+	cabin_sc:0.4
+	#kg
+	tweight:4000
+	#m
+	theight:2
+	
+	#wheel defintions
+	wfmodel:""
+	wfshaders:""
+	wfcount:2
+	wrmodel:""
+	wrshaders:""
+	wrcount:2
+	wsize:12
+	wcam_off:-25
+	wbcam_off:-25
+	wdmodel:"models/wheel_f/wheel_f_d.psm"
+
+	#truck behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:40
+	#km/h
+	max_speed:110
+	#l/100 km
+	f_cons:125
+	#l
+	f_tank:1140
+
+	gear_count:8
+	gearR:4.22
+	gear1:4.22
+	gear2:2.47
+	gear3:1.65
+	gear4:1.22
+	gear5:1.0
+	gear6:0.85
+	gear7:0.76
+	gear8:0.7
+	gear9:0.68
+	gear10:0.66
+
+	torque_coef:0.9
+	thorse_power:666
+	tmax_speed:60
+
+	brake:160000
+	cdrag:0.4
+	crr:30
+
+	g_up:2658
+	g_down:1300
+
+	horn_snd:""
+	tname:"Truck"
+	wiper_max:98.0
+	gr_x_size_l:11
+	gr_y_size_l:11
+	gr_x_coef_l:0.5
+	gr_y_coef_l:0.15
+	gr_x_size_r:11
+	gr_y_size_r:11
+	gr_x_coef_r:0.5
+	gr_y_coef_r:0.15
+	gr_count:390
+}
+

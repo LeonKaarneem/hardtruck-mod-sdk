@@ -1,0 +1,59 @@
+extdefs "/defs/truck_base.def"
+
+def truck7:truck_base {
+	price:300000
+	#dashboard
+	dashboard:"ui/trucks/dashboard6.sc"
+	#car definitons
+	tmodel:"models/truck7/truck.psm"
+	tshaders:"models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main2.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main0.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main1.shd:models/truck7/main1.shd"
+	tshaders_nolight:"models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main2nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main0nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd:models/truck7/main1nl.shd"
+	tinside:"models/interior7/interior.psm"
+	tinside_shd:"models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main1.shd:models/interior7/rpm.shd:models/interior7/mph.shd:models/interior7/main2.shd:models/interior7/main0.shd:models/interior7/main0.shd:models/interior7/main0.shd"
+	cabin_sc:0.4
+	#kg
+	#tweight:4000
+	tweight:3500
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:4
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:45
+	
+	gear_count:10
+	torque_coef:1.6
+	gearR:5.42
+	gear1:8.0
+	gear2:4.5
+	gear3:2.6
+	gear4:2.0
+	gear5:1.7
+	gear6:1.4
+	gear7:1.2
+	gear8:1.0
+	gear9:0.85
+	gear10:0.80
+
+	brake:250000
+	tmax_speed:139
+	thorse_power:730
+	horn_snd:"sounds/truck/ti_horn03.ogg"
+	tname:"Glutton"
+	wiper_max:110.0
+	gr_y_coef:0.1
+	gr_y_coef:0.1
+}
+

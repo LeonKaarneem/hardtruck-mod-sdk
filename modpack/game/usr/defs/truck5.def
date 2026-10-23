@@ -1,0 +1,66 @@
+extdefs "/defs/truck_base.def"
+
+def truck5:truck_base {
+	price:172000
+	#dashboard
+	dashboard:"ui/trucks/dashboard5.sc"
+	#car definitons
+	tmodel:"models/truck5/truck.psm"
+	tshaders:"models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main2.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main1.shd:models/truck5/main0.shd"
+	tshaders_nolight:"models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main2nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main1nl.shd:models/truck5/main0nl.shd"
+	tinside:"models/interior5/interior.psm"
+	tinside_shd:"models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main2.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main0.shd:models/interior5/main1.shd:models/interior5/rpm.shd:models/interior5/mph.shd:models/interior5/main0.shd:models/interior5/main0.shd"
+	cabin_sc:0.4
+	#kg
+	#tweight:3000
+	tweight:3500
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:4
+	wbcam_off:-10
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:65
+	gear_count:10
+	torque_coef:1.5
+	gearR:5.42
+	gear1:13.0
+	gear2:7.5
+	gear3:3.5
+	gear4:2.25
+	gear5:2.0
+	gear6:1.7
+	gear7:1.4
+	gear8:1.25
+	gear9:1.1
+	gear10:1.0
+
+	brake:200000
+	tmax_speed:111
+	thorse_power:550
+	horn_snd:"sounds/truck/ti_horn03.ogg"
+	tname:"Roadmaster"
+	wiper_max:-116.0
+	gr_x_size_l:-13.5
+	gr_y_size_l:-12.5
+	gr_x_coef_l:0.4
+	gr_y_coef_l:0.1
+	gr_x_size_r:9.8
+	gr_y_size_r:-12.5
+	gr_x_coef_r:0.9
+	gr_y_coef_r:0.1
+}
+
+                

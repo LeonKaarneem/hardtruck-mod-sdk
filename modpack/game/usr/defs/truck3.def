@@ -1,0 +1,65 @@
+extdefs "/defs/truck_base.def"
+
+def truck3:truck_base {
+	price:82000
+	#dashboard
+	dashboard:"ui/trucks/dashboard3.sc"
+	#car definitons
+	tmodel:"models/truck3/truck.psm"
+	tshaders:"models/truck3/main2.shd:models/truck3/main2.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main1.shd:models/truck3/main0.shd"
+	tshaders_nolight:"models/truck3/main2nl.shd:models/truck3/main2nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main1nl.shd:models/truck3/main0nl.shd"
+	tinside:"models/interior3/interior.psm"
+	tinside_shd:"models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main2.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main0.shd:models/interior3/main1.shd:models/interior3/rpm.shd:models/interior3/mph.shd:models/interior3/main0.shd:models/interior3/main0.shd"
+	cabin_sc:0.5
+	#kg
+	#tweight:3000
+	tweight:2300
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:4
+	wbcam_off:10
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:45
+
+	tmax_speed:97
+
+	gear_count:8
+	gearR:6.42
+	gear1:6.42
+	gear2:3.67
+	gear3:2.9
+	gear4:2.0
+	gear5:1.65
+	gear6:1.35is_out = (drop_field[ii].pos[1] > y_size) || (drop_field[ii].pos[1] < y_offs);
+	gear7:1.2
+	gear8:1.15
+
+
+	torque_coef:0.8
+	thorse_power:375
+	horn_snd:"sounds/truck/ti_horn01.ogg"
+	tname:"T1000"
+	wiper_max:-110.0
+	gr_x_size_l:-17
+	gr_y_size_l:15.5
+	gr_x_coef_l:0.4
+	gr_y_coef_l:0.05
+	gr_x_size_r:17
+	gr_y_size_r:15.5
+	gr_x_coef_r:0.4
+	gr_y_coef_r:0.05
+}
+

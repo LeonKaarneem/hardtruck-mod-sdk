@@ -1,0 +1,64 @@
+extdefs "/defs/truck_base.def"
+
+def truck4:truck_base {
+	price:125000
+	#dashboard
+	dashboard:"ui/trucks/dashboard4.sc"
+	#car definitons
+	tmodel:"models/truck4/truck.psm"
+	tshaders:"models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main2.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main1.shd:models/truck4/main0.shd"
+	tshaders_nolight:"models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main2nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main1nl.shd:models/truck4/main0nl.shd"
+	tinside:"models/interior4/interior.psm"
+	tinside_shd:"models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main2.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main0.shd:models/interior4/main1.shd:models/interior4/rpm.shd:models/interior4/mph.shd:models/interior4/main0.shd:models/interior4/main0.shd"
+	cabin_sc:0.4
+	#kg
+	#tweight:3000
+	tweight:2500
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:4
+	wbcam_off:-20
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:45
+
+	gear_count:8
+	gearR:5.42
+	gear1:6.42
+	gear2:3.07
+	gear3:2.3
+	gear4:1.86
+	gear5:1.55
+	gear6:1.30
+	gear7:1.1
+	gear8:0.96
+
+	tmax_speed:116
+
+	torque_coef:1.2
+	thorse_power:425
+	horn_snd:"sounds/truck/ti_horn01.ogg"
+	tname:"Brava"
+	wiper_max:-98.0
+	gr_x_size_r:-14
+	gr_y_size_r:12
+	gr_x_coef_r:0.5
+	gr_y_coef_r:0.07
+	gr_x_size_l:14
+	gr_y_size_l:12
+	gr_x_coef_l:0.4
+	gr_y_coef_l:0.07
+}
+

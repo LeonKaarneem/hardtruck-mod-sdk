@@ -1,0 +1,70 @@
+extdefs "/defs/truck_base.def"
+
+def truck2:truck_base {
+	price:40000
+	#dashboard
+	dashboard:"ui/trucks/dashboard2.sc"
+	#car definitons
+	tmodel:"models/truck2/truck.psm"
+	tshaders:"models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main2.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main1.shd:models/truck2/main0.shd"
+	tshaders_nolight:"models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main2nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main1nl.shd:models/truck2/main0nl.shd"
+	tinside:"models/interior2/interior.psm"
+	tinside_shd:"models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main0.shd:models/interior2/main2.shd:models/interior2/main1.shd:models/interior2/rpm.shd:models/interior2/mph.shd:models/interior2/main0.shd:models/interior2/main0.shd"
+	cabin_sc:0.6
+	#kg
+	#tweight:2800
+	tweight:500
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:2
+	wbcam_off:-1
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:45
+
+	tmax_speed:69
+
+	gear_count:6
+	gearR:9.42
+	gear1:9.42
+	gear2:4.67
+	gear3:3.05
+	gear4:2.2
+	gear5:1.7
+	gear6:1.6
+
+
+	torque_coef:0.45
+	tname:"Topolino"
+	brake:88888
+	gr_x_size_l:11
+	gr_y_size_l:10
+	gr_x_coef_l:0.5
+	gr_y_coef_l:0.2
+	gr_x_size_r:11
+	gr_y_size_r:10
+	gr_x_coef_r:0.5
+	gr_y_coef_r:0.2
+	thorse_power:200
+	horn_snd:"sounds/truck/ti_horn02.ogg"
+	wiper_max:160.0
+	gr_x_size_l:11
+	gr_y_size_l:11
+	gr_x_coef_l:0.9
+	gr_x_size_r:12
+	gr_y_size_r:11
+	gr_x_coef_r:0.3
+}
+

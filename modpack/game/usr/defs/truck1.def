@@ -1,0 +1,54 @@
+extdefs "/defs/truck_base.def"
+
+def truck1:truck_base {
+	price:20000
+	#dashboard
+	dashboard:"ui/trucks/dashboard1.sc"
+	#car definitons
+	tmodel:"models/truck1/truck.psm"
+	tshaders:"models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main2.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main1.shd:models/truck1/main0.shd"
+	tshaders_nolight:"models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main2nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main1nl.shd:models/truck1/main0nl.shd"
+	tinside:"models/interior1/interior.psm"
+	tinside_shd:"models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main0.shd:models/interior1/main1.shd:models/interior1/main0.shd:models/interior1/main2.shd:models/interior1/main0.shd:models/interior1/rpm.shd:models/interior1/mph.shd:models/interior1/main0.shd:models/interior1/main0.shd"
+	cabin_sc:0.4
+	#kg
+	tweight:2000
+	#m
+	theight:3
+	
+	#wheel defintions
+	wfmodel:"models/wheel_f/wheel_f.psm"
+	wfshaders:"models/wheel_f/wheel_f.shd"
+	wfshaders_nolight:"models/wheel_f/wheel_fnl.shd"
+	wfcount:2
+	wrmodel:"models/wheel_r/wheel_r.psm"
+	wrshaders:"models/wheel_r/wheel_r.shd"
+	wrshaders_nolight:"models/wheel_r/wheel_rnl.shd"
+	wrcount:4
+	wcam_off:-40
+	wbcam_off:-20
+
+	#car behavior
+	#degs/s
+	steer_speed:40
+	#degs
+	steer_max:45
+
+	tmax_speed:65
+
+	gear_count:6
+	gearR:12.42
+	gear1:12.42
+	gear2:7.67
+	gear3:3.85
+	gear4:2.32
+	gear5:2.0
+	gear6:1.8
+
+	torque_coef:0.5
+	thorse_power:250
+	tname:"Rusty"
+	horn_snd:"sounds/truck/ti_horn02.ogg"
+	wiper_max:110
+}
+
