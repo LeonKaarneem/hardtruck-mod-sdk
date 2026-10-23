@@ -3,3 +3,5 @@ data/
 wineprefix/
 test-*/
 *.log
+/*.png
+/*.out
