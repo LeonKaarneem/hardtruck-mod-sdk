@@ -92,6 +92,12 @@ def require_fields(value, fields, context):
             raise ManifestError(f"{context} missing required field '{field}'")
 
 
+def reject_unknown_keys(value, allowed, context):
+    unknown = set(value) - set(allowed)
+    if unknown:
+        raise ManifestError(f"{context} contains unknown key '{sorted(unknown)[0]}'")
+
+
 def string_list(value, field, context):
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ManifestError(f"{context} field '{field}' must be a list of strings")
@@ -101,7 +107,7 @@ def string_list(value, field, context):
 
 
 def safe_path(value, field, context):
-    if not isinstance(value, str) or not value or "\\" in value:
+    if not isinstance(value, str) or not value or "\\" in value or "\0" in value:
         raise ManifestError(f"{context} has unsafe {field} path: {value!r}")
     path = PurePosixPath(value)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in value.split("/")):
@@ -120,6 +126,14 @@ def load_mod(root, mod_id):
     )
     if value["schema_version"] != 1 or isinstance(value["schema_version"], bool):
         raise ManifestError(f"{context} has unsupported schema_version")
+    reject_unknown_keys(
+        value,
+        (
+            "schema_version", "id", "version", "kind", "setup", "requires",
+            "conflicts", "new_profile", "files", "handler", "target", "source_sha256",
+        ),
+        context,
+    )
     if value["id"] != mod_id:
         raise ManifestError(f"{context} ID does not match directory/name '{value['id']}'")
     if not ID_PATTERN.fullmatch(mod_id):
@@ -127,12 +141,13 @@ def load_mod(root, mod_id):
     if not isinstance(value["version"], str) or not value["version"]:
         raise ManifestError(f"{context} has invalid version")
     kind = value["kind"]
-    if kind not in {"data", "binary"}:
+    if not isinstance(kind, str) or kind not in {"data", "binary"}:
         raise ManifestError(f"{context} has unknown kind '{kind}'")
     setup = value["setup"]
     if not isinstance(setup, dict):
         raise ManifestError(f"{context} setup must be an object")
     require_fields(setup, ("label", "description", "default"), f"{context} setup")
+    reject_unknown_keys(setup, ("label", "description", "default"), f"{context} setup")
     if not all(isinstance(setup[field], str) and setup[field] for field in ("label", "description")):
         raise ManifestError(f"{context} setup label/description must be nonempty strings")
     if not isinstance(setup["default"], bool) or not isinstance(value["new_profile"], bool):
@@ -153,6 +168,7 @@ def load_mod(root, mod_id):
             if not isinstance(record, dict):
                 raise ManifestError(f"{record_context} must be an object")
             require_fields(record, ("source", "destination"), record_context)
+            reject_unknown_keys(record, ("source", "destination", "transforms"), record_context)
             source = safe_path(record["source"], "source", record_context)
             destination = safe_path(record["destination"], "destination", record_context)
             if destination.parts[:2] != ("game", "usr") or len(destination.parts) < 3:
@@ -170,7 +186,7 @@ def load_mod(root, mod_id):
     else:
         require_fields(value, ("handler", "target", "source_sha256"), context)
         handler = value["handler"]
-        if handler not in BINARY_HANDLERS:
+        if not isinstance(handler, str) or handler not in BINARY_HANDLERS:
             raise ManifestError(f"{context} has unknown handler '{handler}'")
         target = safe_path(value["target"], "target", context).as_posix()
         source_sha256 = value["source_sha256"]
@@ -191,24 +207,35 @@ def load_mod(root, mod_id):
         source_sha256,
         root / "mods" / mod_id,
     )
-    files_root = (mod.directory / "files").resolve()
+    try:
+        registry_root = (root / "mods").resolve()
+        mod_root = mod.directory.resolve()
+        files_root = (mod.directory / "files").resolve()
+    except (OSError, ValueError) as error:
+        raise ManifestError(f"{context} cannot resolve mod/files root: {error}") from error
+    if not mod_root.is_relative_to(registry_root) or not files_root.is_relative_to(mod_root):
+        raise ManifestError(f"{context} files root escapes resolved mod/registry root")
     for record in mod.files:
         source = mod.source_path(record)
         try:
             if not source.resolve().is_relative_to(files_root) or not source.is_file():
                 raise ManifestError(f"{context} source file not found or unsafe: {record.source}")
-        except OSError as error:
+        except (OSError, ValueError) as error:
             raise ManifestError(f"{context} cannot access source '{record.source}': {error}") from error
     return mod
 
 
 def load_release(root):
-    root = Path(root).resolve()
-    modpack = root if (root / "release.json").is_file() else root / "modpack"
+    try:
+        root = Path(root).resolve()
+        modpack = root if (root / "release.json").is_file() else root / "modpack"
+    except (OSError, TypeError, ValueError) as error:
+        raise ManifestError(f"invalid release root path: {error}") from error
     value = read_json(modpack / "release.json")
     require_fields(value, ("schema_version", "mods", "game_variants"), "release")
     if value["schema_version"] != 1 or isinstance(value["schema_version"], bool):
         raise ManifestError("release has unsupported schema_version")
+    reject_unknown_keys(value, ("schema_version", "mods", "game_variants"), "release")
     mod_ids = string_list(value["mods"], "mods", "release")
     for mod_id in mod_ids:
         if not ID_PATTERN.fullmatch(mod_id):
@@ -229,12 +256,13 @@ def load_release(root):
     for mod_id in mod_ids:
         mod = load_mod(modpack, mod_id)
         for record in mod.files:
-            if record.destination in destinations:
+            destination_key = record.destination.casefold()
+            if destination_key in destinations:
                 raise ManifestError(
                     f"destination '{record.destination}' already owned by "
-                    f"'{destinations[record.destination]}'"
+                    f"'{destinations[destination_key]}'"
                 )
-            destinations[record.destination] = mod_id
+            destinations[destination_key] = mod_id
         mods[mod_id] = mod
     for mod in mods.values():
         for field, references in (("requires", mod.requires), ("conflicts", mod.conflicts)):
@@ -249,6 +277,7 @@ def load_release(root):
         if not VARIANT_PATTERN.fullmatch(name) or not isinstance(record, dict):
             raise ManifestError(f"release has invalid game variant '{name}'")
         require_fields(record, ("file", "components"), f"game variant '{name}'")
+        reject_unknown_keys(record, ("file", "components"), f"game variant '{name}'")
         if record["file"] != f"game-{name}.dll":
             raise ManifestError(f"game variant '{name}' has noncanonical file")
         components = string_list(record["components"], "components", f"game variant '{name}'")

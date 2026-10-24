@@ -65,6 +65,8 @@ class ReleaseFactory:
             for record in manifest.get("files", []):
                 files_root = directory / "files"
                 source = files_root / record["source"]
+                if "\0" in record["source"]:
+                    continue
                 if not source.resolve().is_relative_to(files_root.resolve()):
                     continue
                 source.parent.mkdir(parents=True, exist_ok=True)
@@ -223,6 +225,91 @@ class ManifestTests(unittest.TestCase):
                 }
                 self.assert_invalid(factory.write(release=release), "variant")
 
+    def test_rejects_files_root_symlink_escaping_mod_registry(self):
+        factory = self.factory()
+        root = factory.write()
+        files_root = factory.modpack / "mods/alpha/files"
+        escaped = Path(factory.temporary.name) / "escaped-files"
+        files_root.rename(escaped)
+        files_root.symlink_to(escaped, target_is_directory=True)
+        self.assert_invalid(root, "files root")
+
+    def test_rejects_case_insensitive_destination_collisions(self):
+        for scope in ("same_mod", "cross_mod"):
+            with self.subTest(scope=scope):
+                factory = self.factory()
+                alpha = copy.deepcopy(VALID_MOD)
+                collision = {
+                    "source": "other.cfg",
+                    "destination": "game/usr/CONFIG.CFG",
+                }
+                mods = {"alpha": alpha}
+                mod_ids = ["alpha"]
+                if scope == "same_mod":
+                    alpha["files"].append(collision)
+                else:
+                    beta = copy.deepcopy(VALID_MOD)
+                    beta["id"] = "beta"
+                    beta["files"] = [collision]
+                    mods["beta"] = beta
+                    mod_ids.append("beta")
+                release = {
+                    "schema_version": 1,
+                    "mods": mod_ids,
+                    "game_variants": {},
+                }
+                self.assert_invalid(factory.write(release, mods), "destination.*already owned")
+
+    def test_rejects_unknown_keys_in_every_schema_record(self):
+        for location in ("release", "mod", "setup", "file", "variant"):
+            with self.subTest(location=location):
+                factory = self.factory()
+                release = {
+                    "schema_version": 1,
+                    "mods": ["alpha"],
+                    "game_variants": {
+                        "000": {"file": "game-000.dll", "components": []}
+                    },
+                }
+                mod = copy.deepcopy(VALID_MOD)
+                if location == "release":
+                    release["unexpected"] = True
+                elif location == "mod":
+                    mod["unexpected"] = True
+                elif location == "setup":
+                    mod["setup"]["unexpected"] = True
+                elif location == "file":
+                    mod["files"][0]["transform"] = mod["files"][0].pop("transforms")
+                else:
+                    release["game_variants"]["000"]["unexpected"] = True
+                self.assert_invalid(factory.write(release, {"alpha": mod}), "unknown key")
+
+    def test_malformed_registry_types_raise_manifest_error(self):
+        for field in ("kind", "handler"):
+            with self.subTest(field=field):
+                factory = self.factory()
+                mod = copy.deepcopy(VALID_MOD)
+                if field == "handler":
+                    mod.pop("files")
+                    mod.update({
+                        "kind": "binary",
+                        "target": "game/sys/game.dll",
+                        "source_sha256": "0" * 64,
+                    })
+                mod[field] = []
+                self.assert_invalid(factory.write(mods={"alpha": mod}), field)
+
+    def test_nul_paths_raise_manifest_error(self):
+        for field in ("source", "destination"):
+            with self.subTest(field=field):
+                factory = self.factory()
+                mod = copy.deepcopy(VALID_MOD)
+                mod["files"][0][field] = "bad\0path"
+                self.assert_invalid(factory.write(mods={"alpha": mod}), "path")
+        factory = self.factory()
+        with self.assertRaises(ManifestError):
+            load_release(str(factory.root) + "\0")
+
     def test_selection_validates_dependencies_conflicts_and_unknown_ids(self):
         factory = self.factory()
         alpha = copy.deepcopy(VALID_MOD)
@@ -288,6 +375,16 @@ class CliTests(unittest.TestCase):
         result = self.run_cli("--root", str(root), "validate")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("kind", result.stderr)
+
+    def test_validate_malformed_types_do_not_print_tracebacks(self):
+        factory = ReleaseFactory(self)
+        mod = copy.deepcopy(VALID_MOD)
+        mod["kind"] = []
+        root = factory.write(mods={"alpha": mod})
+        result = self.run_cli("--root", str(root), "validate")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("kind", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":
