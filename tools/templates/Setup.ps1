@@ -181,13 +181,13 @@ function Get-SteamInstallPaths {
 
 function Get-SteamLibraryPaths {
     foreach ($steamPath in @(Get-SteamInstallPaths)) {
-        $steamPath
-        $vdfPath = Join-Path $steamPath "config/libraryfolders.vdf"
         try {
+            $steamPath
+            $vdfPath = Join-Path $steamPath "config/libraryfolders.vdf"
             if (-not (Test-Path -LiteralPath $vdfPath -PathType Leaf)) {
                 continue
             }
-            $vdf = Get-Content -LiteralPath $vdfPath -Raw
+            $vdf = Get-Content -LiteralPath $vdfPath -Raw -Encoding UTF8
             $matches = [regex]::Matches($vdf, '"path"\s*"((?:\\.|[^"\\])*)"', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
             foreach ($match in $matches) {
                 $libraryPath = $match.Groups[1].Value.Replace('\\', '\').Replace('\"', '"')
@@ -213,17 +213,29 @@ function Get-ProgramRoots {
         return
     }
     try {
-        foreach ($drive in [System.IO.DriveInfo]::GetDrives()) {
-            if ($drive.DriveType -ne [System.IO.DriveType]::Fixed -or -not $drive.IsReady) {
-                continue
-            }
-            foreach ($relative in @("Program Files", "Program Files (x86)", "GOG Games", "Games")) {
-                Join-Path $drive.RootDirectory.FullName $relative
-            }
-        }
+        $drives = [System.IO.DriveInfo]::GetDrives()
     }
     catch {
         return
+    }
+    foreach ($drive in $drives) {
+        try {
+            if ($drive.DriveType -ne [System.IO.DriveType]::Fixed -or -not $drive.IsReady) {
+                continue
+            }
+            $driveRoot = $drive.RootDirectory.FullName
+        }
+        catch {
+            continue
+        }
+        foreach ($relative in @("Program Files", "Program Files (x86)", "GOG Games", "Games")) {
+            try {
+                Join-Path $driveRoot $relative
+            }
+            catch {
+                continue
+            }
+        }
     }
 }
 
@@ -258,13 +270,29 @@ function Get-GamePathCandidates {
         "18 Wheels of Steel - Hard Truck"
     )
     foreach ($library in @(Get-SteamLibraryPaths)) {
+        try {
+            $common = Join-Path $library "steamapps/common"
+        }
+        catch {
+            continue
+        }
         foreach ($name in $folderNames) {
-            Join-Path (Join-Path $library "steamapps/common") $name
+            try {
+                Join-Path $common $name
+            }
+            catch {
+                continue
+            }
         }
     }
     foreach ($root in @(Get-ProgramRoots)) {
         foreach ($name in $folderNames) {
-            Join-Path $root $name
+            try {
+                Join-Path $root $name
+            }
+            catch {
+                continue
+            }
         }
     }
     Get-PreviousManifestPaths
@@ -325,8 +353,8 @@ function Get-GamePath {
                 if ($choice -match "^(m|manual)$") {
                     break
                 }
-                if ($choice -match "^\d+$") {
-                    $number = [int]$choice
+                $number = 0
+                if ($choice -match "^\d+$" -and [int]::TryParse($choice, [ref]$number)) {
                     if ($number -ge 1 -and $number -le $candidates.Count) {
                         $RequestedPath = $candidates[$number - 1]
                         break
