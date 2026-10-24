@@ -90,7 +90,10 @@ Honest status - the deep RE found three mechanisms; one fixed, two documented:
 
 1. Extract `HardTruckModern-v3.zip` completely.
 2. Close the game and run `Setup.bat` in the extracted folder.
-3. Choose **Install all** and enter the game folder containing `prism3d.exe`.
+3. Choose **Install all**. Setup checks Steam libraries, common Program Files/GOG
+   locations, and previous installations automatically. Confirm the detected folder,
+   choose from the numbered list, or enter the folder containing `prism3d.exe`
+   manually if no installation is found.
 4. Start a **new profile**. Install all changes definitions, so existing saves are
    incompatible even though the installer preserves the save files.
 

@@ -135,6 +135,161 @@ function Get-Selection {
     return $selection
 }
 
+function Get-SteamInstallPaths {
+    $injected = [Environment]::GetEnvironmentVariable("HARDTRUCK_DISCOVERY_REGISTRY_JSON")
+    if ($null -ne $injected) {
+        try {
+            $values = $injected | ConvertFrom-Json
+            foreach ($property in $values.PSObject.Properties) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+                    [string]$property.Value
+                }
+            }
+        }
+        catch {
+            return
+        }
+        return
+    }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        return
+    }
+    foreach ($view in @("Registry64", "Registry32")) {
+        $baseKey = $null
+        $steamKey = $null
+        try {
+            $registryView = [Microsoft.Win32.RegistryView]::$view
+            $baseKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+                [Microsoft.Win32.RegistryHive]::LocalMachine, $registryView)
+            $steamKey = $baseKey.OpenSubKey("SOFTWARE\Valve\Steam")
+            if ($null -ne $steamKey) {
+                $installPath = $steamKey.GetValue("InstallPath")
+                if (-not [string]::IsNullOrWhiteSpace([string]$installPath)) {
+                    [string]$installPath
+                }
+            }
+        }
+        catch {
+            continue
+        }
+        finally {
+            if ($null -ne $steamKey) { $steamKey.Dispose() }
+            if ($null -ne $baseKey) { $baseKey.Dispose() }
+        }
+    }
+}
+
+function Get-SteamLibraryPaths {
+    foreach ($steamPath in @(Get-SteamInstallPaths)) {
+        $steamPath
+        $vdfPath = Join-Path $steamPath "config/libraryfolders.vdf"
+        try {
+            if (-not (Test-Path -LiteralPath $vdfPath -PathType Leaf)) {
+                continue
+            }
+            $vdf = Get-Content -LiteralPath $vdfPath -Raw
+            $matches = [regex]::Matches($vdf, '"path"\s*"((?:\\.|[^"\\])*)"', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            foreach ($match in $matches) {
+                $libraryPath = $match.Groups[1].Value.Replace('\\', '\').Replace('\"', '"')
+                if (-not [string]::IsNullOrWhiteSpace($libraryPath)) {
+                    $libraryPath
+                }
+            }
+        }
+        catch {
+            continue
+        }
+    }
+}
+
+function Get-ProgramRoots {
+    $injected = [Environment]::GetEnvironmentVariable("HARDTRUCK_DISCOVERY_PROGRAM_ROOTS")
+    if ($null -ne $injected) {
+        foreach ($root in ($injected -split "\r?\n")) {
+            if (-not [string]::IsNullOrWhiteSpace($root)) {
+                $root.Trim()
+            }
+        }
+        return
+    }
+    try {
+        foreach ($drive in [System.IO.DriveInfo]::GetDrives()) {
+            if ($drive.DriveType -ne [System.IO.DriveType]::Fixed -or -not $drive.IsReady) {
+                continue
+            }
+            foreach ($relative in @("Program Files", "Program Files (x86)", "GOG Games", "Games")) {
+                Join-Path $drive.RootDirectory.FullName $relative
+            }
+        }
+    }
+    catch {
+        return
+    }
+}
+
+function Get-PreviousManifestPaths {
+    try {
+        if (-not (Test-Path -LiteralPath $script:BackupRoot -PathType Container)) {
+            return
+        }
+        $files = Get-ChildItem -LiteralPath $script:BackupRoot -Filter installation.json -Recurse -File
+        foreach ($file in $files) {
+            try {
+                $installation = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+                if (-not [string]::IsNullOrWhiteSpace([string]$installation.game_path)) {
+                    [string]$installation.game_path
+                }
+            }
+            catch {
+                continue
+            }
+        }
+    }
+    catch {
+        return
+    }
+}
+
+function Get-GamePathCandidates {
+    $folderNames = @(
+        "18 Wheels of Steel Hard Truck",
+        "Hard Truck 18 Wheels of Steel",
+        "Hard Truck",
+        "18 Wheels of Steel - Hard Truck"
+    )
+    foreach ($library in @(Get-SteamLibraryPaths)) {
+        foreach ($name in $folderNames) {
+            Join-Path (Join-Path $library "steamapps/common") $name
+        }
+    }
+    foreach ($root in @(Get-ProgramRoots)) {
+        foreach ($name in $folderNames) {
+            Join-Path $root $name
+        }
+    }
+    Get-PreviousManifestPaths
+}
+
+function Get-ValidGameCandidates {
+    $seen = @{}
+    foreach ($candidate in @(Get-GamePathCandidates)) {
+        if ([string]::IsNullOrWhiteSpace([string]$candidate)) {
+            continue
+        }
+        try {
+            $resolved = Get-GamePath -RequestedPath ([string]$candidate) -NonInteractive
+            $key = $resolved.ToLowerInvariant()
+            if (-not $seen.ContainsKey($key)) {
+                $seen[$key] = $true
+                $resolved
+            }
+        }
+        catch {
+            continue
+        }
+    }
+}
+
 function Get-GamePath {
     param(
         [string]$RequestedPath,
@@ -144,9 +299,47 @@ function Get-GamePath {
         if ($NonInteractive) {
             throw "Noninteractive setup requires a game folder."
         }
-        $RequestedPath = Read-Host "Hard Truck game folder"
-        if ($null -eq $RequestedPath) {
-            throw "Input ended; setup cancelled."
+        $candidates = @(Get-ValidGameCandidates)
+        if ($candidates.Count -eq 1) {
+            Write-Host "Detected Hard Truck installation: $($candidates[0])"
+            if (Read-YesNo "Use this folder?" -DefaultYes $true) {
+                $RequestedPath = $candidates[0]
+            }
+        }
+        elseif ($candidates.Count -gt 1) {
+            Write-Host "Detected Hard Truck installations:"
+            for ($index = 0; $index -lt $candidates.Count; $index++) {
+                Write-Host "$($index + 1). $($candidates[$index])"
+            }
+            Write-Host "M. Enter a folder manually"
+            Write-Host "C. Cancel"
+            while ([string]::IsNullOrWhiteSpace($RequestedPath)) {
+                $choice = Read-Host "Select an installation"
+                if ($null -eq $choice) {
+                    throw "Input ended; setup cancelled."
+                }
+                $choice = $choice.Trim()
+                if ($choice -match "^(c|cancel)$") {
+                    throw "Setup cancelled."
+                }
+                if ($choice -match "^(m|manual)$") {
+                    break
+                }
+                if ($choice -match "^\d+$") {
+                    $number = [int]$choice
+                    if ($number -ge 1 -and $number -le $candidates.Count) {
+                        $RequestedPath = $candidates[$number - 1]
+                        break
+                    }
+                }
+                Write-Host "Select a listed number, M, or C."
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($RequestedPath)) {
+            $RequestedPath = Read-Host "Hard Truck game folder"
+            if ($null -eq $RequestedPath) {
+                throw "Input ended; setup cancelled."
+            }
         }
     }
     $RequestedPath = $RequestedPath.Trim().Trim('"')

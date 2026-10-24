@@ -1,6 +1,6 @@
 # Extract ZIP -> run Setup.bat -> Install all
 
-Close the game, run `Setup.bat`, choose **Install all**, and enter the game folder containing `prism3d.exe`. No Python installation is needed.
+Close the game, run `Setup.bat`, and choose **Install all**. Setup automatically checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm the detected folder or choose from the numbered list. If no installation is found, enter the folder containing `prism3d.exe` manually. No Python installation is needed.
 
 **Start a new profile after Install all.** Its definition changes make existing saves incompatible. Setup preserves save files but cannot make old saves load.
 
