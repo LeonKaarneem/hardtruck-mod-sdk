@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "driver_def",
+  "version": "3.0.0",
+  "kind": "data",
+  "setup": {
+    "label": "Driver definition",
+    "description": "AI driver reliability and demand rebalance; new profile required",
+    "default": true
+  },
+  "requires": [],
+  "conflicts": [],
+  "new_profile": true,
+  "files": [
+    {"source": "defs/driver_base.def", "destination": "game/usr/defs/driver_base.def"}
+  ]
+}

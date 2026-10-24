@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "config",
+  "version": "3.0.0",
+  "kind": "data",
+  "setup": {
+    "label": "Configuration",
+    "description": "Console, controls, display defaults, and main-menu mod marker",
+    "default": true
+  },
+  "requires": [],
+  "conflicts": [],
+  "new_profile": false,
+  "files": [
+    {
+      "source": "config.cfg",
+      "destination": "game/usr/config.cfg",
+      "transforms": ["strip_r_renderer"]
+    },
+    {
+      "source": "ui/mmain.sc",
+      "destination": "game/usr/ui/mmain.sc"
+    }
+  ]
+}

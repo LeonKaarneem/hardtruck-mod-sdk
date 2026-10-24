@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "handling_defs",
+  "version": "3.0.0",
+  "kind": "data",
+  "setup": {
+    "label": "Handling definitions (new profile required)",
+    "description": "Fleet steering, braking, and torque fixes",
+    "default": true
+  },
+  "requires": [],
+  "conflicts": [],
+  "new_profile": true,
+  "files": [
+    {"source": "defs/truck_base.def", "destination": "game/usr/defs/truck_base.def"},
+    {"source": "defs/truck1.def", "destination": "game/usr/defs/truck1.def"},
+    {"source": "defs/truck2.def", "destination": "game/usr/defs/truck2.def"},
+    {"source": "defs/truck3.def", "destination": "game/usr/defs/truck3.def"},
+    {"source": "defs/truck4.def", "destination": "game/usr/defs/truck4.def"},
+    {"source": "defs/truck5.def", "destination": "game/usr/defs/truck5.def"},
+    {"source": "defs/truck6.def", "destination": "game/usr/defs/truck6.def"},
+    {"source": "defs/truck7.def", "destination": "game/usr/defs/truck7.def"},
+    {"source": "defs/truck8.def", "destination": "game/usr/defs/truck8.def"}
+  ]
+}

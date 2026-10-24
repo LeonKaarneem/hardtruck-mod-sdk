@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "physics",
+  "version": "3.0.0",
+  "kind": "binary",
+  "setup": {"label": "Physics", "description": "Surface governor, stopping, and trailer-mass fixes", "default": true},
+  "requires": [],
+  "conflicts": [],
+  "new_profile": false,
+  "handler": "physics",
+  "target": "game/sys/game.dll",
+  "source_sha256": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "dx8_vsync",
+  "version": "3.0.0",
+  "kind": "binary",
+  "setup": {"label": "DX8 vsync", "description": "Native Direct3D 8 vertical sync", "default": true},
+  "requires": [],
+  "conflicts": [],
+  "new_profile": false,
+  "handler": "dx8_vsync",
+  "target": "sys/dx8.dll",
+  "source_sha256": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
+}

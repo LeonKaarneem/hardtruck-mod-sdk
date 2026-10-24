@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "release": "v3",
+  "pristine": {
+    "game_dll": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
+    "dx8_dll": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
+  },
+  "game_variants": {
+    "000": {"sha256": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3", "components": []},
+    "001": {"sha256": "30fa4d5fa1d28bb4278973eec4272d5a25886a16b020e9879a4d266ab8c7d3a2", "components": ["camera"]},
+    "010": {"sha256": "b27816cfec9d99f877db3da33081b5b059d736ba3a4aad223da9536291e6c6e9", "components": ["physics"]},
+    "011": {"sha256": "701d27b7b41b27d89e59657ec928a23fb962f0c6ffd9593a6f5358088f16ee2a", "components": ["camera", "physics"]},
+    "100": {"sha256": "b24dd16859d02ba13e022399ad3d11ac7174c734fdc0b052da854dc715c02432", "components": ["ai"]},
+    "101": {"sha256": "1d1d434f925d0cbbdfe3f63d68be5755376d6ce5a088fe1c4eef70e7c872068f", "components": ["camera", "ai"]},
+    "110": {"sha256": "a98cb455f390e426054bf092799db6185f0721e6a3781cbf3e55f472f262ab97", "components": ["physics", "ai"]},
+    "111": {"sha256": "fff9a0b9ece1110f3516f5010405b1e65f2bd11e340fc18aad60020c31877b85", "components": ["camera", "physics", "ai"]}
+  },
+  "dx8": {
+    "stock": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c",
+    "vsync": "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519"
+  },
+  "data_components": {
+    "config": ["data/config.cfg", "data/ui/mmain.sc"],
+    "handling_defs": ["data/defs/truck_base.def", "data/defs/truck1.def", "data/defs/truck2.def", "data/defs/truck3.def", "data/defs/truck4.def", "data/defs/truck5.def", "data/defs/truck6.def", "data/defs/truck7.def", "data/defs/truck8.def"],
+    "economy_def": ["data/defs/management/base.def"],
+    "driver_def": ["data/defs/driver_base.def"]
+  },
+  "data_payloads": {
+    "data/config.cfg": "0207d57d7374b6c964881bc6099b706d63b5c737aaeccc1bd1bc9ee3fca090d0",
+    "data/defs/driver_base.def": "e611c8e8cf305f57aefd50ea536224aa68bb56a1926dbecfdb60fc6a5bded06c",
+    "data/defs/management/base.def": "17be5c71faa7920f2494bc243d61dfcb95fda8f3faa3ed6f65d6c6897ff0aa7f",
+    "data/defs/truck1.def": "66cd86ec0a88d8306aade6c129eb421f1f3a232a2bde8ad4799173f1a360e6e6",
+    "data/defs/truck2.def": "cf44c0effc27bab173e7b8190ca48b5400b94ca4fe956fd1e374bd08918042c3",
+    "data/defs/truck3.def": "fec733ac37ad85ffa314cb7a8013220988ffd0a50f439a7f541c1d71c816a956",
+    "data/defs/truck4.def": "a4a9e85b74962d62ff10fee1810466814483122b38b52e24ab5e22b9d6018c46",
+    "data/defs/truck5.def": "1929adef24d7752d21e3958194cecaac4e45707e61950219f9997d64f569c1fd",
+    "data/defs/truck6.def": "6552d6bf947c9c716d6f0de79a2c2764ba27030f7435ebf1ee71655830d12279",
+    "data/defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
+    "data/defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
+    "data/defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
+    "data/ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
+  },
+  "source_data": {
+    "config.cfg": "caf347f04196927013afaafcd4ea1fc15c5d2fe546d9a59e2e7f9bdddd142d08",
+    "defs/driver_base.def": "e611c8e8cf305f57aefd50ea536224aa68bb56a1926dbecfdb60fc6a5bded06c",
+    "defs/management/base.def": "17be5c71faa7920f2494bc243d61dfcb95fda8f3faa3ed6f65d6c6897ff0aa7f",
+    "defs/truck1.def": "66cd86ec0a88d8306aade6c129eb421f1f3a232a2bde8ad4799173f1a360e6e6",
+    "defs/truck2.def": "cf44c0effc27bab173e7b8190ca48b5400b94ca4fe956fd1e374bd08918042c3",
+    "defs/truck3.def": "fec733ac37ad85ffa314cb7a8013220988ffd0a50f439a7f541c1d71c816a956",
+    "defs/truck4.def": "a4a9e85b74962d62ff10fee1810466814483122b38b52e24ab5e22b9d6018c46",
+    "defs/truck5.def": "1929adef24d7752d21e3958194cecaac4e45707e61950219f9997d64f569c1fd",
+    "defs/truck6.def": "6552d6bf947c9c716d6f0de79a2c2764ba27030f7435ebf1ee71655830d12279",
+    "defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
+    "defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
+    "defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
+    "ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
+  },
+  "source_line_endings": "crlf",
+  "sanitized_config_line_endings": "lf",
+  "marker": {
+    "file": "data/ui/mmain.sc",
+    "block_crlf": "\tspawn txt_common {\r\n\t\tvalue:\"Hard Truck Modern v3\"\r\n\t\tlook:\"1\"\r\n\t\tcoords:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t\tarea:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t}\r\n"
+  }
+}

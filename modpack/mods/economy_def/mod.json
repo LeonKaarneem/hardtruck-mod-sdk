@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "economy_def",
+  "version": "3.0.0",
+  "kind": "data",
+  "setup": {
+    "label": "Economy definition",
+    "description": "Cargo payment and damage-penalty rebalance; new profile required",
+    "default": true
+  },
+  "requires": [],
+  "conflicts": [],
+  "new_profile": true,
+  "files": [
+    {"source": "defs/management/base.def", "destination": "game/usr/defs/management/base.def"}
+  ]
+}

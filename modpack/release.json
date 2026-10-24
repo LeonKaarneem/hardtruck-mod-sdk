@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "mods": [
+    "config",
+    "handling_defs",
+    "economy_def",
+    "driver_def",
+    "camera",
+    "physics",
+    "ai",
+    "dx8_vsync"
+  ],
+  "game_variants": {
+    "000": {"file": "game-000.dll", "components": []},
+    "001": {"file": "game-001.dll", "components": ["camera"]},
+    "010": {"file": "game-010.dll", "components": ["physics"]},
+    "011": {"file": "game-011.dll", "components": ["camera", "physics"]},
+    "100": {"file": "game-100.dll", "components": ["ai"]},
+    "101": {"file": "game-101.dll", "components": ["camera", "ai"]},
+    "110": {"file": "game-110.dll", "components": ["physics", "ai"]},
+    "111": {"file": "game-111.dll", "components": ["camera", "physics", "ai"]}
+  }
+}

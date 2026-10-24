@@ -2,7 +2,6 @@
 import argparse
 import hashlib
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -10,6 +9,11 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "sdk"))
+
+from htmod import PatchError, load_release
+from htmod.runner import materialize_data
+
 PATCHER_ROOT = PROJECT_ROOT / "modpack/patches"
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
 GAME_PATCHERS = (
@@ -20,8 +24,6 @@ GAME_PATCHERS = (
 DX8_PATCHER = PATCHER_ROOT / "patch_dx8_vsync.py"
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
-FORBIDDEN_DIRECTORIES = {"save", "saves", "music", "log", "logs", "__pycache__"}
-FORBIDDEN_EXTENSIONS = {".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"}
 
 
 class BuildError(Exception):
@@ -119,53 +121,8 @@ def build_dx8_payloads(source, payload, work):
     }
 
 
-def forbidden_data_file(relative):
-    if any(part.casefold() in FORBIDDEN_DIRECTORIES for part in relative.parts[:-1]):
-        return True
-    return relative.suffix.casefold() in FORBIDDEN_EXTENSIONS
-
-
-def copy_data(source, payload):
-    destination = payload / "data"
-    for path in sorted(source.rglob("*")):
-        if not path.is_file():
-            continue
-        relative = path.relative_to(source)
-        if forbidden_data_file(relative):
-            continue
-        target = destination / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(path, target)
-
-    config = destination / "config.cfg"
-    original = config.read_text(encoding="utf-8")
-    sanitized = re.sub(
-        r"^[ \t]*uset\s+r_renderer\s+.*(?:\r?\n|$)",
-        "",
-        original,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    config.write_text(sanitized, encoding="utf-8")
-
-    components = {
-        "config": ["data/config.cfg", "data/ui/mmain.sc"],
-        "handling_defs": ["data/defs/truck_base.def"] + [
-            f"data/defs/truck{number}.def" for number in range(1, 9)
-        ],
-        "economy_def": ["data/defs/management/base.def"],
-        "driver_def": ["data/defs/driver_base.def"],
-    }
-    mapped = {path for files in components.values() for path in files}
-    copied = {
-        path.relative_to(payload).as_posix()
-        for path in destination.rglob("*")
-        if path.is_file()
-    }
-    if mapped != copied:
-        missing = sorted(mapped - copied)
-        unmapped = sorted(copied - mapped)
-        raise BuildError(f"data component mismatch; missing={missing}, unmapped={unmapped}")
-    return components
+def copy_data(release, payload):
+    return materialize_data(release, payload)
 
 
 def default_test_base_file(relative):
@@ -191,15 +148,11 @@ def parse_args():
         type=Path,
         default=default_test_base_file(Path("sys/dx8.dll")),
     )
-    parser.add_argument(
-        "--data-source",
-        type=Path,
-        default=PROJECT_ROOT / "modpack/game/usr",
-    )
     return parser.parse_args()
 
 
 def build(args):
+    release = load_release(PROJECT_ROOT)
     if not args.game_dll.is_file():
         raise BuildError(f"pristine game DLL not found: {args.game_dll}")
     if not args.dx8_dll.is_file():
@@ -213,8 +166,6 @@ def build(args):
             raise BuildError(
                 f"{label} SHA-256 mismatch for {path}: expected {expected}, got {actual}"
             )
-    if not args.data_source.is_dir():
-        raise BuildError(f"mod data directory not found: {args.data_source}")
     for _, patcher in (*GAME_PATCHERS, ("dx8", DX8_PATCHER)):
         if not patcher.is_file():
             raise BuildError(f"patcher not found: {patcher}")
@@ -252,7 +203,7 @@ def build(args):
 
             variants = build_game_variants(args.game_dll, staging, work)
             dx8 = build_dx8_payloads(args.dx8_dll, staging, work)
-            data_components = copy_data(args.data_source, staging)
+            data_components = copy_data(release, staging)
             payloads = {
                 path.relative_to(staging).as_posix(): sha256(path)
                 for path in sorted(staging.rglob("*"))
@@ -316,7 +267,7 @@ def main():
     args = parse_args()
     try:
         build(args)
-    except (BuildError, OSError) as error:
+    except (BuildError, PatchError, OSError) as error:
         raise SystemExit(f"error: {error}") from error
 
 
