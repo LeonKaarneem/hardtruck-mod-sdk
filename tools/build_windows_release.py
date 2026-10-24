@@ -218,7 +218,11 @@ def build(args):
     for _, patcher in (*GAME_PATCHERS, ("dx8", DX8_PATCHER)):
         if not patcher.is_file():
             raise BuildError(f"patcher not found: {patcher}")
-    for template in (TEMPLATE_ROOT / "Setup.bat", TEMPLATE_ROOT / "Setup.ps1"):
+    for template in (
+        TEMPLATE_ROOT / "Setup.bat",
+        TEMPLATE_ROOT / "Setup.ps1",
+        TEMPLATE_ROOT / "README.md",
+    ):
         if not template.is_file():
             raise BuildError(f"installer template not found: {template}")
 
@@ -226,6 +230,7 @@ def build(args):
     installer.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", args.output / "Setup.bat")
     shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
+    shutil.copyfile(TEMPLATE_ROOT / "README.md", args.output / "README.md")
     with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
         temporary = Path(temporary)
         staging = temporary / "payload"

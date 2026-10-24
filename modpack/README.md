@@ -3,10 +3,10 @@
 A quality-of-life bug-fix mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
 2002, Prism3D engine). Data files use the game's own override mechanism - any file
 placed in `game/usr/<path>` replaces the archived copy of `<path>` - so no archives
-are repacked and uninstalling is just deleting files. Optional binary patches
-(cameras, physics, AI cleanup, dx8 vsync) are applied with the included Python
-scripts; every script has `--check`/`--restore` and restores byte-identically. All
-game.dll patches compose with each other (verified).
+are repacked. On Windows, the release installer applies the data and optional
+binary patches (cameras, physics, AI cleanup, dx8 vsync) without Python. The
+advanced patcher scripts also have `--check`/`--restore` and restore
+byte-identically. All game.dll patches compose with each other (verified).
 
 > ## ⚠ START A NEW PROFILE - YOUR OLD SAVES WILL NOT LOAD
 >
@@ -86,23 +86,38 @@ Honest status - the deep RE found three mechanisms; one fixed, two documented:
   that nothing ever clears; unless its (engine-side) controller restarts it, it
   stays frozen. Also documented.
 
-## Install
+## Windows quick start
 
-**Copy the contents of `game/` into your game folder** (the one containing
-`prism3d.exe`), keeping the folder structure. Windows example:
+1. Extract `HardTruckModern-v3.zip` completely.
+2. Close the game and run `Setup.bat` in the extracted folder.
+3. Choose **Install all** and enter the game folder containing `prism3d.exe`.
+4. Start a **new profile**. Install all changes definitions, so existing saves are
+   incompatible even though the installer preserves the save files.
+
+No Python or terminal commands are required. To install only some mods, choose
+**Choose components** instead; selecting handling, economy, or driver definitions
+still requires a new profile. Keep the extracted `installer` folder so the setup
+can make backups and uninstall later.
+
+The installer accepts pristine v1.2 and its own binary variants. It refuses an
+unknown `game.dll` or a wrapped `sys/dx8.dll`; restore the stock DX8 DLL before
+running setup. To return to the pre-install state, run `Setup.bat` and choose
+**Uninstall**. Files you changed after installation are skipped rather than
+overwritten.
+
+## Advanced manual installation
+
+For manual Windows installation, copy the contents of `game/` into the game folder
+(the one containing `prism3d.exe`), preserving the folder structure:
 
 ```
 xcopy /e /i "modpack\game" "C:\Games\Hard Truck 18 WoS\game"
 ```
 
-or just drag `usr` into `…\game\` and merge. Linux/Wine example (see below for prefix setup):
-
-```
-cp -r modpack/game/* "$WINEPREFIX/drive_c/Games/18 Wheels of Steel Hard Truck/game/"
-```
-
-A `INSTALL.bat` (Windows) and `INSTALL.sh` (Linux/macOS) are provided that do this for a
-target directory you pass, with a confirmation prompt. They only copy files.
+Or drag `usr` into `…\game\` and merge. `INSTALL.bat` (Windows) and `INSTALL.sh`
+(Linux/macOS) can copy these data files to a target directory after confirmation;
+they do not apply binary patches. See **Linux / Wine** below for the manual Linux
+copy command and prefix setup.
 
 Then apply the binary patches you want (all optional, all reversible, order doesn't
 matter, they compose):
@@ -113,8 +128,8 @@ python patches\patch_physics_fixes.py "C:\Games\Hard Truck 18 WoS\game\sys\game.
 python patches\patch_ai_fixes.py     "C:\Games\Hard Truck 18 WoS\game\sys\game.dll"
 ```
 
-Requires Python 3. After copying, edit `game/usr/config.cfg` if your native
-resolution isn't 1920x1080 (`uset r_mode "WIDTHxHEIGHTx32"`).
+The manual patchers require Python 3. After copying, edit `game/usr/config.cfg` if
+your native resolution isn't 1920x1080 (`uset r_mode "WIDTHxHEIGHTx32"`).
 
 ## Windows 10/11
 
@@ -124,9 +139,12 @@ The stock dx8 renderer is flaky on modern Windows. Two options:
    <https://github.com/crosire/d3d8to9> (releases page). The game loads its renderer
    from `sys/dx8.dll`, so: rename `sys\dx8.dll` to `sys\dx8.dll.bak`, then place the
    downloaded `d3d8.dll` in `sys\` and rename it to `dx8.dll`. This wraps Direct3D 8 to
-   9 and fixes most Windows 10/11 rendering issues. To revert, delete the wrapper and
-   rename the `.bak` back.
-2. **Native vsync patch** (optional, without d3d8to9 - works on plain Win32):
+   9 and fixes most Windows 10/11 rendering issues. Run Setup before adding the
+   wrapper, and restore the stock DLL before any later install or uninstall: Setup
+   deliberately refuses wrapped/unknown DX8 files and will not overwrite them. To
+   revert the wrapper, delete it and rename the `.bak` back.
+2. **Native vsync patch** (optional, without d3d8to9 - works on plain Win32;
+   also available directly through `Setup.bat`):
 
    ```
    python patches\patch_dx8_vsync.py "C:\Games\Hard Truck 18 WoS\sys\dx8.dll"
@@ -218,10 +236,14 @@ Drop `.ogg` or `.wav` files into `game/usr/music/jukebox/` and press `j` in game
 
 ## Uninstall / troubleshooting
 
-- Remove the files you copied into `game/usr/` (or the whole `game/usr/` folder - the
-  game regenerates it) to return to stock behavior. Keep your `save/` backup.
-- Revert binary patches with each script's `--restore` (game.dll cameras/physics/AI,
-  dx8.dll vsync).
+- On Windows, run `Setup.bat` and choose **Uninstall**. It restores installer
+  backups without touching saves or unrelated `game/usr` content; files modified
+  after installation are reported and skipped.
+- For a manual installation, remove the files you copied into `game/usr/` (or the
+  whole `game/usr/` folder - the game regenerates it) to return to stock behavior.
+  Keep your `save/` backup.
+- Revert manually applied binary patches with each script's `--restore` (game.dll
+  cameras/physics/AI, dx8.dll vsync).
 - If the game fails to start after editing, check `game/usr/config.cfg` for typos and
   `prism3d.log` in the game folder for def parse errors.
 
