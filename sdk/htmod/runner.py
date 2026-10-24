@@ -8,7 +8,7 @@ from .errors import PatchError
 from .patch import PatchRunner
 
 
-REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "dx8_vsync"})
+REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync"})
 
 
 def strip_r_renderer(data):

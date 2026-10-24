@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "ui_keyboard",
+  "version": "3.0.0",
+  "kind": "binary",
+  "setup": {
+    "label": "Keyboard navigation",
+    "description": "Tab and Shift+Tab focus navigation in native menus",
+    "default": true
+  },
+  "requires": ["config"],
+  "conflicts": [],
+  "new_profile": false,
+  "handler": "ui_keyboard",
+  "target": "game/sys/game.dll",
+  "source_sha256": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
+}

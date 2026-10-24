@@ -6,7 +6,7 @@ import re
 from .errors import ManifestError
 
 
-BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "dx8_vsync"})
+BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync"})
 TRANSFORM_NAMES = frozenset({"strip_r_renderer"})
 FORBIDDEN_DIRECTORIES = frozenset({"save", "saves", "music", "log", "logs", "__pycache__"})
 FORBIDDEN_EXTENSIONS = frozenset({".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"})

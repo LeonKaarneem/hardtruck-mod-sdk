@@ -22,6 +22,7 @@ COMPONENT_IDS = [
     "camera",
     "physics",
     "ai",
+    "ui_keyboard",
     "dx8_vsync",
 ]
 
@@ -82,7 +83,7 @@ class InstallerCase(unittest.TestCase):
 
     def assert_stock(self, game):
         manifest = self.manifest(self.package)
-        self.assertEqual(sha256(Path(game) / "game/sys/game.dll"), manifest["game_variants"]["000"]["sha256"])
+        self.assertEqual(sha256(Path(game) / "game/sys/game.dll"), manifest["game_variants"]["0000"]["sha256"])
         self.assertEqual(sha256(Path(game) / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
 
     def setUp(self):
@@ -98,7 +99,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         result = self.run_setup(self.package, self.game)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         manifest = self.manifest(self.package)
-        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["111"]["sha256"])
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["1111"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["vsync"]["sha256"])
         for component, files in manifest["data_components"].items():
             for payload in files:
@@ -127,20 +128,22 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         result = self.run_setup(self.package, self.game, action="Custom", components=["config", "camera"])
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         manifest = self.manifest(self.package)
-        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["001"]["sha256"])
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["0001"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
         self.assertTrue((self.game / "game/usr/ui/cosetup.sc").is_file())
         self.assertFalse((self.game / "game/usr/defs/truck_base.def").exists())
 
     def test_every_curated_variant_uses_existing_noninteractive_component_ids(self):
         manifest = self.manifest(self.package)
-        for number in range(8):
-            name = f"{number:03b}"
+        for number in range(16):
+            name = f"{number:04b}"
             components = [
                 component
-                for bit, component in enumerate(("camera", "physics", "ai"))
+                for bit, component in enumerate(("camera", "physics", "ai", "ui_keyboard"))
                 if number & (1 << bit)
             ]
+            if "ui_keyboard" in components:
+                components.insert(0, "config")
             with self.subTest(variant=name, components=components):
                 root = self.root / f"variant-{name}"
                 root.mkdir()
@@ -169,9 +172,9 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         variants = {}
         for name, record in manifest["game_variants"].items():
             variants[name + "0"] = dict(record)
-        fourth_payload = self.package / "installer/payload/game-1000.dll"
-        fourth_payload.write_bytes((self.package / "installer/payload/game-001.dll").read_bytes())
-        variants["1000"] = {
+        fourth_payload = self.package / "installer/payload/game-10000.dll"
+        fourth_payload.write_bytes((self.package / "installer/payload/game-0001.dll").read_bytes())
+        variants["10000"] = {
             "file": fourth_payload.name,
             "components": ["fourth"],
             "sha256": sha256(fourth_payload),
@@ -225,7 +228,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
                 result = self.run_setup(package, game, action="Custom", components=components)
                 self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
                 self.assertIn(message, result.stdout + result.stderr)
-                self.assertEqual(sha256(game / "game/sys/game.dll"), manifest["game_variants"]["000"]["sha256"])
+                self.assertEqual(sha256(game / "game/sys/game.dll"), manifest["game_variants"]["0000"]["sha256"])
                 self.assertFalse((game / "game/usr/config.cfg").exists())
                 self.assertFalse((package / "installer/backups").exists())
 

@@ -22,6 +22,8 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
         shutil.copytree(ROOT / "modpack", modpack)
         release_path = modpack / "release.json"
         release = json.loads(release_path.read_text(encoding="utf-8"))
+        release["mods"].remove("ui_keyboard")
+        shutil.rmtree(modpack / "mods/ui_keyboard")
         release["mods"].insert(-1, "fourth")
         release["game_variants"] = {
             f"{number:04b}": {
@@ -113,7 +115,7 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
             value = json.loads(release_path.read_text(encoding="utf-8"))
             value["game_variants"] = {
                 name: value["game_variants"][name]
-                for name in ("001", "010", "100")
+                for name in ("0001", "0010", "0100")
             }
             release_path.write_text(json.dumps(value), encoding="utf-8")
             camera_path = modpack / "mods/camera/mod.json"
@@ -135,10 +137,10 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                     payload,
                     work,
                 )
-            self.assertEqual(list(variants), ["001", "010", "100"])
+            self.assertEqual(list(variants), ["0001", "0010", "0100"])
 
             value["game_variants"] = {
-                "110": {"file": "game-110.dll", "components": ["physics", "ai"]}
+                "0110": {"file": "game-0110.dll", "components": ["physics", "ai"]}
             }
             release_path.write_text(json.dumps(value), encoding="utf-8")
             invalid = load_release(Path(temporary))

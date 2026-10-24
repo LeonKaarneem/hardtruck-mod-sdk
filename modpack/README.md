@@ -27,13 +27,14 @@ Setup accepts pristine v1.2 and its own known binary variants. It refuses unknow
 | `camera` | Mouse-orbit chase camera (key 2); cabin vertical look clamped at ±35° | No |
 | `physics` | Reduces shoulder/tunnel-edge dead stops, velocity snap, and trailer-mass error | No |
 | `ai` | Fixes menu/demo traffic despawn cleanup and its log spam/pool leak | No |
+| `ui_keyboard` | Tab/Shift+Tab focus navigation and Enter activation in native menus | No |
 | `dx8_vsync` | Native DX8 vsync for the stock renderer | No |
 
 With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls.
 
 ## Controls and display
 
-Press `~` to open the console. Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
+Press `~` to open the console. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders. Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 
 **Cap FPS at 60 or lower** to avoid the original high-frame-rate physics bugs. On Windows 10/11, either:
 
@@ -78,8 +79,8 @@ All active additions use manifests and the static SDK registry. The retired raw-
 See **`sdk/README.md`** for data mods, operand patches, code hooks, dependencies/conflicts, tests, live smokes, and release packaging. Registered binary components can be inspected or reversed on a backed-up test game:
 
 ```sh
-python3 tools/htmod.py check --game-dir "/path/to/game" --mod camera --mod physics --mod ai
-python3 tools/htmod.py restore --game-dir "/path/to/game" --mod camera --mod physics --mod ai
+python3 tools/htmod.py check --game-dir "/path/to/game" --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
+python3 tools/htmod.py restore --game-dir "/path/to/game" --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py restore --game-dir "/path/to/game" --mod dx8_vsync
 ```
 

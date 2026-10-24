@@ -33,7 +33,8 @@ def main(argv=None):
             print(f"Release valid: {len(release.mods)} mods, {len(release.game_variants)} game variants")
             return 0
         Selection(args.mod_ids).validate(release.mods)
-        mods = load_binary_mods(release, args.mod_ids)
+        binary_ids = [mod_id for mod_id in args.mod_ids if release.mods[mod_id].kind == "binary"]
+        mods = load_binary_mods(release, binary_ids)
         runner = runner_from_directory(args.game_dir, mods)
         states = runner.check(mods)
         if args.command == "check":

@@ -220,20 +220,30 @@ class CameraMod(BinaryMod):
     @staticmethod
     def _valid_section(image):
         section = image.section(NEWSEC_NAME)
-        if section != image.sections[-1]:
+        index = image.sections.index(section)
+        later_sections = image.sections[index + 1:]
+        if any(later.name != ".uitab" for later in later_sections):
             return False
         if (section.virtual_size, section.raw_size, section.flags) != (
             NEWSEC_SIZE, NEWSEC_SIZE, NEWSEC_FLAGS
         ):
             return False
-        if len(image.data) != section.raw_offset + section.raw_size:
-            return False
         previous_raw_end = max(
-            item.raw_offset + item.raw_size for item in image.sections[:-1]
+            item.raw_offset + item.raw_size for item in image.sections[:index]
         )
         if previous_raw_end > section.raw_offset or any(
             image.data[previous_raw_end:section.raw_offset]
         ):
+            return False
+        previous_raw_end = section.raw_offset + section.raw_size
+        for later in later_sections:
+            if previous_raw_end > later.raw_offset or any(
+                image.data[previous_raw_end:later.raw_offset]
+            ):
+                return False
+            previous_raw_end = later.raw_offset + later.raw_size
+        last = image.sections[-1]
+        if len(image.data) != previous_raw_end or last.raw_offset + last.raw_size != previous_raw_end:
             return False
         base_va = image.image_base + section.virtual_address
         helpers, labels = build_helpers(base_va)
@@ -247,7 +257,10 @@ class CameraMod(BinaryMod):
             "<IIHH", section.virtual_address, 12, *entries
         ):
             return False
-        expected_image = align(section.virtual_address + NEWSEC_SIZE, 0x1000)
+        expected_image = align(
+            last.virtual_address + align(last.virtual_size, image.section_alignment),
+            image.section_alignment,
+        )
         return struct.unpack_from("<I", image.data, image.optional_offset + 56)[0] == expected_image
 
     def inspect(self, image):

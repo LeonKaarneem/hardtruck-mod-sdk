@@ -104,10 +104,11 @@ class ManifestTests(unittest.TestCase):
                 "camera",
                 "physics",
                 "ai",
+                "ui_keyboard",
                 "dx8_vsync",
             ],
         )
-        self.assertEqual(list(release.game_variants), [f"{n:03b}" for n in range(8)])
+        self.assertEqual(list(release.game_variants), [f"{n:04b}" for n in range(16)])
         self.assertEqual(release.root, ROOT / "modpack")
 
     def test_rejects_release_and_mod_schema_versions(self):
@@ -406,6 +407,7 @@ class CliTests(unittest.TestCase):
                 "camera",
                 "physics",
                 "ai",
+                "ui_keyboard",
                 "dx8_vsync",
             ],
         )

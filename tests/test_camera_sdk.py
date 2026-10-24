@@ -163,7 +163,7 @@ class CameraRoundTripTests(unittest.TestCase):
         cls.game = pristine_game()
         cls.golden = json.loads((ROOT / "tests/golden/v3.json").read_text(encoding="utf-8"))
 
-    def test_all_eight_goldens_and_reverse_restore(self):
+    def test_all_sixteen_goldens_and_reverse_restore(self):
         for name, record in self.golden["game_variants"].items():
             with self.subTest(variant=name):
                 mods = load_binary_mods(load_release(ROOT), record["components"])

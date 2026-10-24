@@ -137,7 +137,7 @@ Using `example_operand` as the ID:
    "conflicts": ["example_other"]
    ```
    `Selection.validate` rejects missing selections and conflicts before file changes; generated schema-2 installer metadata carries the same rules to Setup. Handler loading itself is identity-only so the builder can load every game handler even when two handlers conflict. Each curated build selection is then validated with non-game release components available, allowing independent conflicting variants and data requirements such as `config` to build; the installer still validates the user's actual selection.
-5. For a `game.dll` component, deliberately extend `game_variants` in `modpack/release.json`. Game-component bit positions follow release order; every variant name has exactly one bit per game component, and its `components` list must match those bits. The builder iterates only this curated list-never an automatically generated exponential matrix-and PowerShell selects the variant by generated component metadata. Preserve existing `game-000` through `game-111` names, bit meanings, and payload bytes. Other new targets require an explicit builder payload path driven by the validated release metadata. The generated shell install-all manifest also requires one variant containing every game component.
+5. For a `game.dll` component, deliberately extend `game_variants` in `modpack/release.json`. Game-component bit positions follow release order; every variant name has exactly one bit per game component, and its `components` list must match those bits. The builder iterates only this curated list-never an automatically generated exponential matrix-and PowerShell selects the variant by generated component metadata. When adding a component, preserve every prior payload byte stream while widening names and curated combinations as required, and retain those prior hashes as recognized installed states. Other new targets require an explicit builder payload path driven by the validated release metadata. The generated shell install-all manifest also requires one variant containing every game component.
 
 ## Check, apply, and restore on a test game
 
@@ -145,15 +145,15 @@ Back up and use a disposable v1.2 game folder. `--game-dir` is the folder contai
 
 ```sh
 python3 tools/htmod.py check --game-dir "/path/to/test game" \
-  --mod camera --mod physics --mod ai
+  --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py apply --game-dir "/path/to/test game" \
-  --mod camera --mod physics --mod ai
+  --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py restore --game-dir "/path/to/test game" \
-  --mod camera --mod physics --mod ai
+  --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py check --game-dir "/path/to/test game" --mod dx8_vsync
 ```
 
-These commands validate the actual requested selection and then handle registered binary mods only. A requirement on a data component such as `config` cannot be satisfied by this binary-only CLI; use the release installer for that workflow. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or match an **exact recognized whole-file state**. For a non-pristine target, the SDK restores the selected mods in memory and requires the pinned pristine hash, then applies every selected-mod subset (bounded at four target mods) to that verified pristine image and compares complete bytes. Local PATCHED anchors or appended unknown data are not sufficient. To add a mod to an already patched target, select both existing and new mods; selecting only the new one does not recognize the existing state.
+These commands validate the actual requested selection, including data-component requirements, and then load only registered binary handlers. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or match an **exact recognized whole-file state**. For a non-pristine target, the SDK restores the selected mods in memory and requires the pinned pristine hash, then applies every selected-mod subset (bounded at four target mods) to that verified pristine image and compares complete bytes. Local PATCHED anchors or appended unknown data are not sufficient. To add a mod to an already patched target, select both existing and new mods; selecting only the new one does not recognize the existing state.
 
 Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. Before commit, every selected mod must be PATCHED after apply or ORIGINAL after restore; FOREIGN or the opposite valid state fails with a nonzero CLI result and no commit. Builder input pins remain global and unchanged.
 

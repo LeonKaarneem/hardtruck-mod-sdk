@@ -8,16 +8,25 @@
     "camera",
     "physics",
     "ai",
+    "ui_keyboard",
     "dx8_vsync"
   ],
   "game_variants": {
-    "000": {"file": "game-000.dll", "components": []},
-    "001": {"file": "game-001.dll", "components": ["camera"]},
-    "010": {"file": "game-010.dll", "components": ["physics"]},
-    "011": {"file": "game-011.dll", "components": ["camera", "physics"]},
-    "100": {"file": "game-100.dll", "components": ["ai"]},
-    "101": {"file": "game-101.dll", "components": ["camera", "ai"]},
-    "110": {"file": "game-110.dll", "components": ["physics", "ai"]},
-    "111": {"file": "game-111.dll", "components": ["camera", "physics", "ai"]}
+    "0000": {"file": "game-0000.dll", "components": []},
+    "0001": {"file": "game-0001.dll", "components": ["camera"]},
+    "0010": {"file": "game-0010.dll", "components": ["physics"]},
+    "0011": {"file": "game-0011.dll", "components": ["camera", "physics"]},
+    "0100": {"file": "game-0100.dll", "components": ["ai"]},
+    "0101": {"file": "game-0101.dll", "components": ["camera", "ai"]},
+    "0110": {"file": "game-0110.dll", "components": ["physics", "ai"]},
+    "0111": {"file": "game-0111.dll", "components": ["camera", "physics", "ai"]},
+    "1000": {"file": "game-1000.dll", "components": ["ui_keyboard"]},
+    "1001": {"file": "game-1001.dll", "components": ["camera", "ui_keyboard"]},
+    "1010": {"file": "game-1010.dll", "components": ["physics", "ui_keyboard"]},
+    "1011": {"file": "game-1011.dll", "components": ["camera", "physics", "ui_keyboard"]},
+    "1100": {"file": "game-1100.dll", "components": ["ai", "ui_keyboard"]},
+    "1101": {"file": "game-1101.dll", "components": ["camera", "ai", "ui_keyboard"]},
+    "1110": {"file": "game-1110.dll", "components": ["physics", "ai", "ui_keyboard"]},
+    "1111": {"file": "game-1111.dll", "components": ["camera", "physics", "ai", "ui_keyboard"]}
   }
 }

@@ -47,7 +47,7 @@ class BinaryRegressionTests(unittest.TestCase):
         self.assertEqual(sha256(self.dx8), self.golden["pristine"]["dx8_dll"])
 
     def test_every_physics_ai_combination_matches_legacy_golden_and_restores(self):
-        for variant in ("000", "010", "100", "110"):
+        for variant in ("0000", "0010", "0100", "0110"):
             with self.subTest(variant=variant):
                 components = self.golden["game_variants"][variant]["components"]
                 mods = load_binary_mods(self.release, components)
@@ -151,8 +151,8 @@ class BinaryRegressionTests(unittest.TestCase):
 
     def test_cli_rejects_appended_bytes_from_otherwise_valid_patched_handlers(self):
         cases = (
-            ("physics", "game/sys/game.dll", "010"),
-            ("ai", "game/sys/game.dll", "100"),
+            ("physics", "game/sys/game.dll", "0010"),
+            ("ai", "game/sys/game.dll", "0100"),
             ("dx8_vsync", "sys/dx8.dll", None),
         )
         for mod, relative, variant in cases:
@@ -187,11 +187,11 @@ class BinaryRegressionTests(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), before)
 
     def test_cli_every_curated_composed_state_reruns_and_restores_exactly(self):
-        for number in range(8):
-            name = f"{number:03b}"
+        for number in range(16):
+            name = f"{number:04b}"
             selected = [
                 component
-                for bit, component in enumerate(("camera", "physics", "ai"))
+                for bit, component in enumerate(("camera", "physics", "ai", "ui_keyboard"))
                 if number & (1 << bit)
             ]
             with self.subTest(variant=name), tempfile.TemporaryDirectory() as temporary:
@@ -205,6 +205,7 @@ class BinaryRegressionTests(unittest.TestCase):
 
                 def run(command, mods):
                     arguments = [sys.executable, str(ROOT / "tools/htmod.py"), command, "--game-dir", str(game_dir)]
+                    arguments += ["--mod", "config"]
                     for mod in mods:
                         arguments += ["--mod", mod]
                     return subprocess.run(arguments, cwd=ROOT, text=True, capture_output=True)
@@ -236,19 +237,19 @@ class BinaryRegressionTests(unittest.TestCase):
 
             result = run("apply", "camera")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["001"]["sha256"])
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["0001"]["sha256"])
 
             result = run("apply", "physics")
             self.assertEqual(result.returncode, 1)
             self.assertIn("selected mods", result.stderr)
-            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["001"]["sha256"])
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["0001"]["sha256"])
 
             result = run("apply", "camera", "physics")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["011"]["sha256"])
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["0011"]["sha256"])
             result = run("apply", "camera", "physics")
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["011"]["sha256"])
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["0011"]["sha256"])
 
             result = run("restore", "camera", "physics")
             self.assertEqual(result.returncode, 0, result.stderr)

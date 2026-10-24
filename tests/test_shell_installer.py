@@ -81,9 +81,9 @@ class ShellInstallerTests(unittest.TestCase):
         text = script.read_text(encoding="utf-8")
         self.assertNotIn("python", text.casefold())
         records = [line.split("\t") for line in payload_manifest.read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(len([r for r in records if r[0] == "variant"]), 8)
+        self.assertEqual(len([r for r in records if r[0] == "variant"]), 16)
         self.assertEqual(len([r for r in records if r[0] == "data"]), 17)
-        self.assertIn(["install-game", "game-111.dll", self.manifest()["game_variants"]["111"]["sha256"]], records)
+        self.assertIn(["install-game", "game-1111.dll", self.manifest()["game_variants"]["1111"]["sha256"]], records)
 
     def test_install_all_validates_payloads_and_backs_up_every_replaced_or_created_file(self):
         original_game = (self.game / "game/sys/game.dll").read_bytes()
@@ -91,7 +91,7 @@ class ShellInstallerTests(unittest.TestCase):
         result = self.run_install()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         manifest = self.manifest()
-        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["111"]["sha256"])
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["1111"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["vsync"]["sha256"])
         data_records = []
         for files in manifest["data_components"].values():
@@ -164,7 +164,7 @@ class ShellInstallerTests(unittest.TestCase):
         backups = list((self.package / "installer/backups").glob("shell-*/installation.tsv"))
         self.assertEqual(len(backups), 1)
         self.assertIn("game/sys/game.dll", backups[0].read_text(encoding="utf-8"))
-        self.assertEqual(manifest["game_variants"]["000"]["sha256"], sha256(self.game / "game/sys/game.dll"))
+        self.assertEqual(manifest["game_variants"]["0000"]["sha256"], sha256(self.game / "game/sys/game.dll"))
 
     def test_unknown_source_or_corrupt_payload_changes_nothing(self):
         for failure in ("unknown-source", "corrupt-payload"):

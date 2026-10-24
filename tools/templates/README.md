@@ -14,7 +14,7 @@ Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. Thi
 
 ## Controls and display
 
-`~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
+`~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders.
 
 With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The Set Up Company screen also has a native **Quick Setup** panel identifying the unofficial mod, summarizing the physics/camera/handling and economy/AI improvements, and noting that installed features depend on Setup choices. It leaves the stock company fields and OK control in place.
 

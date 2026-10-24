@@ -24,11 +24,11 @@ class GoldenDataTests(unittest.TestCase):
         )
         cls.release = load_release(ROOT)
 
-    def test_golden_covers_eight_variants_dx8_and_pristine_sources(self):
+    def test_golden_covers_sixteen_variants_dx8_and_pristine_sources(self):
         variants = self.golden["game_variants"]
-        self.assertEqual(list(variants), [f"{n:03b}" for n in range(8)])
-        self.assertEqual(len({item["sha256"] for item in variants.values()}), 8)
-        self.assertEqual(variants["000"]["sha256"], self.golden["pristine"]["game_dll"])
+        self.assertEqual(list(variants), [f"{n:04b}" for n in range(16)])
+        self.assertEqual(len({item["sha256"] for item in variants.values()}), 16)
+        self.assertEqual(variants["0000"]["sha256"], self.golden["pristine"]["game_dll"])
         self.assertEqual(self.golden["dx8"]["stock"], self.golden["pristine"]["dx8_dll"])
         self.assertNotEqual(self.golden["dx8"]["stock"], self.golden["dx8"]["vsync"])
         for name, expected in variants.items():

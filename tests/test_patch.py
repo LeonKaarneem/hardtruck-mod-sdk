@@ -362,15 +362,11 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(result, 1)
                 commit.assert_not_called()
 
-    def test_unknown_data_mods_fail_without_tracebacks(self):
-        for mod_id in ("missing", "config"):
-            with self.subTest(mod=mod_id):
-                result = self.run_cli(
-                    "check", "--game-dir", str(ROOT), "--mod", mod_id
-                )
-                self.assertEqual(result.returncode, 1, result.stderr)
-                self.assertNotIn("Traceback", result.stderr)
-                self.assertIn("error:", result.stderr)
+    def test_unknown_mod_fails_without_tracebacks(self):
+        result = self.run_cli("check", "--game-dir", str(ROOT), "--mod", "missing")
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("error:", result.stderr)
 
 
 if __name__ == "__main__":
