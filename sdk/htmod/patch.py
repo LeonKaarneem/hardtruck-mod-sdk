@@ -198,6 +198,7 @@ class PatchRunner:
         originals = self._preflight.copy()
         temporary = {}
         backups = {}
+        restores = {}
         marked = []
         succeeded = False
         recovered = False
@@ -230,7 +231,8 @@ class PatchRunner:
                 rollback_failure = None
                 try:
                     if path.read_bytes() != originals[target]:
-                        os.replace(backups[target], path)
+                        restores[target] = self._temporary_file(path, originals[target], ".htmod-restore")
+                        os.replace(restores[target], path)
                 except BaseException as rollback_error:
                     rollback_failure = rollback_error
                 try:
@@ -249,7 +251,7 @@ class PatchRunner:
             raise TransactionError(f"atomic target commit failed: {error}{detail}") from error
         finally:
             if succeeded or recovered:
-                for path in (*temporary.values(), *backups.values()):
+                for path in (*temporary.values(), *backups.values(), *restores.values()):
                     try:
                         Path(path).unlink(missing_ok=True)
                     except OSError:

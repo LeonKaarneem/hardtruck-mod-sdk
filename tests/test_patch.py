@@ -222,7 +222,9 @@ class PatchRunnerTests(unittest.TestCase):
                 if Path(destination) == paths["sys/dx8.dll"] and not getattr(fail_replace_and_rollback, "failed", False):
                     fail_replace_and_rollback.failed = True
                     raise OSError("simulated replacement failure")
-                if Path(destination) == paths["game/sys/game.dll"] and str(source).endswith(".htmod-backup"):
+                if Path(destination) == paths["game/sys/game.dll"] and str(source).endswith(
+                    (".htmod-backup", ".htmod-restore")
+                ):
                     raise OSError("simulated rollback failure")
                 real_replace(source, destination)
 
@@ -238,6 +240,42 @@ class PatchRunnerTests(unittest.TestCase):
             failed_backup = next(path for path in backups if path.parent == paths["game/sys/game.dll"].parent)
             self.assertIn(str(failed_backup), str(caught.exception))
             self.assertEqual(paths["sys/dx8.dll"].read_bytes(), originals["sys/dx8.dll"])
+
+    def test_restore_verification_failure_retains_real_pristine_backup(self):
+        for scenario in ("read_failure", "external_mutation"):
+            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as temporary:
+                runner, paths, originals = commit_fixture(Path(temporary))
+                real_replace = os.replace
+                real_read_bytes = Path.read_bytes
+                restore_replaced = False
+
+                def replace_and_damage_restore(source, destination):
+                    nonlocal restore_replaced
+                    if Path(destination) == paths["sys/dx8.dll"] and str(source).endswith(".htmod-new"):
+                        raise OSError("simulated initial replacement failure")
+                    real_replace(source, destination)
+                    if Path(destination) == paths["game/sys/game.dll"] and str(source).endswith(
+                        (".htmod-backup", ".htmod-restore")
+                    ):
+                        restore_replaced = True
+                        if scenario == "external_mutation":
+                            Path(destination).write_bytes(b"external mutation after restore")
+
+                def fail_restore_read(path):
+                    if scenario == "read_failure" and restore_replaced and path == paths["game/sys/game.dll"]:
+                        raise OSError("simulated restore verification read failure")
+                    return real_read_bytes(path)
+
+                with mock.patch("htmod.patch.os.replace", side_effect=replace_and_damage_restore), mock.patch(
+                    "htmod.patch.Path.read_bytes", autospec=True, side_effect=fail_restore_read
+                ):
+                    with self.assertRaises(TransactionError) as caught:
+                        runner.commit()
+                backups = list(paths["game/sys/game.dll"].parent.glob("*.htmod-backup"))
+                self.assertEqual(len(backups), 1)
+                self.assertTrue(backups[0].is_file())
+                self.assertEqual(backups[0].read_bytes(), originals["game/sys/game.dll"])
+                self.assertIn(str(backups[0]), str(caught.exception))
 
 
 class CliTests(unittest.TestCase):
