@@ -136,6 +136,16 @@ class BinaryRegressionTests(unittest.TestCase):
         from unittest import mock
         from tools import build_windows_release
 
+        self.assertFalse(hasattr(build_windows_release, "CAMERA_PATCHER"))
+        self.assertFalse(hasattr(build_windows_release, "run_patcher"))
+        legacy_path = (ROOT / "modpack/patches/patch_camera_mods.py").resolve()
+        real_read_bytes = Path.read_bytes
+
+        def legacy_unavailable(path, *args, **kwargs):
+            if Path(path).resolve() == legacy_path:
+                raise FileNotFoundError("legacy camera intentionally unavailable")
+            return real_read_bytes(path, *args, **kwargs)
+
         def no_legacy(patcher, dll, mode=None):
             raise AssertionError(f"legacy simple patcher invoked: {patcher.name}")
 
@@ -145,7 +155,8 @@ class BinaryRegressionTests(unittest.TestCase):
             work = root / "work"
             payload.mkdir()
             work.mkdir()
-            with mock.patch.object(build_windows_release, "run_patcher", side_effect=no_legacy):
+            with mock.patch.object(build_windows_release, "run_patcher", side_effect=no_legacy, create=True), \
+                    mock.patch("pathlib.Path.read_bytes", autospec=True, side_effect=legacy_unavailable):
                 variants = build_windows_release.build_game_variants(self.game_path, payload, work)
                 dx8 = build_windows_release.build_dx8_payloads(self.dx8_path, payload, work)
             for name, record in variants.items():

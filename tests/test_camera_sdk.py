@@ -9,12 +9,14 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sdk"))
+sys.path.insert(0, str(ROOT / "tests"))
 
-from htmod.errors import StateError
+from htmod.errors import PEError, StateError
 from htmod.manifest import load_release
 from htmod.patch import PatchRunner, PatchState
 from htmod.pe import PEImage
 from htmod.runner import load_binary_mods
+from test_pe import make_pe
 
 BASE_VA = 0x100FB000
 IAT_CALL = bytes.fromhex("ff 15 18 b2 0a 10")
@@ -81,13 +83,48 @@ class CameraStructureTests(unittest.TestCase):
         c40 = blob[labels["htcam_clamp40"] - BASE_VA:labels["htcam_rst_cam2"] - BASE_VA]
         negative_guard = b"\xb9" + struct.pack("<I", module.CAB_PITCH_LO) + b"\x39\xc8\x76\x02"
         self.assertIn(negative_guard, c35)
-        self.assertEqual(c40, module.clamp_routine(
-            labels["htcam_clamp40"], module.ORB_PITCH_LO, module.ORB_PITCH_HI
+        self.assertEqual(c40, bytes.fromhex(
+            "8b86d0030000b90000204239c87e0389c8c3"
+            "b9000020c139c87d0289c8c3"
         ))
         self.assertEqual(module.ORBIT_POS, 0x33708)
         self.assertEqual(module.ORIENT_POS, 0x3386F)
         self.assertEqual(module.ORBIT_POS_RESUME, 0x1003370F)
         self.assertEqual(module.ORIENT_POS_RESUME, 0x10033876)
+
+
+class PESectionTests(unittest.TestCase):
+    def test_unaligned_eof_original_image_size_and_tail_round_trip(self):
+        data = make_pe() + b"xyz"
+        struct.pack_into("<I", data, 0x98 + 56, 0x12345678)
+        original = data[:]
+        image = PEImage.parse(data)
+        section = image.append_section(".odd", b"abcde", 0xE0000020)
+        self.assertEqual(section.virtual_size, 5)
+        self.assertEqual(section.raw_size, 0x200)
+        self.assertEqual(section.raw_offset, 0x600)
+        self.assertEqual(len(image.data), 0x800)
+        self.assertEqual(image.data[section.raw_offset + 5:section.raw_offset + 0x200], bytes(0x200 - 5))
+        self.assertEqual(struct.unpack_from("<I", image.data, image.optional_offset + 56)[0], 0x4000)
+
+        reparsed = PEImage.parse(image.data)
+        before = reparsed.data[:]
+        with self.assertRaises(PEError):
+            reparsed.remove_section(".odd")
+        self.assertEqual(reparsed.data, before)
+
+        image.remove_section(".odd")
+        self.assertEqual(image.data, original)
+        self.assertEqual(struct.unpack_from("<I", image.data, image.optional_offset + 56)[0], 0x12345678)
+
+    def test_foreign_appended_padding_is_refused_without_mutation(self):
+        image = PEImage.parse(make_pe() + b"x")
+        section = image.append_section(".odd", b"abc", 0xE0000020)
+        image.data[section.raw_offset - 1] = 0xFF
+        before = image.data[:]
+        with self.assertRaises(PEError):
+            image.remove_section(".odd")
+        self.assertEqual(image.data, before)
 
 
 class CameraRoundTripTests(unittest.TestCase):

@@ -36,6 +36,7 @@ class PEImage:
         self.section_table = section_table
         self.file_alignment = file_alignment
         self.section_alignment = section_alignment
+        self._section_undo = {}
 
     @classmethod
     def parse(cls, data):
@@ -149,21 +150,35 @@ class PEImage:
             raise PEError("section table would overflow file")
         if any(self.data[entry:entry + 40]):
             raise PEError("section table destination is not empty")
+        previous_raw_end = max(
+            (item.raw_offset + item.raw_size for item in self.sections),
+            default=0,
+        )
+        if previous_raw_end > len(self.data):
+            raise PEError("original EOF precedes section data; refusing append")
+        undo = (
+            len(self.data),
+            struct.unpack_from("<I", self.data, self.optional_offset + 56)[0],
+            bytes(self.data[previous_raw_end:]),
+        )
+        raw_size = align(len(payload), self.file_alignment)
         if raw_offset > len(self.data):
             self.data += bytes(raw_offset - len(self.data))
-        self.data += payload
+        self.data[previous_raw_end:raw_offset] = bytes(raw_offset - previous_raw_end)
+        self.data += payload + bytes(raw_size - len(payload))
         struct.pack_into(
             "<8sIIIIIIHHI", self.data, entry, name.encode("ascii").ljust(8, b"\0"),
-            len(payload), virtual_address, len(payload), raw_offset, 0, 0, 0, 0, flags,
+            len(payload), virtual_address, raw_size, raw_offset, 0, 0, 0, 0, flags,
         )
         struct.pack_into("<H", self.data, self.coff + 2, len(self.sections) + 1)
         image_end = virtual_address + align(len(payload), self.section_alignment)
         struct.pack_into("<I", self.data, self.optional_offset + 56, align(image_end, 0x1000))
-        section = Section(name, virtual_address, len(payload), raw_offset, len(payload), flags)
+        section = Section(name, virtual_address, len(payload), raw_offset, raw_size, flags)
         self.sections += (section,)
+        self._section_undo[name] = undo
         return section
 
-    def remove_section(self, name):
+    def remove_section(self, name, original_eof=None, original_image_size=None):
         if not self.sections or self.sections[-1].name != name:
             raise PEError(f"last section is not '{name}'; refusing removal")
         index = len(self.sections) - 1
@@ -178,21 +193,39 @@ class PEImage:
             self.data[previous_raw_end:section.raw_offset]
         ):
             raise PEError("foreign data in appended-section padding; refusing truncation")
-        entry = self.section_table + 40 * index
-        self.data[entry:entry + 40] = bytes(40)
-        struct.pack_into("<H", self.data, self.coff + 2, index)
+
+        undo = self._section_undo.get(name)
+        if undo is not None:
+            original_eof, original_image_size, original_tail = undo
+            if section.raw_offset != align(original_eof, self.file_alignment):
+                raise PEError("appended section no longer matches original EOF; refusing")
+            if original_eof != previous_raw_end + len(original_tail):
+                raise PEError("saved section undo metadata is inconsistent")
+        else:
+            if original_eof is None or original_image_size is None:
+                raise PEError("original section metadata required after reparse; refusing removal")
+            if previous_raw_end != original_eof:
+                raise PEError("cannot restore unrecorded original tail data; refusing removal")
+            if section.raw_offset != align(original_eof, self.file_alignment):
+                raise PEError("appended section no longer matches original EOF; refusing")
+            original_tail = b""
+
         expected_image = align(
-            section.virtual_address + align(section.virtual_span, self.section_alignment),
+            section.virtual_address + align(section.virtual_size, self.section_alignment),
             0x1000,
         )
         current_image = struct.unpack_from("<I", self.data, self.optional_offset + 56)[0]
+        entry = self.section_table + 40 * index
+        self.data[entry:entry + 40] = bytes(40)
+        struct.pack_into("<H", self.data, self.coff + 2, index)
         if current_image == expected_image:
-            struct.pack_into(
-                "<I", self.data, self.optional_offset + 56,
-                align(section.virtual_address, self.section_alignment),
-            )
+            struct.pack_into("<I", self.data, self.optional_offset + 56, original_image_size)
         del self.data[section.raw_offset:]
+        if original_tail:
+            self.data[previous_raw_end:previous_raw_end + len(original_tail)] = original_tail
+        del self.data[original_eof:]
         self.sections = self.sections[:-1]
+        self._section_undo.pop(name, None)
 
     def data_directory(self, index):
         end = 96 + (index + 1) * 8

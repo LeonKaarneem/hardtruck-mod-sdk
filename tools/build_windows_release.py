@@ -3,7 +3,6 @@ import argparse
 import hashlib
 import json
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -15,9 +14,7 @@ from htmod import PatchError, load_release
 from htmod.patch import PatchRunner, PatchState
 from htmod.runner import load_binary_mods, materialize_data
 
-PATCHER_ROOT = PROJECT_ROOT / "modpack/patches"
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
-CAMERA_PATCHER = PATCHER_ROOT / "patch_camera_mods.py"
 GAME_COMPONENTS = ("camera", "physics", "ai")
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
@@ -33,18 +30,6 @@ def sha256(path):
         for block in iter(lambda: source.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def run_patcher(patcher, dll, mode=None):
-    command = [sys.executable, str(patcher), str(dll)]
-    if mode:
-        command.append(mode)
-    result = subprocess.run(command, text=True, capture_output=True)
-    if result.returncode:
-        raise BuildError(
-            f"{patcher.name} {mode or 'patch'} failed for {dll}:\n"
-            f"{result.stdout}{result.stderr}"
-        )
 
 
 def selected_components(number):
@@ -175,8 +160,6 @@ def build(args):
             raise BuildError(
                 f"{label} SHA-256 mismatch for {path}: expected {expected}, got {actual}"
             )
-    if not CAMERA_PATCHER.is_file():
-        raise BuildError(f"patcher not found: {CAMERA_PATCHER}")
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
         TEMPLATE_ROOT / "Setup.ps1",

@@ -295,7 +295,11 @@ class CameraMod(BinaryMod):
         candidate.remove_highlow_relocations(
             section.virtual_address, labels["cab_rotate_relocs"]
         )
-        candidate.remove_section(NEWSEC_NAME)
+        candidate.remove_section(
+            NEWSEC_NAME,
+            original_eof=section.raw_offset,
+            original_image_size=align(section.virtual_address, candidate.section_alignment),
+        )
         self._write(candidate, "original")
         if self.inspect(candidate) != PatchState.ORIGINAL:
             raise StateError("camera failed post-restore verification")
