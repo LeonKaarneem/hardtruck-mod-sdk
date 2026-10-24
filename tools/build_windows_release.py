@@ -11,6 +11,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PATCHER_ROOT = PROJECT_ROOT / "modpack/patches"
+TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
 GAME_PATCHERS = (
     ("camera", PATCHER_ROOT / "patch_camera_mods.py"),
     ("physics", PATCHER_ROOT / "patch_physics_fixes.py"),
@@ -217,9 +218,14 @@ def build(args):
     for _, patcher in (*GAME_PATCHERS, ("dx8", DX8_PATCHER)):
         if not patcher.is_file():
             raise BuildError(f"patcher not found: {patcher}")
+    for template in (TEMPLATE_ROOT / "Setup.bat", TEMPLATE_ROOT / "Setup.ps1"):
+        if not template.is_file():
+            raise BuildError(f"installer template not found: {template}")
 
     installer = args.output / "installer"
     installer.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", args.output / "Setup.bat")
+    shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
     with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
         temporary = Path(temporary)
         staging = temporary / "payload"
