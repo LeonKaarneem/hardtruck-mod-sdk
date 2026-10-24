@@ -7,3 +7,5 @@ test-*/
 /*.out
 .worktrees/
 release/
+__pycache__/
+*.py[cod]
