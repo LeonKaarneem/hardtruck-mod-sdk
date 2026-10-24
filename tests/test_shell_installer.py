@@ -82,7 +82,7 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertNotIn("python", text.casefold())
         records = [line.split("\t") for line in payload_manifest.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len([r for r in records if r[0] == "variant"]), 8)
-        self.assertEqual(len([r for r in records if r[0] == "data"]), 14)
+        self.assertEqual(len([r for r in records if r[0] == "data"]), 17)
         self.assertIn(["install-game", "game-111.dll", self.manifest()["game_variants"]["111"]["sha256"]], records)
 
     def test_install_all_validates_payloads_and_backs_up_every_replaced_or_created_file(self):
@@ -96,7 +96,7 @@ class ShellInstallerTests(unittest.TestCase):
         data_records = []
         for files in manifest["data_components"].values():
             data_records.extend(files)
-        self.assertEqual(len(data_records), 14)
+        self.assertEqual(len(data_records), 17)
         for payload in data_records:
             relative = payload.removeprefix("data/")
             self.assertEqual(sha256(self.game / "game/usr" / relative), manifest["payloads"][payload])
@@ -106,8 +106,8 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual((backup / "files/game/sys/game.dll").read_bytes(), original_game)
         self.assertEqual((backup / "files/sys/dx8.dll").read_bytes(), original_dx8)
         entries = [line.split("\t") for line in backups[0].read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(len(entries), 16)
-        self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 14)
+        self.assertEqual(len(entries), 19)
+        self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 17)
 
     def test_directory_and_symlink_destinations_are_rejected_before_any_change(self):
         for kind in ("directory", "symlink"):

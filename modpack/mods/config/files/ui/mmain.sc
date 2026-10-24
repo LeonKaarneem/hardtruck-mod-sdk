@@ -36,7 +36,7 @@ spawn ui_window {
 		spawn btn_common {
 			value:"@@i_midwest@@"
 			tooltip:"@@i_medium_tt@@"
-			tab:"1"
+			tab:"2"
 			id:"3"
 			area:"34.000000 207.000000 222.000000 239.000000"
 			coords:"0.000000 191.000000 256.000000 255.000000"
@@ -45,7 +45,7 @@ spawn ui_window {
 		spawn btn_common {
 			value:"@@i_rockies@@"
 			tooltip:"@@i_hard_tt@@"
-			tab:"1"
+			tab:"3"
 			id:"4"
 			area:"34.000000 259.000000 222.000000 291.000000"
 			coords:"0.000000 243.000000 256.000000 307.000000"
@@ -53,7 +53,7 @@ spawn ui_window {
 		}
 		spawn btn_common {
 			value:"@@i_load_game@@"
-			tab:"2"
+			tab:"4"
 			id:"5"
 			tooltip:"@@i_load_tt@@"
 			area:"34.000000 353.000000 222.000000 385.000000"
@@ -62,7 +62,7 @@ spawn ui_window {
 		}
 		spawn btn_common {
 			value:"@@i_options@@"
-			tab:"2"
+			tab:"5"
 			id:"10"
 			tooltip:"@@i_options_tt@@"
 			area:"34.000000 411.000000 222.000000 443.000000"
@@ -71,7 +71,7 @@ spawn ui_window {
 		}
 		spawn btn_common {
 			value:"@@i_credits@@"
-			tab:"2"
+			tab:"6"
 			id:"11"
 			tooltip:"@@i_credits_tt@@"
 			area:"34.000000 469.000000 222.000000 501.000000"
@@ -86,7 +86,7 @@ spawn ui_window {
 		spawn btn_common {
 			look:"5"
 			value:"x"
-			tab:"3"
+			tab:"7"
 			id:"1"
 			tooltip:"@@i_quit_tt@@"
 			area:"94.000000 515.000000 158.000000 579.000000"

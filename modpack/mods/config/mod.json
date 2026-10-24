@@ -24,6 +24,18 @@
     {
       "source": "ui/cosetup.sc",
       "destination": "game/usr/ui/cosetup.sc"
+    },
+    {
+      "source": "ui/moptions.sc",
+      "destination": "game/usr/ui/moptions.sc"
+    },
+    {
+      "source": "ui/options/mgraphics.sc",
+      "destination": "game/usr/ui/options/mgraphics.sc"
+    },
+    {
+      "source": "ui/options/mcontrols.sc",
+      "destination": "game/usr/ui/options/mcontrols.sc"
     }
   ]
 }

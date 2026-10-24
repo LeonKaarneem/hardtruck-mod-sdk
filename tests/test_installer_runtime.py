@@ -111,7 +111,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         installation = json.loads(backups[0].read_text(encoding="utf-8"))
         self.assertEqual(installation["schema_version"], 1)
         self.assertEqual(installation["status"], "Installed")
-        self.assertEqual(len(installation["entries"]), 16)
+        self.assertEqual(len(installation["entries"]), 19)
 
         rerun = self.run_setup(self.package, self.game)
         self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)

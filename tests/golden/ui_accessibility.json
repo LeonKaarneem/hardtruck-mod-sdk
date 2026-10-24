@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "files": {
+    "mmain.sc": "c20921d3d0c1e8745e6ddd6b7e61c645a8f2120c640f212b2e8c75c738fbcb40",
+    "cosetup.sc": "b69477e7ed4b0d2cfa4fb2202a5730d7aea8534f1fbeebd1210f745c97fe049f",
+    "moptions.sc": "a0a57dce1c34b119c5dae3c37bcb13463d8ec5285c6a6b71fb6c99ba83ac4a91",
+    "options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
+    "options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3"
+  }
+}

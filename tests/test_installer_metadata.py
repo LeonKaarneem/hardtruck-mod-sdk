@@ -99,6 +99,9 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
             "data/config.cfg",
             "data/ui/mmain.sc",
             "data/ui/cosetup.sc",
+            "data/ui/moptions.sc",
+            "data/ui/options/mgraphics.sc",
+            "data/ui/options/mcontrols.sc",
         ])
 
 
@@ -111,6 +114,9 @@ class QuickSetupTests(unittest.TestCase):
         self.assertEqual(content.count(b"\n"), content.count(b"\r\n"))
         self.assertNotIn(b"\n\tspawn txt_common {\n", content)
         stock = content.replace(QUICK_SETUP_BLOCK, b"")
+        stock = stock.replace(b'\t\ttab:"1"\r\n\t\tid:"10"', b'\t\tid:"10"')
+        stock = stock.replace(b'\t\ttab:"2"\r\n\t\tid:"11"', b'\t\tid:"11"')
+        stock = stock.replace(b'\t\ttab:"3"\r\n\t\tid:"1"', b'\t\ttab:"8"\r\n\t\tid:"1"')
         self.assertEqual(hashlib.sha256(stock).hexdigest(), STOCK_QUICK_SETUP_SHA256)
         frame_end = stock.index(b"\t}\r\n", stock.index(b'\tspawn frm_common {')) + len(b"\t}\r\n")
         self.assertEqual(content[frame_end:frame_end + len(QUICK_SETUP_BLOCK)], QUICK_SETUP_BLOCK)
