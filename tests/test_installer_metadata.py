@@ -16,15 +16,16 @@ from tools import build_windows_release
 QUICK_SETUP = ROOT / "modpack/mods/config/files/ui/cosetup.sc"
 QUICK_SETUP_VALUE = (
     "UNOFFICIAL MOD - Hard Truck Modern v3<br>"
-    "Improves handling, physics, cameras, economy and AI<br>"
-    "Installed features depend on Setup choices"
+    "Better physics, cameras and handling<br>"
+    "Improved economy and AI cleanup<br>"
+    "Features depend on Setup choices"
 )
 QUICK_SETUP_BLOCK = (
     '\tspawn txt_common {\r\n'
     '\t\tlook:"3"\r\n'
     f'\t\tvalue:"{QUICK_SETUP_VALUE}"\r\n'
-    '\t\tarea:"262.000000 625.000000 762.000000 705.000000"\r\n'
-    '\t\tcoords:"262.000000 625.000000 762.000000 705.000000"\r\n'
+    '\t\tarea:"262.000000 625.000000 762.000000 735.000000"\r\n'
+    '\t\tcoords:"262.000000 625.000000 762.000000 735.000000"\r\n'
     '\t}\r\n'
 ).encode("utf-8")
 STOCK_QUICK_SETUP_SHA256 = "2506947443d594a16cc4f34f9aa5186d4cb838fe1c1c6aae64ed83cb96cb2f62"

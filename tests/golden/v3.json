@@ -38,7 +38,7 @@
     "data/defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
     "data/defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
     "data/defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
-    "data/ui/cosetup.sc": "dde099ddfd943d31437ed1f886a04f447a3f8ed61d000b00038852a3405c560b",
+    "data/ui/cosetup.sc": "1399aba492c5c6b38b1c3be5e19d00631824b4d6d7c49a415afb36e2472772bb",
     "data/ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
   },
   "source_data": {
@@ -54,7 +54,7 @@
     "defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
     "defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
     "defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
-    "ui/cosetup.sc": "dde099ddfd943d31437ed1f886a04f447a3f8ed61d000b00038852a3405c560b",
+    "ui/cosetup.sc": "1399aba492c5c6b38b1c3be5e19d00631824b4d6d7c49a415afb36e2472772bb",
     "ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
   },
   "source_line_endings": "crlf",

@@ -11,9 +11,9 @@ spawn ui_window {
 	}
 	spawn txt_common {
 		look:"3"
-		value:"UNOFFICIAL MOD - Hard Truck Modern v3<br>Improves handling, physics, cameras, economy and AI<br>Installed features depend on Setup choices"
-		area:"262.000000 625.000000 762.000000 705.000000"
-		coords:"262.000000 625.000000 762.000000 705.000000"
+		value:"UNOFFICIAL MOD - Hard Truck Modern v3<br>Better physics, cameras and handling<br>Improved economy and AI cleanup<br>Features depend on Setup choices"
+		area:"262.000000 625.000000 762.000000 735.000000"
+		coords:"262.000000 625.000000 762.000000 735.000000"
 	}
 	spawn txt_common {
 		look:"10"
