@@ -17,6 +17,8 @@ GAME_PATCHERS = (
     ("ai", PATCHER_ROOT / "patch_ai_fixes.py"),
 )
 DX8_PATCHER = PATCHER_ROOT / "patch_dx8_vsync.py"
+PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
+PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
 FORBIDDEN_DIRECTORIES = {"save", "saves", "music", "log", "logs", "__pycache__"}
 FORBIDDEN_EXTENSIONS = {".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"}
 
@@ -137,7 +139,7 @@ def copy_data(source, payload):
     config = destination / "config.cfg"
     original = config.read_text(encoding="utf-8")
     sanitized = re.sub(
-        r"^\s*uset\s+r_renderer\s+.*(?:\r?\n|$)",
+        r"^[ \t]*uset\s+r_renderer\s+.*(?:\r?\n|$)",
         "",
         original,
         flags=re.IGNORECASE | re.MULTILINE,
@@ -201,6 +203,15 @@ def build(args):
         raise BuildError(f"pristine game DLL not found: {args.game_dll}")
     if not args.dx8_dll.is_file():
         raise BuildError(f"pristine DX8 DLL not found: {args.dx8_dll}")
+    for path, expected, label in (
+        (args.game_dll, PRISTINE_GAME_SHA256, "game DLL"),
+        (args.dx8_dll, PRISTINE_DX8_SHA256, "DX8 DLL"),
+    ):
+        actual = sha256(path)
+        if actual != expected:
+            raise BuildError(
+                f"{label} SHA-256 mismatch for {path}: expected {expected}, got {actual}"
+            )
     if not args.data_source.is_dir():
         raise BuildError(f"mod data directory not found: {args.data_source}")
     for _, patcher in (*GAME_PATCHERS, ("dx8", DX8_PATCHER)):
