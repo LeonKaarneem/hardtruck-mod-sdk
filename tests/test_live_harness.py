@@ -1,0 +1,177 @@
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[1]
+HARNESS = ROOT / "tests/live/run_wine.py"
+
+
+def load_harness():
+    spec = importlib.util.spec_from_file_location("htmod_live_run_wine", HARNESS)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class LiveHarnessTests(unittest.TestCase):
+    def test_cli_requires_explicit_game_prefix_output_and_display(self):
+        harness = load_harness()
+        args = harness.parse_args([
+            "--game", "/games/hard truck",
+            "--prefix", "/prefixes/smoke",
+            "--output", "/evidence/run",
+            "--display", "121",
+            "--resolution", "1024x768",
+        ])
+        self.assertEqual(args.game, Path("/games/hard truck"))
+        self.assertEqual(args.prefix, Path("/prefixes/smoke"))
+        self.assertEqual(args.output, Path("/evidence/run"))
+        self.assertEqual(args.display, ":121")
+        self.assertEqual(args.resolution, "1024x768")
+
+    def test_cleanup_terminates_only_owned_processes_and_scopes_wineserver_to_prefix(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            session = harness.WineSession(
+                game=output / "game",
+                prefix=output / "prefix",
+                output=output,
+                display=":122",
+                resolution="1024x768",
+            )
+            session.prefix.mkdir()
+            first = mock.Mock()
+            first.poll.return_value = None
+            first.pid = 101
+            second = mock.Mock()
+            second.poll.return_value = None
+            second.pid = 202
+            session.processes.extend((first, second))
+            with mock.patch.object(harness.subprocess, "run") as run:
+                session.cleanup()
+            first.terminate.assert_called_once_with()
+            second.terminate.assert_called_once_with()
+            first.wait.assert_called_once_with(timeout=5)
+            second.wait.assert_called_once_with(timeout=5)
+            run.assert_called_once_with(
+                ["wineserver", "-k"],
+                env=mock.ANY,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+            environment = run.call_args.kwargs["env"]
+            self.assertEqual(environment["WINEPREFIX"], str(session.prefix))
+            self.assertEqual(environment["DISPLAY"], ":122")
+
+    def test_real_cleanup_reaps_owned_pid(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            session = harness.WineSession(output, output / "prefix", output, ":123")
+            process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+            session.processes.append(process)
+            session.cleanup()
+            self.assertIsNotNone(process.poll())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(process.pid, 0)
+
+    def test_failed_start_still_cleans_owned_processes(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            session = harness.WineSession(output, output / "prefix", output, ":123")
+            session.start = mock.Mock(side_effect=harness.LiveSmokeError("start failed"))
+            session.cleanup = mock.Mock()
+            with self.assertRaisesRegex(harness.LiveSmokeError, "start failed"):
+                session.__enter__()
+            session.cleanup.assert_called_once_with()
+
+    def test_game_log_validation_accepts_known_benign_errors_and_rejects_crashes(self):
+        harness = load_harness()
+        benign = "setting state GAME\nscript ui/cosetup.sc read OK\n*** ERROR *** dx8_gamma read only\n"
+        harness.validate_game_log(benign, require_quick_setup=True)
+        for fatal in ("page fault", "0x88888786", "creation failed"):
+            with self.subTest(fatal=fatal), self.assertRaises(harness.LiveSmokeError):
+                harness.validate_game_log(benign + fatal + "\n")
+        with self.assertRaises(harness.LiveSmokeError):
+            harness.validate_game_log("setting state MENU\n", require_quick_setup=True)
+
+    def test_camera_smoke_requires_test_only_look_bindings(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temporary:
+            game = Path(temporary)
+            config = game / "game/usr/config.cfg"
+            config.parent.mkdir(parents=True)
+            config.write_text('bind_imp y "mleft"\nbind_imp o "mright"\nbind_imp i "mlookup"\nbind_imp k "mlookdown"\n')
+            harness.validate_camera_bindings(game)
+            config.write_text('bind_imp y "mleft"\n')
+            with self.assertRaisesRegex(harness.LiveSmokeError, "o, i, k"):
+                harness.validate_camera_bindings(game)
+
+    def test_camera_battery_uses_sustained_pitch_and_visits_every_camera(self):
+        harness = load_harness()
+
+        class FakeSession:
+            def __init__(self):
+                self.keys = []
+                self.holds = []
+                self.screenshots = []
+                self.finished = False
+
+            def capture(self, name):
+                self.screenshots.append(name)
+
+            def enter_map(self, wait):
+                pass
+
+            def console(self, command):
+                if command != "ui t cosetup":
+                    raise AssertionError(command)
+
+            def close_console(self, settle):
+                pass
+
+            def key(self, key, repeat=1):
+                self.keys.append((key, repeat))
+
+            def hold(self, key, seconds):
+                self.holds.append((key, seconds))
+
+            def finish(self, require_quick_setup):
+                self.finished = require_quick_setup
+
+        session = FakeSession()
+        with mock.patch.object(harness.time, "sleep"):
+            harness.run_camera(session, mock.Mock(boot_wait=0, map_wait=0))
+        self.assertIn(("k", 2), session.holds)
+        self.assertIn(("i", 2), session.holds)
+        self.assertEqual(
+            [name for name in session.screenshots if name.startswith("06-camera-")],
+            [f"06-camera-{camera}.png" for camera in range(1, 8)],
+        )
+        self.assertTrue(session.finished)
+
+    def test_retired_one_off_patchers_are_not_active_sources(self):
+        for name in (
+            "patch_camera_mods.py",
+            "patch_physics_fixes.py",
+            "patch_ai_fixes.py",
+            "patch_dx8_vsync.py",
+        ):
+            with self.subTest(script=name):
+                self.assertFalse((ROOT / "modpack/patches" / name).exists())
+        self.assertTrue((ROOT / "modpack/patches/patch_fov_horplus.py").is_file())
+
+
+if __name__ == "__main__":
+    unittest.main()

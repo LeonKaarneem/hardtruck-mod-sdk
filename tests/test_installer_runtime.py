@@ -565,6 +565,15 @@ class FreshExtractedDeliverableTests(InstallerCase):
 def build_release(cls):
     cls.temporary = tempfile.TemporaryDirectory(prefix="htmod-installer-release-")
     cls.release = Path(cls.temporary.name) / "HardTruckModern"
+    archive = os.environ.get("HTMOD_RELEASE_ZIP")
+    if archive:
+        with zipfile.ZipFile(archive) as source:
+            if source.testzip() is not None:
+                raise RuntimeError(f"corrupt release ZIP: {archive}")
+            source.extractall(cls.temporary.name)
+        if not cls.release.is_dir():
+            raise RuntimeError(f"release ZIP has no HardTruckModern root: {archive}")
+        return
     build_windows_release.build(SimpleNamespace(
         output=cls.release,
         game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),

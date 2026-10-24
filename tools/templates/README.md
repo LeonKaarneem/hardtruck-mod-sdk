@@ -12,7 +12,9 @@ The installer supports pristine Hard Truck v1.2 and its own installed variants. 
 
 `~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 
-With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. Cabin yaw/pitch no longer bank the scene, and upward/downward look clamps correctly at ±35°, including negative/downward input.
+With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The Set Up Company screen also has a native **Quick Setup** panel identifying the unofficial mod, summarizing the physics/camera/handling and economy/AI improvements, and noting that installed features depend on Setup choices. It leaves the stock company fields and OK control in place.
+
+Cabin yaw/pitch no longer bank the scene, and upward/downward look clamps correctly at ±35°, including negative/downward input.
 
 **Cap FPS at 60 or lower** to avoid high-frame-rate physics bugs. Use either d3d8to9 or the native DX8 vsync patch, not both: they replace the same `sys/dx8.dll` and are incompatible.
 

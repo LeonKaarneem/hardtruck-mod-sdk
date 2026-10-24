@@ -1,272 +1,97 @@
-# Hard Truck: 18 Wheels of Steel - Modern QoL Mod Pack v3
+# Hard Truck: 18 Wheels of Steel - Modern v3
 
-A quality-of-life bug-fix mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
-2002, Prism3D engine). Data files use the game's own override mechanism - any file
-placed in `game/usr/<path>` replaces the archived copy of `<path>` - so no archives
-are repacked. On Windows, the release installer applies the data and optional
-binary patches (cameras, physics, AI cleanup, dx8 vsync) without Python. The
-advanced patcher scripts also have `--check`/`--restore` and restore
-byte-identically. All game.dll patches compose with each other (verified).
+A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-v3.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python.
 
-> ## ⚠ START A NEW PROFILE - YOUR OLD SAVES WILL NOT LOAD
->
-> Savegames are version-checked against data derived from the `.def` files. This mod
-> changes those defs, so **existing `game/usr/save/*.sav` files will be rejected or
-> corrupted**. There is no migration path: finish your current run before installing,
-> then create a new driver profile. This cannot be stressed enough - back up your
-> `game/usr/save/` folder first.
+> **Start a new profile after installing definition changes.** Existing saves are version-checked against those definitions and will not load. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
-## What's included
-
-| Component | Effect |
-|---|---|
-| `game/usr/config.cfg` | Console enabled, QoL keybinds (see table), 1920x1080 default, optional-extras comments |
-| `game/usr/defs/truck_base.def` | `steer_speed` 30→40 deg/s, `brake` 120000→160000, `torque_coef` 0.9→1.35 |
-| `game/usr/defs/truck1.def` … `truck8.def` | Every truck steers at 40 deg/s; weak brakes buffed +33% (truck2: 66666→88888, truck8: 30000→40000); `torque_coef` ×1.5 per truck (0.45→0.675 … 3.2→4.8) - recovers the acceleration the 1.2 patch broke |
-| `game/usr/defs/driver_base.def` | AI drivers: delay chance 0.0017→0.0005, salary demand 400→300, share demand 10%→7.5% |
-| `game/usr/defs/management/base.def` | Cargo pay `cval` +40%, damage penalty `cpen` −40% (to 60%). Built on the 1.2 patch file, so its localization fixes stay intact |
-| `patches/patch_camera_mods.py` | **Cameras:** chase cam (key 2) becomes an ETS-style mouse-orbit camera; cab view gets vertical look (±35°) |
-| `patches/patch_physics_fixes.py` | **Physics:** kills the "invisible wall" dead-stop feel, removes the velocity snap, fixes the trailer-mass unit bug (÷3→÷5) |
-| `patches/patch_ai_fixes.py` | **AI:** fixes the ui_ai_car despawn bug behind the ~9000× "removing me ?? who ?" log spam and menu-traffic pool leak |
-| `patches/patch_dx8_vsync.py` | Optional: byte-patches `sys/dx8.dll` for native vsync |
-
-### Latest fixes
-
-- The main menu shows a lower-right **Hard Truck Modern v3** indicator when Configuration is installed.
-- Cabin yaw/pitch now combine without banking or pivoting the scene; upward and downward look clamp correctly at ±35°, including negative/downward input.
-
-## The three classic complaints, and what this mod does about them
-
-### 1. "Invisible wall" - truck stops dead at nothing
-
-There are **two** bugs with the same symptom; this mod fixes the fixable one:
-
-- **Fixed - the material governor + velocity snap.** Any wheel touching non-road
-  material (shoulders, tunnel edges, weigh-station aprons - exactly where players
-  report walls) multiplied rolling resistance by up to 400×, and a separate
-  snap-to-zero zeroed all velocity whenever net force fell below a threshold.
-  Patched: governor 400→40 (a strong off-road penalty remains, but clipping a
-  shoulder slows you instead of slamming you), snap threshold 10000→100 (truck
-  creeps at force equilibrium instead of dead-stopping). A/B-verified headless:
-  stock truck stops dead at the spawn gantry shoulder; patched truck keeps rolling.
-- **Not fixable - bad collision at fixed map spots.** A handful of locations
-  (Phoenix–Las Vegas bridge area, some weigh-station entrances, Denver–SLC sector
-  joins) have broken collision geometry baked into the map's binary `.btr` trees.
-  No tool exists to edit those; save before known spots and drive around. Community
-  reports agree these existed on 2002 hardware.
-- **Already covered - high-FPS physics glitches.** The "stuck on terrain" variant
-  happens above ~60 FPS; see the FPS cap notes below.
-
-### 2. Acceleration way too slow with cargo
-
-Three stacked causes, all addressed:
-
-- **Unit bug (code):** the physics converts truck mass with kg÷5 but trailer+cargo
-  with kg÷3 - every kilogram of load counted 1.67×. Patched to ÷5 in `game.dll`.
-- **The 1.2 regression (data):** first-hand A/B tests (1.0 disc vs Steam 1.2) show
-  patch 1.2 made effective torque ~2.5× weaker. `torque_coef` is raised ×1.5 across
-  the fleet (on top of the unit fix this lands close to 1.0 feel without going
-  arcade). A/B-verified: the stock truck barely leaves the gantry in 8 s; patched it
-  clears it in ~1–2 s.
-- **`thorse_power` is display-only** (marketing stat for the truck list - the real
-  power curve keys off `torque_coef` and rpm), so def edits target the right value.
-
-### 3. AI traffic suddenly stopping
-
-Honest status - the deep RE found three mechanisms; one fixed, two documented:
-
-- **Fixed - ui_ai_car desync bug:** the menu/demo traffic pool used an error stub
-  instead of `remove_me` for one virtual (the source of the ~9000×
-  `*** ERROR *** removing me ?? who ?` per session and cars never deactivating).
-  The vtable slot is repointed to the real cleanup. Verified: spam structurally
-  impossible after patch; no new errors across multiple 10-minute soaks.
-- **Known, not fixed - junction gridlock leak:** junction occupancy counters are
-  only decremented while a car drives through; distance-despawn leaks them, so
-  eventually a junction jams permanently (cars wait at green). A safe code patch
-  needs a provable "does this car hold the counter" test that the static analysis
-  could not establish (all candidate flags go stale after normal exit - patching
-  blindly would double-count and make cars run red lights). Needs live debugging
-  with real input; mechanism fully documented in `research/ai-notes.md`.
-- **Known, not fixed - full-stop flag freeze:** a hard-stopped AI car sets a flag
-  that nothing ever clears; unless its (engine-side) controller restarts it, it
-  stays frozen. Also documented.
-
-## Windows quick start
+## Install on Windows
 
 1. Extract `HardTruckModern-v3.zip` completely.
 2. Close the game and run `Setup.bat` in the extracted folder.
-3. Choose **Install all**. Setup checks Steam libraries, common Program Files/GOG
-   locations, and previous installations automatically. Confirm the detected folder,
-   choose from the numbered list, or enter the folder containing `prism3d.exe`
-   manually if no installation is found.
-4. Start a **new profile**. Install all changes definitions, so existing saves are
-   incompatible even though the installer preserves the save files.
+3. Choose **Install all**, or **Choose components** for a custom install.
+4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, choose from the numbered list, or enter the folder containing `prism3d.exe` manually.
+5. Start a **new profile** if you installed handling, economy, or driver definitions.
 
-No Python or terminal commands are required. To install only some mods, choose
-**Choose components** instead; selecting handling, economy, or driver definitions
-still requires a new profile. Keep the extracted `installer` folder so the setup
-can make backups and uninstall later.
+Keep the extracted `installer` folder so Setup can retain backups and uninstall later. To restore the pre-install state, run `Setup.bat` and choose **Uninstall**. Files changed after installation are reported and skipped rather than overwritten. Saves and unrelated files are preserved.
 
-The installer accepts pristine v1.2 and its own binary variants. It refuses an
-unknown `game.dll` or a wrapped `sys/dx8.dll`; restore the stock DX8 DLL before
-running setup. To return to the pre-install state, run `Setup.bat` and choose
-**Uninstall**. Files you changed after installation are skipped rather than
-overwritten.
+Setup accepts pristine v1.2 and its own known binary variants. It refuses unknown `game.dll` or wrapped `sys/dx8.dll` files instead of overwriting them. Restore the stock DX8 DLL before setup if you use d3d8to9.
 
-## Advanced manual installation
+## Components
 
-For manual Windows installation, copy the contents of `game/` into the game folder
-(the one containing `prism3d.exe`), preserving the folder structure:
+| Stable ID | Effect | New profile? |
+|---|---|---|
+| `config` | Console and controls, 1920×1080 default, main-menu mod marker, Quick Setup information | No |
+| `handling_defs` | Quicker steering, stronger brakes, torque recovery across the fleet | Yes |
+| `economy_def` | Cargo pay +40%; damage penalty reduced to 60% | Yes |
+| `driver_def` | Lower AI-driver delay chance, salary, and share demand | Yes |
+| `camera` | Mouse-orbit chase camera (key 2); cabin vertical look clamped at ±35° | No |
+| `physics` | Reduces shoulder/tunnel-edge dead stops, velocity snap, and trailer-mass error | No |
+| `ai` | Fixes menu/demo traffic despawn cleanup and its log spam/pool leak | No |
+| `dx8_vsync` | Native DX8 vsync for the stock renderer | No |
 
-```
-xcopy /e /i "modpack\game" "C:\Games\Hard Truck 18 WoS\game"
-```
+With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls.
 
-Or drag `usr` into `…\game\` and merge. `INSTALL.bat` (Windows) and `INSTALL.sh`
-(Linux/macOS) can copy these data files to a target directory after confirmation;
-they do not apply binary patches. See **Linux / Wine** below for the manual Linux
-copy command and prefix setup.
+## Controls and display
 
-Then apply the binary patches you want (all optional, all reversible, order doesn't
-matter, they compose):
+Press `~` to open the console. Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 
-```
-python patches\patch_camera_mods.py  "C:\Games\Hard Truck 18 WoS\game\sys\game.dll"
-python patches\patch_physics_fixes.py "C:\Games\Hard Truck 18 WoS\game\sys\game.dll"
-python patches\patch_ai_fixes.py     "C:\Games\Hard Truck 18 WoS\game\sys\game.dll"
-```
+**Cap FPS at 60 or lower** to avoid the original high-frame-rate physics bugs. On Windows 10/11, either:
 
-The manual patchers require Python 3. After copying, edit `game/usr/config.cfg` if
-your native resolution isn't 1920x1080 (`uset r_mode "WIDTHxHEIGHTx32"`).
+- use [d3d8to9](https://github.com/crosire/d3d8to9) with your driver's vsync, restoring stock `sys/dx8.dll` before running Setup; or
+- select the native `dx8_vsync` component without a wrapper.
 
-## Windows 10/11
+Do not use both: they replace the same DLL. The launcher offers only resolutions up to 1024×768; run `prism3d.exe` directly or edit `uset r_mode "WIDTHxHEIGHTx32"` in `game/usr/config.cfg`.
 
-The stock dx8 renderer is flaky on modern Windows. Two options:
-
-1. **Recommended - d3d8to9**: download `d3d8.dll` from
-   <https://github.com/crosire/d3d8to9> (releases page). The game loads its renderer
-   from `sys/dx8.dll`, so: rename `sys\dx8.dll` to `sys\dx8.dll.bak`, then place the
-   downloaded `d3d8.dll` in `sys\` and rename it to `dx8.dll`. This wraps Direct3D 8 to
-   9 and fixes most Windows 10/11 rendering issues. Run Setup before adding the
-   wrapper, and restore the stock DLL before any later install or uninstall: Setup
-   deliberately refuses wrapped/unknown DX8 files and will not overwrite them. To
-   revert the wrapper, delete it and rename the `.bak` back.
-2. **Native vsync patch** (optional, without d3d8to9 - works on plain Win32;
-   also available directly through `Setup.bat`):
-
-   ```
-   python patches\patch_dx8_vsync.py "C:\Games\Hard Truck 18 WoS\sys\dx8.dll"
-   ```
-
-Notes:
-
-- **The launcher caps resolution at 1024x768.** Either skip the launcher and run
-  `prism3d.exe` directly, or close the game after the launcher and edit
-  `game/usr/config.cfg` (`uset r_mode "1920x1080x32"`) - the engine enumerates real
-  modes and anything it lists works.
-- **Widescreen FOV (read this before asking):** on 16:9 the engine *vertically*
-  crops the view (fixed horizontal FOV). A proper Hor+ fix was attempted
-  exhaustively and is **impossible for this engine build**: the projection matrix
-  only exists inside the renderer modules, which are protected by a runtime
-  integrity check (dlguard) that crashes the game if a single code byte changes,
-  and the engine software-transforms its vertices, so no wrapper (d3d8to9,
-  dgVoodoo2, or a Wine-side proxy - all tested/designed) ever sees the projection.
-  Full three-round proof chain in `research/fov-notes.md`. The practical options
-  are: play 16:9 Vert- (slightly zoomed), or force 4:3 (`uset r_mode "1440x1080x32"`
-  etc.) with your GPU scaling set to "preserve aspect ratio" (pillarboxed, correct
-  FOV).
-- **Cap your FPS at ~60.** There is a physics bug at high frame rates (truck can get
-  stuck on terrain). Use the vsync patch, d3d8to9 with your driver's vsync, or an
-  external limiter.
+Widescreen is Vert- (cropped vertically). For the original field of view, use a 4:3 resolution with GPU aspect-ratio scaling for pillarbox bars.
 
 ## Linux / Wine
 
-Recipe (tested style, any recent distro):
+Use a 32-bit Wine prefix and install the game normally. Generate the release on a machine with the author prerequisites, then run its PowerShell installer where available, or perform binary changes through the SDK on a disposable copy and materialize data through a release build. There is no supported raw `modpack/game` directory to copy.
 
-```sh
-# 32-bit prefix (the game is a 32-bit PE)
-export WINEPREFIX="$HOME/.wine-ht18"
-wineboot --init            # say yes if it offers to install Mono/Gecko
-winetricks -q vcrun6       # MSVC6 runtimes, harmless if already present
+For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 
-# install the modpack (copy game/ contents over the game folder)
-cp -r modpack/game/* "$WINEPREFIX/drive_c/18 Wheels of Steel Hard Truck/game/"
-
-# edit resolution + renderer: set in game/usr/config.cfg
-#   uset r_mode "1920x1080x32"
-#   uset r_device "gl"
-#   uset gl_sync "1"      <- vsync = stable 60 FPS cap (wine honors swap interval)
-wine "$WINEPREFIX/drive_c/18 Wheels of Steel Hard Truck/prism3d.exe" -game game
+```text
+uset r_device "gl"
+uset gl_sync "1"
 ```
 
-- Prefer `r_device "gl"` + `gl_sync "1"`: the OpenGL renderer exposes vsync directly
-  and Wine honors it, giving a clean 60 FPS cap (the dx8 path goes through WineD3D,
-  which cannot vsync). dx8 does work via WineD3D if you prefer it.
-- **Keep FPS ≤ 60** - same physics bug as on Windows (see above).
-- Widescreen FOV: same Vert- situation as Windows (see the note above - no fix is
-  possible; `src/htd8/` contains a complete, working Wine d3d8 COM proxy built
-  during the attempt, kept as reference).
-- Headless/automated testing notes (Xvfb + xdotool, console-driven: `map west`,
-  `ui t cosetup`) are in `research/` - useful if you want to script the game.
+The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works through WineD3D. Keep FPS at 60 or lower and start a new profile after definition changes.
 
-## Keybinds
+## Known limitations
 
-Press **`~`** in game to open the console (enabled by this mod: `g_console 1`).
+- Physics fixes do not repair broken collision geometry at some bridges, weigh stations, and sector joins. Save before known trouble spots.
+- AI cleanup does not fix every traffic stop: junction-counter gridlock and some stopped-car freezes remain.
+- Definition changes require a new profile. There is no save migration path.
+- The Hor+ FOV attempt remains excluded experimental research. Renderer integrity checks and the engine's software-transformed vertex path prevented a safe patch. See `research/fov-notes.md`; do not install `patch_fov_horplus.py` or the reference `src/htd8/` proxy as release mods.
+- If startup or a mod fails, inspect `prism3d.log` and confirm Setup selected the folder containing `prism3d.exe`.
 
-| Key | Action |
-|---|---|
-| 2 | Chase camera - **mouse-orbit around the truck** (with camera patch) |
-| 3 / 4 / 5 … | Other stock cameras (unchanged) |
-| F6 | Teleport to service station (debug impulse) |
-| F7 | Teleport to gas station |
-| F8 | Teleport to weigh station |
-| F9 | Debug camera toggle |
-| F10 | Toggle speed/overweight tickets on/off (`cheat noticket`) |
-| F12 | Screenshot (stock) |
+## Authors and advanced recovery
 
-## Console cheat commands
+All active additions use manifests and the static SDK registry. The retired raw-copy `INSTALL.bat`/`INSTALL.sh` workflow and standalone camera/physics/AI/DX8 patchers have been removed; there is no second active implementation to drift from the release.
 
-With the console open (`~`), type `cheat` plus one of:
+See **`sdk/README.md`** for data mods, operand patches, code hooks, dependencies/conflicts, tests, live smokes, and release packaging. Registered binary components can be inspected or reversed on a backed-up test game:
 
-- `cheat noticket` - toggle speed/overweight tickets
-- `cheat money <value>` - add money
-- `cheat skill <value>` - set skill
-- `cheat contracts flow skill [bonus]` - spawn contract offers
-- `cheat goto7 <x> <y> <z>` - teleport
-- `cheat dmeet` - meet all drivers
-- `cheat truck [1..6]` - switch truck
-- `cheat tspeed [float]` - management time-scale modifier
+```sh
+python3 tools/htmod.py check --game-dir "/path/to/game" --mod camera --mod physics --mod ai
+python3 tools/htmod.py restore --game-dir "/path/to/game" --mod camera --mod physics --mod ai
+python3 tools/htmod.py restore --game-dir "/path/to/game" --mod dx8_vsync
+```
 
-## Jukebox
-
-Drop `.ogg` or `.wav` files into `game/usr/music/jukebox/` and press `j` in game.
-**Filenames must be 45 characters or fewer.**
-
-## Uninstall / troubleshooting
-
-- On Windows, run `Setup.bat` and choose **Uninstall**. It restores installer
-  backups without touching saves or unrelated `game/usr` content; files modified
-  after installation are reported and skipped.
-- For a manual installation, remove the files you copied into `game/usr/` (or the
-  whole `game/usr/` folder - the game regenerates it) to return to stock behavior.
-  Keep your `save/` backup.
-- Revert manually applied binary patches with each script's `--restore` (game.dll
-  cameras/physics/AI, dx8.dll vsync).
-- If the game fails to start after editing, check `game/usr/config.cfg` for typos and
-  `prism3d.log` in the game folder for def parse errors.
+Use Setup's **Uninstall** for a normal installation because it also restores manifest-owned data and backup history.
 
 ## Repository layout
 
-```
+```text
 modpack/
-  game/               data overrides (copy into game folder)
-  patches/            patch_camera_mods.py, patch_physics_fixes.py,
-                      patch_ai_fixes.py, patch_dx8_vsync.py
-  src/htd8/           reference d3d8 COM proxy from the FOV attempt (not needed to play)
-research/
-  camera-notes.md     camera RE + verification evidence
-  physics-notes.md    vehicle physics RE + v3 fixes evidence
-  ai-notes.md         traffic AI RE + v3 fixes + known-unfixed mechanisms
-  fov-notes.md        FOV/diGuard RE + the 3-round Hor+ proof chain
-specs/                original v1 design doc
+  release.json          ordered components and curated game variants
+  mods/<id>/mod.json    component metadata and ownership
+  mods/<id>/files/      manifest-owned data sources
+  mods/<id>/patch.py    registered binary implementations
+  patches/              excluded experimental FOV research only
+  src/htd8/             excluded reference proxy from that research
+sdk/                    SDK library and author guide
+tests/                  unit, golden, installer, and live-smoke harnesses
+tools/htmod.py          author CLI
+tools/build_windows_release.py
+research/               historical RE notes and evidence
 ```

@@ -1,0 +1,330 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+
+class LiveSmokeError(RuntimeError):
+    pass
+
+
+def normalize_display(value):
+    display = value if value.startswith(":") else ":" + value
+    if not re.fullmatch(r":[0-9]+", display):
+        raise argparse.ArgumentTypeError("display must be an X11 number such as 121 or :121")
+    return display
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Run an isolated Hard Truck Wine/Xvfb smoke")
+    parser.add_argument("--game", required=True, type=Path, help="disposable game folder containing prism3d.exe")
+    parser.add_argument("--prefix", required=True, type=Path, help="dedicated Wine prefix; never share a live prefix")
+    parser.add_argument("--output", required=True, type=Path, help="screenshot and log output folder")
+    parser.add_argument("--display", required=True, type=normalize_display, help="unused X11 display, for example :121")
+    parser.add_argument("--resolution", choices=("1024x768", "1920x1080"), default="1024x768")
+    parser.add_argument("--smoke", choices=("quick-setup", "camera"), default="quick-setup")
+    parser.add_argument("--title", default="HTMODSDKSMOKE", help="unique window title used to find the game")
+    parser.add_argument("--boot-wait", type=float, default=30)
+    parser.add_argument("--map-wait", type=float, default=25)
+    return parser.parse_args(argv)
+
+
+def validate_camera_bindings(game):
+    config = Path(game) / "game/usr/config.cfg"
+    text = config.read_text(encoding="utf-8", errors="replace")
+    expected = {"y": "mleft", "o": "mright", "i": "mlookup", "k": "mlookdown"}
+    missing = [
+        key for key, impulse in expected.items()
+        if not re.search(rf'(?im)^\s*bind_imp\s+{key}\s+"?{impulse}"?\s*$', text)
+    ]
+    if missing:
+        raise LiveSmokeError(
+            "camera test copy lacks required look bindings for " + ", ".join(missing)
+            + "; add the test-only y/o/i/k bindings documented in sdk/README.md"
+        )
+
+
+def validate_game_log(text, require_quick_setup=False):
+    lowered = text.casefold()
+    if "setting state game" not in lowered:
+        raise LiveSmokeError("game log did not reach GAME state")
+    if require_quick_setup and "script ui/cosetup.sc read ok" not in lowered:
+        raise LiveSmokeError("game log did not load ui/cosetup.sc")
+    for marker in ("page fault", "0x88888786", "creation failed", "unhandled exception", "assertion failed"):
+        if marker in lowered:
+            raise LiveSmokeError(f"fatal game/Wine log marker: {marker}")
+    unexpected = [
+        line for line in text.splitlines()
+        if "*** ERROR ***" in line
+        and not any(benign in line.casefold() for benign in ("dx8_gamma", "setviewport"))
+    ]
+    if unexpected:
+        raise LiveSmokeError("unexpected game errors: " + " | ".join(unexpected[-5:]))
+
+
+class WineSession:
+    def __init__(self, game, prefix, output, display, resolution="1024x768", title="HTMODSDKSMOKE"):
+        self.game = Path(game).resolve()
+        self.prefix = Path(prefix).resolve()
+        self.output = Path(output).resolve()
+        self.display = normalize_display(display)
+        self.resolution = resolution
+        self.title = title
+        self.processes = []
+        self.game_process = None
+        self.environment = os.environ.copy()
+        self.environment.update(DISPLAY=self.display, WINEPREFIX=str(self.prefix))
+        self.screenshots = []
+        self.cleaned = False
+
+    def __enter__(self):
+        try:
+            self.start()
+        except BaseException:
+            self.cleanup()
+            raise
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cleanup()
+
+    def start(self):
+        if not (self.game / "prism3d.exe").is_file():
+            raise LiveSmokeError(f"prism3d.exe not found in disposable game folder: {self.game}")
+        missing = [name for name in ("Xvfb", "openbox", "wine", "wineserver", "xdotool", "scrot") if not shutil.which(name)]
+        if missing:
+            raise LiveSmokeError("missing live-smoke commands: " + ", ".join(missing))
+        self.output.mkdir(parents=True, exist_ok=True)
+        self.prefix.mkdir(parents=True, exist_ok=True)
+        self.spawn("xvfb", ["Xvfb", self.display, "-screen", "0", self.resolution + "x24", "-nolisten", "tcp"])
+        time.sleep(2)
+        self.spawn("openbox", ["openbox"])
+        time.sleep(2)
+        self.game_process = self.spawn(
+            "wine",
+            ["wine", "./prism3d.exe", "-game", "game", "-icon", "game.ico", "-title", self.title],
+            cwd=self.game,
+        )
+        self.wait_for_window(45)
+
+    def spawn(self, name, command, cwd=None):
+        with (self.output / (name + ".log")).open("ab") as log:
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env=self.environment,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        self.processes.append(process)
+        with (self.output / "owned-pids").open("a", encoding="utf-8") as record:
+            record.write(f"{process.pid} {name}\n")
+        return process
+
+    def command(self, arguments, timeout=20):
+        return subprocess.run(
+            arguments,
+            env=self.environment,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=True,
+        )
+
+    def window_id(self):
+        result = subprocess.run(
+            ["xdotool", "search", "--name", self.title],
+            env=self.environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        candidates = []
+        for value in result.stdout.split():
+            geometry = subprocess.run(
+                ["xdotool", "getwindowgeometry", value],
+                env=self.environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            sizes = re.findall(r"([0-9]+)x([0-9]+)", geometry.stdout)
+            if sizes:
+                width, height = map(int, sizes[-1])
+                candidates.append((width * height, value))
+        if not candidates:
+            raise LiveSmokeError(f"no visible game window titled {self.title!r}")
+        return max(candidates)[1]
+
+    def wait_for_window(self, timeout):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.game_process.poll() is not None:
+                raise LiveSmokeError(f"Wine exited before creating a window; see {self.output / 'wine.log'}")
+            try:
+                return self.window_id()
+            except LiveSmokeError:
+                time.sleep(1)
+        raise LiveSmokeError("timed out waiting for the game window")
+
+    def activate(self):
+        window = self.window_id()
+        self.command(["xdotool", "windowactivate", window])
+        time.sleep(1)
+        return window
+
+    def key(self, key, repeat=1):
+        window = self.activate()
+        self.command(["xdotool", "key", "--window", window, "--repeat", str(repeat), "--delay", "100", key])
+        time.sleep(1)
+
+    def hold(self, key, seconds):
+        window = self.activate()
+        self.command(["xdotool", "keydown", "--window", window, key])
+        try:
+            time.sleep(seconds)
+        finally:
+            self.command(["xdotool", "keyup", "--window", window, key])
+        time.sleep(1)
+
+    def console(self, command, settle=3):
+        self.key("asciitilde")
+        time.sleep(2)
+        window = self.activate()
+        self.command(["xdotool", "type", "--window", window, "--delay", "100", command])
+        self.command(["xdotool", "key", "--window", window, "Return"])
+        time.sleep(settle)
+
+    def close_console(self, settle=5):
+        self.key("asciitilde")
+        time.sleep(settle)
+
+    def enter_map(self, wait):
+        self.console("map west", settle=wait)
+        self.close_console()
+
+    def capture(self, name):
+        self.activate()
+        destination = self.output / name
+        temporary = self.output / ("." + name + ".new.png")
+        temporary.unlink(missing_ok=True)
+        self.command(["scrot", "-z", str(temporary)])
+        if not temporary.is_file():
+            raise LiveSmokeError(f"scrot did not create {temporary}")
+        os.replace(temporary, destination)
+        self.screenshots.append(name)
+        return destination
+
+    def game_log(self):
+        return (self.game / "prism3d.log").read_text(encoding="utf-8", errors="replace")
+
+    def finish(self, require_quick_setup=True):
+        if self.game_process.poll() is not None:
+            raise LiveSmokeError(f"Wine exited during smoke; see {self.output / 'wine.log'}")
+        text = self.game_log()
+        validate_game_log(text, require_quick_setup=require_quick_setup)
+        summary = {
+            "status": "process-and-log-checks-passed",
+            "game": str(self.game),
+            "prefix": str(self.prefix),
+            "display": self.display,
+            "resolution": self.resolution,
+            "screenshots": self.screenshots,
+            "visual_review": "required; this harness does not judge image content",
+            "quick_setup_ok_pressed": False,
+        }
+        (self.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(summary, indent=2))
+
+    def cleanup(self):
+        if self.cleaned:
+            return
+        self.cleaned = True
+        if self.prefix.exists():
+            try:
+                subprocess.run(
+                    ["wineserver", "-k"],
+                    env=self.environment,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        for process in reversed(self.processes):
+            if process.poll() is None:
+                try:
+                    process.terminate()
+                except ProcessLookupError:
+                    continue
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+
+
+def run_quick_setup(session, args):
+    time.sleep(args.boot_wait)
+    session.capture("01-main-menu.png")
+    session.enter_map(args.map_wait)
+    session.capture("02-quick-setup.png")
+    session.finish(require_quick_setup=True)
+
+
+def run_camera(session, args):
+    time.sleep(args.boot_wait)
+    session.capture("00-main-menu.png")
+    session.enter_map(args.map_wait)
+    session.console("ui t cosetup")
+    session.close_console(settle=10)
+    session.key("3")
+    session.key("1")
+    session.capture("01-cab-level.png")
+    session.hold("y", 1)
+    session.capture("02-cab-yaw-left.png")
+    session.hold("k", 2)
+    session.capture("03-cab-yaw-left-down.png")
+    session.key("3")
+    session.key("1")
+    session.hold("o", 1)
+    session.capture("04-cab-yaw-right.png")
+    session.hold("i", 2)
+    session.capture("05-cab-yaw-right-up.png")
+    session.key("3")
+    session.key("1")
+    for camera in range(1, 8):
+        session.key(str(camera))
+        session.capture(f"06-camera-{camera}.png")
+    session.finish(require_quick_setup=True)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    session = WineSession(**{key: value for key, value in vars(args).items() if key in {
+        "game", "prefix", "output", "display", "resolution", "title",
+    }})
+    try:
+        if args.smoke == "camera":
+            validate_camera_bindings(args.game)
+        with session:
+            if args.smoke == "quick-setup":
+                run_quick_setup(session, args)
+            else:
+                run_camera(session, args)
+    except (LiveSmokeError, OSError, subprocess.SubprocessError) as error:
+        print(f"live smoke failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
