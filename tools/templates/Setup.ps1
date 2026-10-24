@@ -154,6 +154,9 @@ function Get-GamePath {
         throw "Game folder not found: $RequestedPath"
     }
     $resolved = (Get-Item -LiteralPath $RequestedPath).FullName
+    if (-not (Test-Path -LiteralPath (Join-Path $resolved "prism3d.exe") -PathType Leaf)) {
+        throw "Not a Hard Truck game folder; prism3d.exe is missing: $resolved"
+    }
     if (-not (Test-Path -LiteralPath (Join-Path $resolved "game/sys/game.dll") -PathType Leaf)) {
         throw "Not a Hard Truck game folder; game/sys/game.dll is missing: $resolved"
     }
@@ -438,7 +441,7 @@ function Uninstall-Mods {
     $history = @()
     foreach ($file in (Get-ChildItem -LiteralPath $script:BackupRoot -Filter installation.json -Recurse -File | Sort-Object FullName -Descending)) {
         $candidate = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
-        if (($candidate.status -eq "Installed" -or $candidate.status -eq "UninstallPartial") -and $candidate.entries.Count -gt 0 -and $candidate.game_path -ieq $script:GamePath) {
+        if (($candidate.status -eq "Installed" -or $candidate.status -eq "UninstallPartial" -or $candidate.status -eq "RollbackFailed") -and $candidate.entries.Count -gt 0 -and $candidate.game_path -ieq $script:GamePath) {
             $items = @()
             foreach ($entry in $candidate.entries) {
                 $relative = Test-SafeDestination $entry.destination $Manifest
@@ -523,7 +526,12 @@ try {
     }
     $manifest = Read-PayloadManifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
-    Write-Warning "The game must be closed before setup continues."
+    if (-not $NonInteractive) {
+        $confirmed = Read-YesNo "Confirm that the game is closed before setup continues" -DefaultYes $false
+        if (-not $confirmed) {
+            throw "Setup cancelled; close the game before retrying."
+        }
+    }
     if ($script:SelectedAction -eq "Uninstall") {
         Uninstall-Mods $manifest
     }

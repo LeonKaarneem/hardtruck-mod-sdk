@@ -226,54 +226,82 @@ def build(args):
         if not template.is_file():
             raise BuildError(f"installer template not found: {template}")
 
-    installer = args.output / "installer"
-    installer.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", args.output / "Setup.bat")
-    shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
-    shutil.copyfile(TEMPLATE_ROOT / "README.md", args.output / "README.md")
-    with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
-        temporary = Path(temporary)
-        staging = temporary / "payload"
-        work = temporary / "work"
-        staging.mkdir()
-        work.mkdir()
+    output = args.output
+    if output.exists() and not output.is_dir():
+        raise BuildError(f"release output is not a directory: {output}")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=f".{output.name}.build-", dir=output.parent) as release_temporary:
+        release_temporary = Path(release_temporary)
+        release_staging = release_temporary / "release"
+        if output.exists():
+            shutil.copytree(output, release_staging)
+        else:
+            release_staging.mkdir()
 
-        variants = build_game_variants(args.game_dll, staging, work)
-        dx8 = build_dx8_payloads(args.dx8_dll, staging, work)
-        data_components = copy_data(args.data_source, staging)
-        payloads = {
-            path.relative_to(staging).as_posix(): sha256(path)
-            for path in sorted(staging.rglob("*"))
-            if path.is_file()
-        }
-        manifest = {
-            "schema_version": 1,
-            "sources": {
-                "game_dll": {
-                    "path": "game/sys/game.dll",
-                    "sha256": sha256(args.game_dll),
+        installer = release_staging / "installer"
+        installer.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", release_staging / "Setup.bat")
+        shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
+        shutil.copyfile(TEMPLATE_ROOT / "README.md", release_staging / "README.md")
+        with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
+            temporary = Path(temporary)
+            staging = temporary / "payload"
+            work = temporary / "work"
+            staging.mkdir()
+            work.mkdir()
+
+            variants = build_game_variants(args.game_dll, staging, work)
+            dx8 = build_dx8_payloads(args.dx8_dll, staging, work)
+            data_components = copy_data(args.data_source, staging)
+            payloads = {
+                path.relative_to(staging).as_posix(): sha256(path)
+                for path in sorted(staging.rglob("*"))
+                if path.is_file()
+            }
+            manifest = {
+                "schema_version": 1,
+                "sources": {
+                    "game_dll": {
+                        "path": "game/sys/game.dll",
+                        "sha256": sha256(args.game_dll),
+                    },
+                    "dx8_dll": {
+                        "path": "sys/dx8.dll",
+                        "sha256": sha256(args.dx8_dll),
+                    },
                 },
-                "dx8_dll": {
-                    "path": "sys/dx8.dll",
-                    "sha256": sha256(args.dx8_dll),
-                },
-            },
-            "game_variants": variants,
-            "dx8": dx8,
-            "data_components": data_components,
-            "payloads": payloads,
-        }
-        (staging / "manifest.json").write_text(
-            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+                "game_variants": variants,
+                "dx8": dx8,
+                "data_components": data_components,
+                "payloads": payloads,
+            }
+            (staging / "manifest.json").write_text(
+                json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
 
-        destination = installer / "payload"
-        if destination.exists():
-            shutil.rmtree(destination)
-        staging.replace(destination)
+            destination = installer / "payload"
+            if destination.exists():
+                shutil.rmtree(destination)
+            staging.replace(destination)
 
-    print(f"Built {destination}")
+        previous = release_temporary / "previous"
+        try:
+            if output.exists():
+                output.replace(previous)
+            release_staging.replace(output)
+        except OSError as replacement_error:
+            if previous.exists() and not output.exists():
+                try:
+                    previous.replace(output)
+                except OSError as rollback_error:
+                    raise BuildError(
+                        f"release replacement failed and the previous release could not be restored; "
+                        f"it remains at {previous}: {rollback_error}"
+                    ) from rollback_error
+            raise replacement_error
+
+    print(f"Built {output / 'installer/payload'}")
     print("Verified 8 distinct game variants, 24 game checks, 8 restore cycles, and 2 DX8 checks")
 
 
