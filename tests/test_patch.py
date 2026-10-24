@@ -38,6 +38,23 @@ def image_with_patch():
     return data
 
 
+def commit_fixture(root):
+    paths = {}
+    images = {}
+    originals = {}
+    for target in ("game/sys/game.dll", "sys/dx8.dll"):
+        path = root / target
+        path.parent.mkdir(parents=True, exist_ok=True)
+        originals[target] = image_with_patch()
+        path.write_bytes(originals[target])
+        paths[target] = path
+        images[target] = bytearray(originals[target])
+    mods = [binary_mod(), binary_mod("dx8", "sys/dx8.dll")]
+    runner = PatchRunner(images, paths)
+    runner.apply(mods)
+    return runner, paths, originals
+
+
 class BinaryModTests(unittest.TestCase):
     def test_original_apply_check_restore_round_trip(self):
         original = image_with_patch()
@@ -98,27 +115,88 @@ class PatchRunnerTests(unittest.TestCase):
         self.assertEqual(images["sys/dx8.dll"][0x210], 0xFF)
 
     def test_restore_runs_in_reverse_order(self):
+        events = []
+
+        class InstrumentedMod(BinaryMod):
+            def restore(self, image):
+                events.append(self.id)
+                super().restore(image)
+
         original = image_with_patch()
+        original[0x21E:0x224] = b"\xaa\xbb\x00\x01\xcc\xdd"
+        first = InstrumentedMod("first", "game/sys/game.dll", binary_mod(offset=0x210).patches)
+        second = InstrumentedMod("second", "game/sys/game.dll", binary_mod(offset=0x220).patches)
         runner = PatchRunner({"game/sys/game.dll": original})
-        runner.apply([binary_mod()])
-        runner.restore([binary_mod()])
+        runner.apply([first, second])
+        runner.restore([first, second])
+        self.assertEqual(events, ["second", "first"])
         self.assertEqual(runner.images["game/sys/game.dll"], original)
+
+    def test_commit_refuses_mutation_after_initial_preflight(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runner, paths, originals = commit_fixture(Path(temporary))
+            external = bytearray(originals["sys/dx8.dll"])
+            external[0] = 0x5A
+            paths["sys/dx8.dll"].write_bytes(external)
+            with mock.patch("htmod.patch.os.replace") as replace:
+                with self.assertRaisesRegex(TransactionError, "changed since preflight"):
+                    runner.commit()
+                replace.assert_not_called()
+            self.assertEqual(paths["game/sys/game.dll"].read_bytes(), originals["game/sys/game.dll"])
+            self.assertEqual(paths["sys/dx8.dll"].read_bytes(), external)
+
+    def test_commit_rolls_back_keyboard_interrupt_around_replace(self):
+        for replace_happened in (False, True):
+            with self.subTest(replace_happened=replace_happened), tempfile.TemporaryDirectory() as temporary:
+                runner, paths, originals = commit_fixture(Path(temporary))
+                real_replace = os.replace
+
+                def interrupt(source, destination):
+                    if Path(destination) == paths["game/sys/game.dll"]:
+                        if replace_happened:
+                            real_replace(source, destination)
+                        raise KeyboardInterrupt("simulated asynchronous interruption")
+                    real_replace(source, destination)
+
+                with mock.patch("htmod.patch.os.replace", side_effect=interrupt):
+                    with self.assertRaisesRegex(TransactionError, "interruption"):
+                        runner.commit()
+                for target, path in paths.items():
+                    self.assertEqual(path.read_bytes(), originals[target])
+                self.assertEqual(list(Path(temporary).rglob("*.htmod-*")), [])
+
+    def test_final_post_commit_verification_failure_rolls_back_every_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runner, paths, originals = commit_fixture(Path(temporary))
+            real_replace = os.replace
+            real_read_bytes = Path.read_bytes
+            replaced = set()
+            failed = False
+
+            def tracking_replace(source, destination):
+                real_replace(source, destination)
+                replaced.add(Path(destination))
+
+            def fail_final_read(path):
+                nonlocal failed
+                if path == paths["sys/dx8.dll"] and len(replaced) == 2 and not failed:
+                    failed = True
+                    return b"post-commit mutation"
+                return real_read_bytes(path)
+
+            with mock.patch("htmod.patch.os.replace", side_effect=tracking_replace), mock.patch(
+                "htmod.patch.Path.read_bytes", autospec=True, side_effect=fail_final_read
+            ):
+                with self.assertRaisesRegex(TransactionError, "post-commit verification"):
+                    runner.commit()
+            for target, path in paths.items():
+                self.assertEqual(path.read_bytes(), originals[target])
+            self.assertEqual(list(Path(temporary).rglob("*.htmod-*")), [])
 
     def test_atomic_multi_target_commit_rolls_back_replaced_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            paths = {}
-            images = {}
-            originals = {}
-            for target in ("game/sys/game.dll", "sys/dx8.dll"):
-                path = root / target
-                path.parent.mkdir(parents=True, exist_ok=True)
-                originals[target] = image_with_patch()
-                path.write_bytes(originals[target])
-                paths[target] = path
-                images[target] = original = image_with_patch()
-                original[0x210:0x212] = b"\x02\x03"
-            runner = PatchRunner(images, paths)
+            runner, paths, originals = commit_fixture(root)
             real_replace = os.replace
 
             def fail_second_replace(source, destination):
@@ -137,18 +215,7 @@ class PatchRunnerTests(unittest.TestCase):
     def test_failed_rollback_preserves_pristine_backup_and_reports_path(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            paths = {}
-            images = {}
-            originals = {}
-            for target in ("game/sys/game.dll", "sys/dx8.dll"):
-                path = root / target
-                path.parent.mkdir(parents=True, exist_ok=True)
-                originals[target] = image_with_patch()
-                path.write_bytes(originals[target])
-                paths[target] = path
-                images[target] = bytearray(originals[target])
-                images[target][0x210:0x212] = b"\x02\x03"
-            runner = PatchRunner(images, paths)
+            runner, paths, originals = commit_fixture(root)
             real_replace = os.replace
 
             def fail_replace_and_rollback(source, destination):
@@ -163,9 +230,13 @@ class PatchRunnerTests(unittest.TestCase):
                 with self.assertRaisesRegex(TransactionError, "rollback failure") as caught:
                     runner.commit()
             backups = list(root.rglob("*.htmod-backup"))
-            self.assertEqual(len(backups), 1)
-            self.assertEqual(backups[0].read_bytes(), originals["game/sys/game.dll"])
-            self.assertIn(str(backups[0]), str(caught.exception))
+            self.assertEqual(len(backups), 2)
+            for target, path in paths.items():
+                target_backups = list(path.parent.glob("*.htmod-backup"))
+                self.assertEqual(len(target_backups), 1)
+                self.assertEqual(target_backups[0].read_bytes(), originals[target])
+            failed_backup = next(path for path in backups if path.parent == paths["game/sys/game.dll"].parent)
+            self.assertIn(str(failed_backup), str(caught.exception))
             self.assertEqual(paths["sys/dx8.dll"].read_bytes(), originals["sys/dx8.dll"])
 
 

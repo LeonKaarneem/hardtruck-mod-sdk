@@ -150,6 +150,7 @@ class PatchRunner:
     def __init__(self, images, paths=None):
         self.images = images
         self.paths = paths
+        self._preflight = {target: bytes(data) for target, data in images.items()}
         for target, data in images.items():
             if not isinstance(data, bytearray):
                 raise TransactionError(f"target '{target}' must be a mutable bytearray")
@@ -194,40 +195,65 @@ class PatchRunner:
     def commit(self):
         if self.paths is None:
             raise TransactionError("in-memory transaction has no output paths")
+        originals = self._preflight.copy()
         temporary = {}
         backups = {}
-        replaced = []
-        preserved_backups = set()
+        marked = []
+        succeeded = False
+        recovered = False
+
+        def verify_preflight():
+            for target, path in self.paths.items():
+                if Path(path).read_bytes() != originals[target]:
+                    raise TransactionError(f"target '{target}' changed since preflight; refusing replacement")
+
         try:
+            verify_preflight()
             for target, path in self.paths.items():
                 path = Path(path)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                original = path.read_bytes()
                 temporary[target] = self._temporary_file(path, self.images[target], ".htmod-new")
-                backups[target] = self._temporary_file(path, original, ".htmod-backup")
+                backups[target] = self._temporary_file(path, originals[target], ".htmod-backup")
+            verify_preflight()
             for target, path in self.paths.items():
+                marked.append(target)
                 os.replace(temporary[target], path)
-                replaced.append(target)
-        except (OSError, PatchError) as error:
+            for target, path in self.paths.items():
+                if Path(path).read_bytes() != self.images[target]:
+                    raise TransactionError(f"post-commit verification failed for '{target}'")
+            succeeded = True
+            self._preflight = {target: bytes(data) for target, data in self.images.items()}
+        except BaseException as error:
             rollback_errors = []
-            for target in reversed(replaced):
+            for target in reversed(marked):
+                path = Path(self.paths[target])
+                rollback_failure = None
                 try:
-                    os.replace(backups[target], self.paths[target])
-                except OSError as rollback_error:
-                    preserved_backups.add(backups[target])
+                    if path.read_bytes() != originals[target]:
+                        os.replace(backups[target], path)
+                except BaseException as rollback_error:
+                    rollback_failure = rollback_error
+                try:
+                    restored = path.read_bytes() == originals[target]
+                except BaseException as verification_error:
+                    restored = False
+                    if rollback_failure is None:
+                        rollback_failure = verification_error
+                if not restored:
                     rollback_errors.append(
-                        f"{target}: {rollback_error}; pristine backup preserved at {backups[target]}"
+                        f"{target}: {rollback_failure or 'post-rollback verification failed'}; "
+                        f"pristine backup preserved at {backups[target]}"
                     )
+            recovered = not rollback_errors
             detail = f"; rollback failures: {rollback_errors}" if rollback_errors else ""
             raise TransactionError(f"atomic target commit failed: {error}{detail}") from error
         finally:
-            for path in (*temporary.values(), *backups.values()):
-                if path in preserved_backups:
-                    continue
-                try:
-                    Path(path).unlink(missing_ok=True)
-                except OSError:
-                    pass
+            if succeeded or recovered:
+                for path in (*temporary.values(), *backups.values()):
+                    try:
+                        Path(path).unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     @staticmethod
     def _temporary_file(path, data, suffix):
@@ -238,7 +264,7 @@ class PatchRunner:
                 output.flush()
                 os.fsync(output.fileno())
             os.chmod(name, path.stat().st_mode)
-        except Exception:
+        except BaseException:
             Path(name).unlink(missing_ok=True)
             raise
         return name

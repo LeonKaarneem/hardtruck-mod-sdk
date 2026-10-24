@@ -157,16 +157,41 @@ class BinaryRegressionTests(unittest.TestCase):
             self.assertEqual(dx8["vsync"]["sha256"], self.golden["dx8"]["vsync"])
             self.assertEqual(dx8["stock"]["sha256"], self.golden["pristine"]["dx8_dll"])
 
-    def test_legacy_scripts_are_delegating_entry_points(self):
-        for mod_id, filename in (
-            ("physics", "patch_physics_fixes.py"),
-            ("ai", "patch_ai_fixes.py"),
-            ("dx8_vsync", "patch_dx8_vsync.py"),
-        ):
-            with self.subTest(mod=mod_id):
-                content = (ROOT / "modpack/patches" / filename).read_text(encoding="utf-8")
-                self.assertIn(f"from modpack.mods.{mod_id}.patch import main", content)
-                self.assertNotIn("struct.pack_into", content)
+    def test_frozen_legacy_scripts_run_standalone_in_isolation(self):
+        cases = (
+            ("patch_physics_fixes.py", self.game_path, "game_variants", "010", "game_dll"),
+            ("patch_ai_fixes.py", self.game_path, "game_variants", "100", "game_dll"),
+            ("patch_dx8_vsync.py", self.dx8_path, "dx8", "vsync", "dx8_dll"),
+        )
+        for filename, source, group, variant, pristine_key in cases:
+            with self.subTest(script=filename), tempfile.TemporaryDirectory() as temporary:
+                isolated = Path(temporary)
+                script = isolated / filename
+                dll = isolated / "input.dll"
+                shutil.copyfile(ROOT / "modpack/patches" / filename, script)
+                shutil.copyfile(source, dll)
+
+                def run(*arguments):
+                    return subprocess.run(
+                        [sys.executable, "-I", str(script), str(dll), *arguments],
+                        cwd=isolated,
+                        text=True,
+                        capture_output=True,
+                    )
+
+                result = run()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if group == "dx8":
+                    expected = self.golden[group][variant]
+                else:
+                    expected = self.golden[group][variant]["sha256"]
+                self.assertEqual(sha256(dll.read_bytes()), expected)
+                result = run("--check")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("PATCHED", result.stdout)
+                result = run("--restore")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(sha256(dll.read_bytes()), self.golden["pristine"][pristine_key])
 
 
 if __name__ == "__main__":
