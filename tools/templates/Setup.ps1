@@ -97,6 +97,33 @@ function Assert-Selection {
     }
 }
 
+function Resolve-SetupAction {
+    param(
+        [string]$Action,
+        [switch]$NonInteractive
+    )
+    if ($Action -ne "Menu") {
+        return $Action
+    }
+    if ($NonInteractive) {
+        throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, or Quit."
+    }
+    Write-Host ""
+    Write-Host "Hard Truck Modern setup"
+    Write-Host "1. Install all"
+    Write-Host "2. Choose components"
+    Write-Host "3. Uninstall"
+    Write-Host "4. Quit"
+    $choice = Read-Host "Select 1-4"
+    switch ($choice) {
+        "1" { return "InstallAll" }
+        "2" { return "Custom" }
+        "3" { return "Uninstall" }
+        "4" { return "Quit" }
+        default { throw "Invalid menu selection; setup cancelled." }
+    }
+}
+
 function Get-Selection {
     param(
         [string]$Action,
@@ -105,25 +132,6 @@ function Get-Selection {
         $Manifest
     )
     $effectiveAction = $Action
-    if ($effectiveAction -eq "Menu") {
-        if ($NonInteractive) {
-            throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, or Quit."
-        }
-        Write-Host ""
-        Write-Host "Hard Truck Modern setup"
-        Write-Host "1. Install all"
-        Write-Host "2. Choose components"
-        Write-Host "3. Uninstall"
-        Write-Host "4. Quit"
-        $choice = Read-Host "Select 1-4"
-        switch ($choice) {
-            "1" { $effectiveAction = "InstallAll" }
-            "2" { $effectiveAction = "Custom" }
-            "3" { $effectiveAction = "Uninstall" }
-            "4" { $effectiveAction = "Quit" }
-            default { throw "Invalid menu selection; setup cancelled." }
-        }
-    }
     $script:SelectedAction = $effectiveAction
     if ($effectiveAction -eq "Quit" -or $effectiveAction -eq "Uninstall") {
         return $null
@@ -772,11 +780,13 @@ function Uninstall-Mods {
 }
 
 try {
-    $manifest = Read-PayloadManifest
-    $selection = Get-Selection $Action $Components -NonInteractive:$NonInteractive -Manifest $manifest
-    if ($script:SelectedAction -eq "Quit") {
+    $effectiveAction = Resolve-SetupAction $Action -NonInteractive:$NonInteractive
+    $script:SelectedAction = $effectiveAction
+    if ($effectiveAction -eq "Quit") {
         if ($Action -eq "Menu") { exit 2 } else { exit 0 }
     }
+    $manifest = Read-PayloadManifest
+    $selection = Get-Selection $effectiveAction $Components -NonInteractive:$NonInteractive -Manifest $manifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
     if (-not $NonInteractive) {
         $confirmed = Read-YesNo "Confirm that the game is closed before setup continues" -DefaultYes $false

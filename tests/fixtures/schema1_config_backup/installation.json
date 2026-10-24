@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "Installed",
+  "created": "2026-10-24T17:53:14.1409217+03:00",
+  "game_path": "/tmp/htmod-schema1-fixture/game",
+  "entries": [
+    {
+      "destination": "game/usr/config.cfg",
+      "installed_sha256": "0207d57d7374b6c964881bc6099b706d63b5c737aaeccc1bd1bc9ee3fca090d0",
+      "existed": true,
+      "backup_file": "files/game/usr/config.cfg",
+      "original_sha256": "dcf7fd6cc1c020150229bcc9380faf148c2f7036d23283065e569d95fc5bc847"
+    },
+    {
+      "destination": "game/usr/ui/mmain.sc",
+      "installed_sha256": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79",
+      "existed": false,
+      "backup_file": null,
+      "original_sha256": null
+    }
+  ]
+}

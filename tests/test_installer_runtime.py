@@ -304,6 +304,46 @@ class InstallerSafetyTests(InstallerCase):
         manifests = [json.loads(path.read_text(encoding="utf-8")) for path in self.backup_manifests(self.package)]
         self.assertIn("UninstallPartial", [item["status"] for item in manifests])
 
+    def test_schema1_backup_uninstall_restores_exact_files_and_preserves_sentinels(self):
+        fixture = ROOT / "tests/fixtures/schema1_config_backup"
+        backup = self.package / "installer/backups/schema1"
+        shutil.copytree(fixture, backup)
+        installation_path = backup / "installation.json"
+        installation = json.loads(installation_path.read_text(encoding="utf-8"))
+        self.assertEqual(installation["schema_version"], 1)
+        self.assertEqual(installation["status"], "Installed")
+        installation["game_path"] = str(self.game)
+        installation_path.write_text(json.dumps(installation, indent=2), encoding="utf-8")
+
+        payload = self.package / "installer/payload/data"
+        (self.game / "game/usr/ui").mkdir(parents=True)
+        shutil.copyfile(payload / "config.cfg", self.game / "game/usr/config.cfg")
+        shutil.copyfile(payload / "ui/mmain.sc", self.game / "game/usr/ui/mmain.sc")
+        for entry in installation["entries"]:
+            self.assertEqual(
+                sha256(self.game / entry["destination"]),
+                entry["installed_sha256"],
+            )
+        save = self.game / "game/usr/save/keep.sav"
+        save.parent.mkdir(parents=True)
+        save.write_bytes(b"save sentinel\x00\xff")
+        unrelated = self.game / "game/usr/ui/unrelated.txt"
+        unrelated.write_bytes(b"unrelated sentinel\r\n")
+
+        result = self.run_setup(self.package, self.game, action="Uninstall")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            (self.game / "game/usr/config.cfg").read_bytes(),
+            (fixture / "files/game/usr/config.cfg").read_bytes(),
+        )
+        self.assertFalse((self.game / "game/usr/ui/mmain.sc").exists())
+        self.assertEqual(save.read_bytes(), b"save sentinel\x00\xff")
+        self.assertEqual(unrelated.read_bytes(), b"unrelated sentinel\r\n")
+        self.assert_stock(self.game)
+        updated = json.loads(installation_path.read_text(encoding="utf-8"))
+        self.assertEqual(updated["schema_version"], 1)
+        self.assertEqual(updated["status"], "Uninstalled")
+
     def test_uninstall_rejects_destination_outside_manifest_allowlist(self):
         installed = self.run_setup(self.package, self.game, action="Custom", components=["config"])
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
@@ -332,6 +372,27 @@ class InstallerSafetyTests(InstallerCase):
         self.assertIn("Noninteractive setup requires", menu.stdout + menu.stderr)
         quit_result = self.run_setup(self.package, action="Quit")
         self.assertEqual(quit_result.returncode, 0, quit_result.stdout + quit_result.stderr)
+
+    def test_direct_and_menu_quit_do_not_read_missing_or_corrupt_payload(self):
+        for state in ("missing", "corrupt"):
+            with self.subTest(state=state):
+                root = self.root / f"quit-{state}"
+                root.mkdir()
+                package = self.make_package(root)
+                manifest = package / "installer/payload/manifest.json"
+                if state == "missing":
+                    manifest.unlink()
+                else:
+                    manifest.write_text("{not json", encoding="utf-8")
+                direct = self.run_setup(package, action="Quit")
+                self.assertEqual(direct.returncode, 0, direct.stdout + direct.stderr)
+                menu = self.run_setup(
+                    package,
+                    action="Menu",
+                    interactive=True,
+                    input_text="4\n",
+                )
+                self.assertEqual(menu.returncode, 2, menu.stdout + menu.stderr)
 
 
 class InstallerDetectionTests(InstallerCase):
