@@ -30,6 +30,11 @@ byte-identically. All game.dll patches compose with each other (verified).
 | `patches/patch_ai_fixes.py` | **AI:** fixes the ui_ai_car despawn bug behind the ~9000× "removing me ?? who ?" log spam and menu-traffic pool leak |
 | `patches/patch_dx8_vsync.py` | Optional: byte-patches `sys/dx8.dll` for native vsync |
 
+### Latest fixes
+
+- The main menu shows a lower-right **Hard Truck Modern v3** indicator when Configuration is installed.
+- Cabin yaw/pitch now combine without banking or pivoting the scene; upward and downward look clamp correctly at ±35°, including negative/downward input.
+
 ## The three classic complaints, and what this mod does about them
 
 ### 1. "Invisible wall" - truck stops dead at nothing
