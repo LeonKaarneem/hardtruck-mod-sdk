@@ -119,6 +119,51 @@ def copy_data(release, payload):
     return materialize_data(release, payload)
 
 
+def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_dll):
+    components = {}
+    data_components = {}
+    for mod in release.mods.values():
+        components[mod.id] = {
+            "version": mod.version,
+            "label": mod.setup["label"],
+            "description": mod.setup["description"],
+            "default": mod.setup["default"],
+            "requires": list(mod.requires),
+            "conflicts": list(mod.conflicts),
+            "new_profile": mod.new_profile,
+            "kind": mod.kind,
+            "target": mod.target,
+        }
+        if mod.kind == "data":
+            data_components[mod.id] = [
+                "data/" + record.destination.removeprefix("game/usr/")
+                for record in mod.files
+            ]
+    payloads = {
+        path.relative_to(payload).as_posix(): sha256(path)
+        for path in sorted(payload.rglob("*"))
+        if path.is_file()
+    }
+    return {
+        "schema_version": 2,
+        "components": components,
+        "sources": {
+            "game_dll": {
+                "path": "game/sys/game.dll",
+                "sha256": sha256(game_dll),
+            },
+            "dx8_dll": {
+                "path": "sys/dx8.dll",
+                "sha256": sha256(dx8_dll),
+            },
+        },
+        "game_variants": game_variants,
+        "dx8": dx8,
+        "data_components": data_components,
+        "payloads": payloads,
+    }
+
+
 def default_test_base_file(relative):
     candidates = [PROJECT_ROOT / "test-base" / relative]
     if PROJECT_ROOT.parent.name == ".worktrees":
@@ -194,29 +239,15 @@ def build(args):
 
             variants = build_game_variants(args.game_dll, staging, work)
             dx8 = build_dx8_payloads(args.dx8_dll, staging, work)
-            data_components = copy_data(release, staging)
-            payloads = {
-                path.relative_to(staging).as_posix(): sha256(path)
-                for path in sorted(staging.rglob("*"))
-                if path.is_file()
-            }
-            manifest = {
-                "schema_version": 1,
-                "sources": {
-                    "game_dll": {
-                        "path": "game/sys/game.dll",
-                        "sha256": sha256(args.game_dll),
-                    },
-                    "dx8_dll": {
-                        "path": "sys/dx8.dll",
-                        "sha256": sha256(args.dx8_dll),
-                    },
-                },
-                "game_variants": variants,
-                "dx8": dx8,
-                "data_components": data_components,
-                "payloads": payloads,
-            }
+            copy_data(release, staging)
+            manifest = build_payload_manifest(
+                release,
+                staging,
+                game_variants=variants,
+                dx8=dx8,
+                game_dll=args.game_dll,
+                dx8_dll=args.dx8_dll,
+            )
             (staging / "manifest.json").write_text(
                 json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
                 encoding="utf-8",

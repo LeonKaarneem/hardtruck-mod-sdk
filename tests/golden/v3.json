@@ -20,7 +20,7 @@
     "vsync": "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519"
   },
   "data_components": {
-    "config": ["data/config.cfg", "data/ui/mmain.sc"],
+    "config": ["data/config.cfg", "data/ui/mmain.sc", "data/ui/cosetup.sc"],
     "handling_defs": ["data/defs/truck_base.def", "data/defs/truck1.def", "data/defs/truck2.def", "data/defs/truck3.def", "data/defs/truck4.def", "data/defs/truck5.def", "data/defs/truck6.def", "data/defs/truck7.def", "data/defs/truck8.def"],
     "economy_def": ["data/defs/management/base.def"],
     "driver_def": ["data/defs/driver_base.def"]
@@ -38,6 +38,7 @@
     "data/defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
     "data/defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
     "data/defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
+    "data/ui/cosetup.sc": "dde099ddfd943d31437ed1f886a04f447a3f8ed61d000b00038852a3405c560b",
     "data/ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
   },
   "source_data": {
@@ -53,6 +54,7 @@
     "defs/truck7.def": "4d07bad7b7d9c88b3764fee46832515f3901dfa33abc0f13fc8039a2c099ec23",
     "defs/truck8.def": "d273e79be1f60be52c879c49b1618e3416cc7c6f4397c2e7185536e55533448b",
     "defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
+    "ui/cosetup.sc": "dde099ddfd943d31437ed1f886a04f447a3f8ed61d000b00038852a3405c560b",
     "ui/mmain.sc": "478f2f746c938118cc106664a18ad686c7878ed02e7355bf5d28296c27038f79"
   },
   "source_line_endings": "crlf",

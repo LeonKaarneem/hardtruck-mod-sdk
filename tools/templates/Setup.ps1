@@ -57,16 +57,43 @@ function Read-YesNo {
     }
 }
 
+function Get-ComponentRecords {
+    param($Manifest)
+    return @($Manifest.components.PSObject.Properties)
+}
+
 function New-Selection {
-    return @{
-        config = $false
-        handling_defs = $false
-        economy_def = $false
-        driver_def = $false
-        camera = $false
-        physics = $false
-        ai = $false
-        dx8_vsync = $false
+    param($Manifest)
+    $selection = @{}
+    foreach ($property in @(Get-ComponentRecords $Manifest)) {
+        $selection[$property.Name] = $false
+    }
+    return $selection
+}
+
+function Assert-Selection {
+    param(
+        [hashtable]$Selection,
+        $Manifest
+    )
+    foreach ($property in @(Get-ComponentRecords $Manifest)) {
+        $name = $property.Name
+        if (-not $Selection[$name]) {
+            continue
+        }
+        foreach ($required in @($property.Value.requires)) {
+            if (-not $Selection.ContainsKey($required)) {
+                throw "Component '$name' requires unknown component '$required'."
+            }
+            if (-not $Selection[$required]) {
+                throw "Component '$name' requires '$required'."
+            }
+        }
+        foreach ($conflict in @($property.Value.conflicts)) {
+            if ($Selection.ContainsKey($conflict) -and $Selection[$conflict]) {
+                throw "Component '$name' conflicts with '$conflict'."
+            }
+        }
     }
 }
 
@@ -74,7 +101,8 @@ function Get-Selection {
     param(
         [string]$Action,
         [string[]]$Components,
-        [switch]$NonInteractive
+        [switch]$NonInteractive,
+        $Manifest
     )
     $effectiveAction = $Action
     if ($effectiveAction -eq "Menu") {
@@ -101,15 +129,16 @@ function Get-Selection {
         return $null
     }
 
-    $selection = New-Selection
+    $selection = New-Selection $Manifest
     if ($effectiveAction -eq "InstallAll") {
         foreach ($name in @($selection.Keys)) {
             $selection[$name] = $true
         }
+        Assert-Selection $selection $Manifest
         return $selection
     }
 
-    $allowed = @($selection.Keys)
+    $allowed = @(Get-ComponentRecords $Manifest | ForEach-Object { $_.Name })
     foreach ($component in @($Components)) {
         foreach ($name in ($component -split ",")) {
             $name = $name.Trim()
@@ -123,15 +152,13 @@ function Get-Selection {
         }
     }
     if (-not $NonInteractive) {
-        $selection.config = Read-YesNo "Configuration" -DefaultYes $true
-        $selection.handling_defs = Read-YesNo "Handling definitions (new profile required)" -DefaultYes $true
-        $selection.economy_def = Read-YesNo "Economy definition" -DefaultYes $true
-        $selection.driver_def = Read-YesNo "Driver definition" -DefaultYes $true
-        $selection.camera = Read-YesNo "Camera" -DefaultYes $true
-        $selection.physics = Read-YesNo "Physics" -DefaultYes $true
-        $selection.ai = Read-YesNo "Traffic and AI fixes" -DefaultYes $true
-        $selection.dx8_vsync = Read-YesNo "DX8 vsync" -DefaultYes $true
+        foreach ($property in @(Get-ComponentRecords $Manifest)) {
+            $metadata = $property.Value
+            Write-Host $metadata.description
+            $selection[$property.Name] = Read-YesNo $metadata.label -DefaultYes ([bool]$metadata.default)
+        }
     }
+    Assert-Selection $selection $Manifest
     return $selection
 }
 
@@ -393,8 +420,11 @@ function Read-PayloadManifest {
         throw "Installer payload manifest is missing: $path"
     }
     $manifest = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($manifest.schema_version -ne 1) {
+    if ($manifest.schema_version -ne 2) {
         throw "Unsupported installer payload manifest version."
+    }
+    if ($null -eq $manifest.components -or @(Get-ComponentRecords $manifest).Count -eq 0) {
+        throw "Installer payload manifest has no component metadata."
     }
     return $manifest
 }
@@ -562,8 +592,9 @@ function Install-Mods {
         relative = "sys/dx8.dll"
         hash = $dx8.sha256
     }
-    foreach ($component in @("config", "handling_defs", "economy_def", "driver_def")) {
-        if (-not $Selection[$component]) {
+    foreach ($property in @(Get-ComponentRecords $Manifest)) {
+        $component = $property.Name
+        if ($property.Value.kind -ne "data" -or -not $Selection[$component]) {
             continue
         }
         foreach ($payloadRelative in $Manifest.data_components.$component) {
@@ -741,11 +772,11 @@ function Uninstall-Mods {
 }
 
 try {
-    $selection = Get-Selection $Action $Components -NonInteractive:$NonInteractive
+    $manifest = Read-PayloadManifest
+    $selection = Get-Selection $Action $Components -NonInteractive:$NonInteractive -Manifest $manifest
     if ($script:SelectedAction -eq "Quit") {
         if ($Action -eq "Menu") { exit 2 } else { exit 0 }
     }
-    $manifest = Read-PayloadManifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
     if (-not $NonInteractive) {
         $confirmed = Read-YesNo "Confirm that the game is closed before setup continues" -DefaultYes $false
@@ -757,8 +788,15 @@ try {
         Uninstall-Mods $manifest
     }
     else {
-        if ($selection.handling_defs -or $selection.economy_def -or $selection.driver_def) {
-            Write-Warning "Selected defs: existing saves are incompatible; create a new profile after installation."
+        $newProfile = $false
+        foreach ($property in @(Get-ComponentRecords $manifest)) {
+            if ($selection[$property.Name] -and $property.Value.new_profile) {
+                $newProfile = $true
+                break
+            }
+        }
+        if ($newProfile) {
+            Write-Warning "Selected components make existing saves incompatible; create a new profile after installation."
         }
         Install-Mods $selection $manifest
     }

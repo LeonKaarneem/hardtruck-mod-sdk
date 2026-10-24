@@ -5,7 +5,7 @@
   "kind": "data",
   "setup": {
     "label": "Configuration",
-    "description": "Console, controls, display defaults, and main-menu mod marker",
+    "description": "Console, controls, display defaults, Quick Setup, and main-menu mod marker",
     "default": true
   },
   "requires": [],
@@ -20,6 +20,10 @@
     {
       "source": "ui/mmain.sc",
       "destination": "game/usr/ui/mmain.sc"
+    },
+    {
+      "source": "ui/cosetup.sc",
+      "destination": "game/usr/ui/cosetup.sc"
     }
   ]
 }
