@@ -13,7 +13,7 @@
     },
     {
       "destination": "game/usr/ui/mmain.sc",
-      "installed_sha256": "89f3f3e45a291ad1531fd2aaf082f581c985c596e73e1f19b871672f0760f8f1",
+      "installed_sha256": "a09b0237bf029a3a5997f1daffc40dc8822591aaa4c6fdd520cb9d89e21dde7b",
       "existed": false,
       "backup_file": null,
       "original_sha256": null

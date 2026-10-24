@@ -195,9 +195,9 @@ class NativeVisualAccessibilityTests(unittest.TestCase):
             self.assertIn(b"but01", states[state])
         self.assertIn(b">%0</font>", states["n"])
         self.assertIn(b"> %0</font>", states["s"])
-        self.assertIn(b"[x] %0</font>", states["s2"])
-        self.assertIn(b"> %0</font>", states["p"])
-        for state, cue in (("s", "> %0"), ("s2", "[x] %0"), ("p", "> %0")):
+        self.assertIn(b"> %0</font>", states["s2"])
+        self.assertIn(b"[x] %0</font>", states["p"])
+        for state, cue in (("s", "> %0"), ("s2", "> %0"), ("p", "[x] %0")):
             with self.subTest(state=state, cue_layers=3):
                 self.assertEqual(states[state].count(cue.encode()), 3)
         self.assertIn(b'width:"256"', accessible)
@@ -260,7 +260,7 @@ class NativeVisualAccessibilityTests(unittest.TestCase):
             "4": ("34.000000 259.000000 242.000000 307.000000", "0.000000 243.000000 256.000000 307.000000"),
             "5": ("34.000000 353.000000 242.000000 401.000000", "0.000000 337.000000 256.000000 401.000000"),
             "10": ("34.000000 411.000000 242.000000 459.000000", "0.000000 395.000000 256.000000 459.000000"),
-            "11": ("34.000000 469.000000 242.000000 517.000000", "0.000000 453.000000 256.000000 517.000000"),
+            "11": ("34.000000 461.000000 242.000000 509.000000", "0.000000 453.000000 256.000000 517.000000"),
         }
         actual = by_id("mmain.sc")
         for identifier, (area, coords) in expected.items():
@@ -270,6 +270,22 @@ class NativeVisualAccessibilityTests(unittest.TestCase):
         quick_ok = by_id("cosetup.sc")["1"]
         self.assertEqual(quick_ok["area"], "429.000000 556.000000 604.000000 600.000000")
         self.assertEqual(quick_ok["coords"], "449.000000 566.000000 584.000000 590.000000")
+
+    def test_neighboring_main_hit_areas_do_not_overlap(self):
+        actual = by_id("mmain.sc")
+        rectangles = {
+            identifier: tuple(map(float, actual[identifier]["area"].split()))
+            for identifier in ("2", "3", "4", "5", "10", "11", "1")
+        }
+        for first, second in zip(rectangles, list(rectangles)[1:]):
+            with self.subTest(first=first, second=second):
+                self.assertLessEqual(
+                    rectangles[first][3],
+                    rectangles[second][1],
+                    f"{first} hit area overlaps {second}",
+                )
+        self.assertEqual(actual["1"]["area"], "94.000000 515.000000 158.000000 579.000000")
+        self.assertEqual(actual["1"]["coords"], "94.000000 515.000000 158.000000 579.000000")
 
 
 class NativePreservationTests(unittest.TestCase):

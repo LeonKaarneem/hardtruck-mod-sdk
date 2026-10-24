@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "files": {
-    "mmain.sc": "89f3f3e45a291ad1531fd2aaf082f581c985c596e73e1f19b871672f0760f8f1",
+    "mmain.sc": "a09b0237bf029a3a5997f1daffc40dc8822591aaa4c6fdd520cb9d89e21dde7b",
     "cosetup.sc": "795b83c07d7c7d45d5dc100383b1543d66a2f9c3a72f3b11b811045e5629a18c",
     "moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
     "options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
-    "defs/ui/btn.def": "552b80aa2511065f75a31d024c6f520b9a1e350da0a5d6a91a97fb5a5ea2d270",
+    "defs/ui/btn.def": "1d2128e614890db9ac80ee3385fb5c2ca5650b73dd284edd0296a153b5453ad6",
     "defs/ui/txt.def": "c183801602bcd623b97f7e191268ab71bc9fe863f7ff9d9edd8dee442a0df26d"
   }
 }
