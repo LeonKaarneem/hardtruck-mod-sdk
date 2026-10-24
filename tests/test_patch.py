@@ -324,6 +324,42 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result, 1)
             commit.assert_not_called()
 
+    def test_conflicting_handler_valid_but_opposite_final_state_fails_before_commit(self):
+        from htmod import cli as cli_module
+
+        alpha = binary_mod()
+
+        class RevertingMod(BinaryMod):
+            def apply(self, image):
+                super().apply(image)
+                alpha.restore(image)
+
+            def restore(self, image):
+                super().restore(image)
+                alpha.apply(image)
+
+        beta = RevertingMod("beta", "game/sys/game.dll", binary_mod("beta", offset=0x220).patches)
+        for operation, wrong_alpha_state in (("apply", PatchState.ORIGINAL), ("restore", PatchState.PATCHED)):
+            with self.subTest(operation=operation), tempfile.TemporaryDirectory() as temporary:
+                data = image_with_patch()
+                data[0x21E:0x224] = b"\xaa\xbb\x00\x01\xcc\xdd"
+                if operation == "apply":
+                    alpha.apply_bytes(data)
+                else:
+                    beta.apply_bytes(data)
+                target = Path(temporary) / "game/sys/game.dll"
+                target.parent.mkdir(parents=True)
+                target.write_bytes(data)
+                runner = PatchRunner({"game/sys/game.dll": data}, {"game/sys/game.dll": target})
+                with mock.patch("htmod.cli.load_release"), \
+                        mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
+                        mock.patch("htmod.cli.runner_from_directory", return_value=runner), \
+                        mock.patch.object(runner, "commit") as commit:
+                    result = cli_module.main([operation, "--game-dir", str(temporary), "--mod", "alpha", "--mod", "beta"])
+                self.assertEqual(runner.check([alpha, beta])["alpha"], wrong_alpha_state)
+                self.assertEqual(result, 1)
+                commit.assert_not_called()
+
     def test_unknown_data_mods_fail_without_tracebacks(self):
         for mod_id in ("missing", "config"):
             with self.subTest(mod=mod_id):

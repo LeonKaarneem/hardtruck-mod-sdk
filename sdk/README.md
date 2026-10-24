@@ -155,7 +155,7 @@ python3 tools/htmod.py check --game-dir "/path/to/test game" --mod dx8_vsync
 
 These commands handle registered binary mods only. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or match an **exact recognized whole-file state**. For a non-pristine target, the SDK restores the selected mods in memory and requires the pinned pristine hash, then applies every selected-mod subset (bounded at four target mods) to that verified pristine image and compares complete bytes. Local PATCHED anchors or appended unknown data are not sufficient. To add a mod to an already patched target, select both existing and new mods; selecting only the new one does not recognize the existing state.
 
-Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. After each action, every selected mod is checked again and any FOREIGN final state fails before commit with a nonzero CLI result. Builder input pins remain global and unchanged.
+Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. Before commit, every selected mod must be PATCHED after apply or ORIGINAL after restore; FOREIGN or the opposite valid state fails with a nonzero CLI result and no commit. Builder input pins remain global and unchanged.
 
 Data is materialized into the release by manifests. End users install both data and binary components through Windows `Setup.bat` or the generated install-all `INSTALL.sh` on Linux/Wine.
 

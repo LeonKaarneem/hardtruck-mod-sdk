@@ -44,8 +44,16 @@ def main(argv=None):
         if pending:
             getattr(runner, args.command)(pending)
             final_states = runner.check(mods)
-            if any(state == PatchState.FOREIGN for state in final_states.values()):
-                raise PatchError(f"selected mods have FOREIGN final state; refusing commit: {final_states}")
+            expected_final_state = PatchState.PATCHED if args.command == "apply" else PatchState.ORIGINAL
+            invalid = {
+                mod_id: state for mod_id, state in final_states.items()
+                if state != expected_final_state
+            }
+            if invalid:
+                raise PatchError(
+                    f"selected mods failed final {expected_final_state.value} verification; "
+                    f"refusing commit: {invalid}"
+                )
             runner.commit()
         for mod_id, state in runner.check(mods).items():
             print(f"{mod_id}: {state.value}")
