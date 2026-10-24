@@ -148,7 +148,7 @@ def copy_data(source, payload):
     config.write_text(sanitized, encoding="utf-8")
 
     components = {
-        "config": ["data/config.cfg"],
+        "config": ["data/config.cfg", "data/ui/mmain.sc"],
         "handling_defs": ["data/defs/truck_base.def"] + [
             f"data/defs/truck{number}.def" for number in range(1, 9)
         ],
