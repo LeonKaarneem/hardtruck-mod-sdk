@@ -295,9 +295,16 @@ def build(args):
                 try:
                     previous.replace(output)
                 except OSError as rollback_error:
+                    recovery_root = Path(tempfile.mkdtemp(
+                        prefix=f".{output.name}.recovery-",
+                        dir=output.parent.resolve(),
+                    ))
+                    recovery = recovery_root / "release"
+                    previous.replace(recovery)
                     raise BuildError(
-                        f"release replacement failed and the previous release could not be restored; "
-                        f"it remains at {previous}: {rollback_error}"
+                        f"release replacement failed ({replacement_error}); "
+                        f"previous release restore failed ({rollback_error}); "
+                        f"previous release preserved at {recovery}"
                     ) from rollback_error
             raise replacement_error
 
