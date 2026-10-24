@@ -34,7 +34,7 @@ With Configuration installed, the main menu shows **Hard Truck Modern v3** at lo
 
 ## Controls and display
 
-Press `~` to open the console. With `config` and `ui_keyboard` installed, Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders. The main menu and Options Graphics/Sound/Controls selectors use larger text and targets; `>` marks keyboard focus and `[x]` marks the selected Options page. Quick Setup has a dark information panel and a larger OK target. These changes are scoped: dense option rows and HUD text retain their stock presentation.
+Press `~` to open the console. With `config` and `ui_keyboard` installed, Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders. The main menu uses larger text and targets; Options Graphics/Sound/Controls selectors use larger text, `>` keyboard-focus cues, and `[x]` selected-page cues without enlarged targets. Quick Setup has a dark information panel and a larger OK target. These changes are scoped: dense option rows and HUD text retain their stock presentation.
 
 Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 

@@ -16,7 +16,7 @@ Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. Thi
 
 `~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders.
 
-With Configuration and Keyboard navigation installed, the main menu and Options Graphics/Sound/Controls selectors have larger text and targets. `>` shows keyboard focus and `[x]` shows the selected Options page. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right.
+With Configuration and Keyboard navigation installed, the main menu has larger text and targets. Options Graphics/Sound/Controls selectors have larger text, `>` keyboard-focus cues, and `[x]` selected-page cues without enlarged targets. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right.
 
 Cabin yaw/pitch no longer bank the scene, and upward/downward look clamps correctly at ±35°, including negative/downward input.
 
