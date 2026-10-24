@@ -20,7 +20,7 @@ Setup accepts pristine v1.2 and its own known binary variants. It refuses unknow
 
 | Stable ID | Effect | New profile? |
 |---|---|---|
-| `config` | Console and controls, 1920×1080 default, main-menu mod marker, Quick Setup information | No |
+| `config` | Console and controls, 1920×1080 default, scoped larger menu text/targets, main-menu mod marker, dark Quick Setup information | No |
 | `handling_defs` | Quicker steering, stronger brakes, torque recovery across the fleet | Yes |
 | `economy_def` | Cargo pay +40%; damage penalty reduced to 60% | Yes |
 | `driver_def` | Lower AI-driver delay chance, salary, and share demand | Yes |
@@ -34,7 +34,9 @@ With Configuration installed, the main menu shows **Hard Truck Modern v3** at lo
 
 ## Controls and display
 
-Press `~` to open the console. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders. Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
+Press `~` to open the console. With `config` and `ui_keyboard` installed, Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders. The main menu and Options Graphics/Sound/Controls selectors use larger text and targets; `>` marks keyboard focus and `[x]` marks the selected Options page. Quick Setup has a dark information panel and a larger OK target. These changes are scoped: dense option rows and HUD text retain their stock presentation.
+
+Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 
 **Cap FPS at 60 or lower** to avoid the original high-frame-rate physics bugs. On Windows 10/11, either:
 
@@ -69,6 +71,7 @@ The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works thro
 - Physics fixes do not repair broken collision geometry at some bridges, weigh stations, and sector joins. Save before known trouble spots.
 - AI cleanup does not fix every traffic stop: junction-counter gridlock and some stopped-car freezes remain.
 - Definition changes require a new profile. There is no save migration path.
+- Space is not generic menu activation. There is no generic screen-reader interface, reduced-motion mode, or runtime text-scale setting; the larger text is a fixed, scoped preset. Dynamically generated binding rows are not verified keyboard-navigable, and device-dependent joystick controls need real-hardware verification. Accessibility interactions were live-tested under Wine/Xvfb, not native Windows; native pointer behavior and pointer-edge activation remain unverified.
 - The Hor+ FOV attempt remains excluded experimental research. Renderer integrity checks and the engine's software-transformed vertex path prevented a safe patch. See `research/fov-notes.md`; do not install `patch_fov_horplus.py` or the reference `src/htd8/` proxy as release mods.
 - If startup or a mod fails, inspect `prism3d.log` and confirm Setup selected the folder containing `prism3d.exe`.
 

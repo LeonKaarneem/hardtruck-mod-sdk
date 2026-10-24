@@ -16,7 +16,7 @@ Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. Thi
 
 `~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders.
 
-With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The Set Up Company screen also has a native **Quick Setup** panel identifying the unofficial mod, summarizing the physics/camera/handling and economy/AI improvements, and noting that installed features depend on Setup choices. It leaves the stock company fields and OK control in place.
+With Configuration and Keyboard navigation installed, the main menu and Options Graphics/Sound/Controls selectors have larger text and targets. `>` shows keyboard focus and `[x]` shows the selected Options page. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right.
 
 Cabin yaw/pitch no longer bank the scene, and upward/downward look clamps correctly at ±35°, including negative/downward input.
 
@@ -27,5 +27,7 @@ Widescreen uses Vert- (a cropped vertical view). For the original field of view,
 ## Limitations and troubleshooting
 
 Physics fixes do not repair broken fixed map collision at some bridges, weigh stations, and sector joins. Traffic cleanup also does not eliminate all AI stops; some junction and stopped-traffic freezes remain.
+
+Space is not generic menu activation. There is no generic screen-reader support, reduced-motion mode, or runtime text scaling. Dynamic binding rows are not verified keyboard-navigable, and device-dependent joystick controls need real-hardware testing. Native Windows and native pointer/edge activation remain unverified; accessibility acceptance ran under Wine/Xvfb.
 
 If the game fails to start or a mod does not load, check `prism3d.log` in the game folder for launch and definition errors. Confirm Setup selected the folder containing `prism3d.exe`, then close the game before retrying.

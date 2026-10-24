@@ -28,7 +28,7 @@ def parse_args(argv=None):
     parser.add_argument("--output", required=True, type=Path, help="screenshot and log output folder")
     parser.add_argument("--display", required=True, type=normalize_display, help="unused X11 display, for example :121")
     parser.add_argument("--resolution", choices=("1024x768", "1920x1080"), default="1024x768")
-    parser.add_argument("--smoke", choices=("quick-setup", "camera"), default="quick-setup")
+    parser.add_argument("--smoke", choices=("quick-setup", "camera", "accessibility"), default="quick-setup")
     parser.add_argument("--title", default="HTMODSDKSMOKE", help="unique window title used to find the game")
     parser.add_argument("--boot-wait", type=float, default=30)
     parser.add_argument("--map-wait", type=float, default=25)
@@ -50,7 +50,7 @@ def validate_camera_bindings(game):
         )
 
 
-def validate_game_log(text, require_quick_setup=False):
+def validate_game_log(text, require_quick_setup=False, allow_headless_graphics=False):
     lowered = text.casefold()
     if "setting state game" not in lowered:
         raise LiveSmokeError("game log did not reach GAME state")
@@ -59,10 +59,13 @@ def validate_game_log(text, require_quick_setup=False):
     for marker in ("page fault", "0x88888786", "creation failed", "unhandled exception", "assertion failed"):
         if marker in lowered:
             raise LiveSmokeError(f"fatal game/Wine log marker: {marker}")
+    benign = ["dx8_gamma", "setviewport"]
+    if allow_headless_graphics:
+        benign.append("no modes found")
     unexpected = [
         line for line in text.splitlines()
         if "*** ERROR ***" in line
-        and not any(benign in line.casefold() for benign in ("dx8_gamma", "setviewport"))
+        and not any(marker in line.casefold() for marker in benign)
     ]
     if unexpected:
         raise LiveSmokeError("unexpected game errors: " + " | ".join(unexpected[-5:]))
@@ -205,6 +208,11 @@ class WineSession:
         self.command(["xdotool", "key", "--window", window, "--repeat", str(repeat), "--delay", "100", key])
         time.sleep(1)
 
+    def text(self, value):
+        window = self.activate()
+        self.command(["xdotool", "type", "--window", window, "--delay", "100", value])
+        time.sleep(1)
+
     def hold(self, key, seconds):
         window = self.activate()
         self.command(["xdotool", "keydown", "--window", window, key])
@@ -247,11 +255,15 @@ class WineSession:
     def game_log(self):
         return (self.game / "prism3d.log").read_text(encoding="utf-8", errors="replace")
 
-    def finish(self, require_quick_setup=True):
+    def finish(self, require_quick_setup=True, allow_headless_graphics=False):
         if self.game_process.poll() is not None:
             raise LiveSmokeError(f"Wine exited during smoke; see {self.output / 'wine.log'}")
         text = self.game_log()
-        validate_game_log(text, require_quick_setup=require_quick_setup)
+        validate_game_log(
+            text,
+            require_quick_setup=require_quick_setup,
+            allow_headless_graphics=allow_headless_graphics,
+        )
         summary = {
             "status": "process-and-log-checks-passed",
             "game": str(self.game),
@@ -261,6 +273,7 @@ class WineSession:
             "screenshots": self.screenshots,
             "visual_review": "required; this harness does not judge image content",
             "quick_setup_ok_pressed": False,
+            "headless_graphics_error_allowed": allow_headless_graphics,
         }
         (self.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(summary, indent=2))
@@ -329,6 +342,62 @@ def run_camera(session, args):
     session.finish(require_quick_setup=True)
 
 
+def run_accessibility(session, args):
+    time.sleep(args.boot_wait)
+    session.capture("01-main-normal.png")
+    session.key("Tab")
+    session.capture("02-main-forward.png")
+    session.key("Tab", repeat=4)
+    session.capture("03-main-options-focused.png")
+    session.key("shift+Tab")
+    session.capture("04-main-backward.png")
+    session.key("Tab")
+    session.capture("05-main-options-refocused.png")
+    session.key("Return")
+    time.sleep(5)
+    session.capture("06-options-enter.png")
+    session.capture("07-graphics-selected.png")
+
+    session.console("ui t graphics")
+    session.close_console(settle=8)
+    session.key("Tab")
+    session.capture("08-graphics-radio-focused.png")
+    session.key("Tab")
+    session.capture("09-sound-radio-focused.png")
+    session.key("Return")
+    time.sleep(5)
+    session.capture("10-sound-selected.png")
+    session.key("Tab")
+    session.capture("11-sound-persistent.png")
+
+    session.console("ui t sound")
+    session.close_console(settle=8)
+    session.key("Tab", repeat=3)
+    session.capture("13-controls-radio-focused.png")
+    session.key("Return")
+    time.sleep(5)
+    session.capture("14-controls-selected.png")
+
+    session.console("ui t controls")
+    session.close_console(settle=8)
+    session.console("ui t options")
+    session.close_console(settle=8)
+    session.enter_map(args.map_wait)
+    session.text("A")
+    session.capture("15-quick-company.png")
+    session.key("Tab")
+    session.text("B")
+    session.capture("16-quick-owner.png")
+    session.key("Tab")
+    session.capture("17-quick-ok-focused.png")
+    session.key("shift+Tab")
+    session.key("shift+Tab")
+    session.key("Tab")
+    session.key("Tab")
+    session.capture("18-quick-ok-unpressed.png")
+    session.finish(require_quick_setup=True, allow_headless_graphics=True)
+
+
 def main(argv=None):
     args = parse_args(argv)
     session = WineSession(**{key: value for key, value in vars(args).items() if key in {
@@ -340,8 +409,10 @@ def main(argv=None):
         with session:
             if args.smoke == "quick-setup":
                 run_quick_setup(session, args)
-            else:
+            elif args.smoke == "camera":
                 run_camera(session, args)
+            else:
+                run_accessibility(session, args)
     except (LiveSmokeError, OSError, subprocess.SubprocessError) as error:
         print(f"live smoke failed: {error}", file=sys.stderr)
         return 1

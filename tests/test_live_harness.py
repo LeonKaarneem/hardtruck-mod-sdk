@@ -141,6 +141,10 @@ class LiveHarnessTests(unittest.TestCase):
         harness = load_harness()
         benign = "setting state GAME\nscript ui/cosetup.sc read OK\n*** ERROR *** dx8_gamma read only\n"
         harness.validate_game_log(benign, require_quick_setup=True)
+        headless = benign + "*** ERROR *** No modes found for device Direct3D8\n"
+        with self.assertRaisesRegex(harness.LiveSmokeError, "unexpected game errors"):
+            harness.validate_game_log(headless, require_quick_setup=True)
+        harness.validate_game_log(headless, require_quick_setup=True, allow_headless_graphics=True)
         for fatal in ("page fault", "0x88888786", "creation failed"):
             with self.subTest(fatal=fatal), self.assertRaises(harness.LiveSmokeError):
                 harness.validate_game_log(benign + fatal + "\n")
@@ -201,6 +205,78 @@ class LiveHarnessTests(unittest.TestCase):
             [f"06-camera-{camera}.png" for camera in range(1, 8)],
         )
         self.assertTrue(session.finished)
+
+    def test_accessibility_smoke_covers_keyboard_cues_and_never_activates_quick_ok(self):
+        harness = load_harness()
+
+        class FakeSession:
+            def __init__(self):
+                self.keys = []
+                self.screenshots = []
+                self.console_commands = []
+                self.text_entries = []
+                self.finished = False
+
+            def capture(self, name):
+                self.screenshots.append(name)
+
+            def enter_map(self, wait):
+                pass
+
+            def console(self, command):
+                self.console_commands.append(command)
+
+            def close_console(self, settle):
+                pass
+
+            def text(self, value):
+                self.text_entries.append(value)
+
+            def key(self, key, repeat=1):
+                self.keys.append((key, repeat))
+                if key == "Return" and self.screenshots and self.screenshots[-1].startswith(("15-", "16-", "17-", "18-")):
+                    raise AssertionError("Quick Setup OK must remain unactivated")
+
+            def finish(self, require_quick_setup, allow_headless_graphics=False):
+                self.finished = require_quick_setup and allow_headless_graphics
+
+        session = FakeSession()
+        with mock.patch.object(harness.time, "sleep"):
+            harness.run_accessibility(session, mock.Mock(boot_wait=0, map_wait=0))
+        self.assertEqual(session.text_entries, ["A", "B"])
+        self.assertIn(("shift+Tab", 1), session.keys)
+        self.assertEqual(
+            session.console_commands,
+            ["ui t graphics", "ui t sound", "ui t controls", "ui t options"],
+        )
+        self.assertEqual(session.keys[-1], ("Tab", 1))
+        self.assertEqual(session.keys.count(("Return", 1)), 3)
+        self.assertEqual(session.screenshots[-1], "18-quick-ok-unpressed.png")
+        for name in (
+            "02-main-forward.png",
+            "04-main-backward.png",
+            "06-options-enter.png",
+            "09-sound-radio-focused.png",
+            "10-sound-selected.png",
+            "13-controls-radio-focused.png",
+            "14-controls-selected.png",
+            "15-quick-company.png",
+            "16-quick-owner.png",
+            "18-quick-ok-unpressed.png",
+        ):
+            self.assertIn(name, session.screenshots)
+        self.assertTrue(session.finished)
+
+    def test_accessibility_entrypoint_uses_shared_parameterized_harness(self):
+        entrypoint = ROOT / "tests/live/accessibility.py"
+        self.assertTrue(entrypoint.is_file())
+        self.assertIn('from run_wine import main', entrypoint.read_text(encoding="utf-8"))
+        args = load_harness().parse_args([
+            "--game", "/game", "--prefix", "/prefix", "--output", "/output",
+            "--display", ":125", "--resolution", "1920x1080", "--smoke", "accessibility",
+        ])
+        self.assertEqual(args.smoke, "accessibility")
+        self.assertEqual(args.resolution, "1920x1080")
 
     def test_retired_one_off_patchers_are_not_active_sources(self):
         for name in (

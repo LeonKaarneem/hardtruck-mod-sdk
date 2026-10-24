@@ -163,7 +163,7 @@ Data is materialized into the release by manifests. End users install both data 
 
 Prerequisites: Wine with 32-bit application support, Xvfb, openbox, xdotool, scrot, Python 3, and a disposable full game copy. Use a fresh/dedicated prefix and an unused display for each run. The harness starts only its own Xvfb/openbox/Wine processes, records their PIDs in `owned-pids`, terminates only those PIDs, and scopes `wineserver -k` to the caller's dedicated prefix. It never uses `pkill` or name-based cleanup. Owned Xvfb/openbox/Wine liveness is checked before dependent startup, window search, and scrot; an already-used or dead display aborts before xdotool/scrot interaction and triggers owned-process cleanup.
 
-Install `config` (and `camera` for the camera smoke) into the test copy with the generated release Setup first. Set `uset r_mode` in that copy's `game/usr/config.cfg` to match `--resolution`. The camera smoke also requires these **test-copy-only** bindings; they are not added to the shipped config, and the harness refuses to run without them:
+Install `config` (plus `camera` for the camera smoke, or `ui_keyboard` for the accessibility smoke) into the test copy with the generated release Setup first. Set `uset r_mode` in that copy's `game/usr/config.cfg` to match `--resolution`. The camera smoke also requires these **test-copy-only** bindings; they are not added to the shipped config, and the harness refuses to run without them:
 
 ```text
 bind_imp y "mleft"
@@ -182,9 +182,15 @@ python3 tests/live/quick_setup.py \
 python3 tests/live/camera.py \
   --game "/tmp/htmod-live/game" --prefix "/tmp/htmod-live/prefix-camera" \
   --output "/tmp/htmod-live/camera-1920" --display :122 --resolution 1920x1080
+
+python3 tests/live/accessibility.py \
+  --game "/tmp/htmod-live/game" --prefix "/tmp/htmod-live/prefix-accessibility" \
+  --output "/tmp/htmod-live/accessibility-1920" --display :123 --resolution 1920x1080
 ```
 
-Each script writes screenshots, Wine/Xvfb/openbox logs, and `summary.json`. Process and log checks do not prove visual correctness: inspect menu/Quick Setup clipping and camera direction, clamping, banking, and camera switches yourself. The Quick Setup flow uses `map west` and `ui t cosetup`; **it never presses OK**, because that action is known to crash in the headless flow. Wine/Xvfb mouse activation and post-console deadlocks can still prevent a run; report those as limitations, not passes. Reusing a caller prefix can shut down its other Wine processes during cleanup, so a dedicated prefix is mandatory.
+Each script writes screenshots, Wine/Xvfb/openbox logs, and `summary.json`. Process and log checks do not prove visual correctness: inspect menu/Quick Setup clipping and camera direction, clamping, banking, and camera switches yourself. For accessibility, inspect both caller-selected resolutions (1024x768 and 1920x1080): main Tab/Shift+Tab focus, Enter opening Options, the larger text/targets, `>` focus and `[x]` selection on Graphics/Sound/Controls, the dark Quick panel, and company→owner→OK focus. The smoke types `A`/`B` into the disposable copy's company/owner fields so OK is enabled and its focus highlight is observable. The Quick Setup flow uses `map west` and `ui t cosetup`; **it never presses OK**, because that action is known to crash in the headless flow. Options uses `ui t` only to hide the active subpage before keyboard radio navigation. Only this accessibility smoke allows the known headless `No modes found` Graphics log line; other unexpected errors still fail.
+
+The accessibility smoke does not test generic Space activation, screen readers, reduced motion, runtime scaling, generated binding rows, device-dependent joystick controls, native pointer/edge activation, or native Windows. Those remain limitations rather than implied passes. Wine/Xvfb mouse activation and post-console deadlocks can still prevent a run; report those as limitations, not passes. Reusing a caller prefix can shut down its other Wine processes during cleanup, so a dedicated prefix is mandatory.
 
 ## Release rules
 
