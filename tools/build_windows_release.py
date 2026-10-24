@@ -12,16 +12,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "sdk"))
 
 from htmod import PatchError, load_release
-from htmod.runner import materialize_data
+from htmod.patch import PatchRunner, PatchState
+from htmod.runner import load_binary_mods, materialize_data
 
 PATCHER_ROOT = PROJECT_ROOT / "modpack/patches"
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
-GAME_PATCHERS = (
-    ("camera", PATCHER_ROOT / "patch_camera_mods.py"),
-    ("physics", PATCHER_ROOT / "patch_physics_fixes.py"),
-    ("ai", PATCHER_ROOT / "patch_ai_fixes.py"),
-)
-DX8_PATCHER = PATCHER_ROOT / "patch_dx8_vsync.py"
+CAMERA_PATCHER = PATCHER_ROOT / "patch_camera_mods.py"
+GAME_COMPONENTS = ("camera", "physics", "ai")
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
 
@@ -50,38 +47,49 @@ def run_patcher(patcher, dll, mode=None):
         )
 
 
-def selected_patchers(number):
-    return [
-        (component, patcher)
-        for bit, (component, patcher) in enumerate(GAME_PATCHERS)
+def selected_components(number):
+    return tuple(
+        component
+        for bit, component in enumerate(GAME_COMPONENTS)
         if number & (1 << bit)
-    ]
+    )
 
 
 def build_game_variants(source, payload, work):
+    release = load_release(PROJECT_ROOT)
+    simple_mods = load_binary_mods(release, ("physics", "ai"))
     variants = {}
     hashes = set()
     pristine_hash = sha256(source)
 
     for number in range(8):
         name = f"{number:03b}"
-        selected = selected_patchers(number)
+        selected = selected_components(number)
+        selected_mods = [mod for mod in simple_mods if mod.id in selected]
         generated = work / f"generated-{name}.dll"
         reference = work / f"reference-{name}.dll"
         shutil.copyfile(source, generated)
-        shutil.copyfile(source, reference)
+        if "camera" in selected:
+            run_patcher(CAMERA_PATCHER, generated)
+        images = {"game/sys/game.dll": bytearray(generated.read_bytes())}
+        runner = PatchRunner(images)
+        if selected_mods:
+            runner.apply(selected_mods)
+        generated.write_bytes(images["game/sys/game.dll"])
 
-        for _, patcher in selected:
-            run_patcher(patcher, generated)
-        for _, patcher in GAME_PATCHERS:
-            run_patcher(patcher, generated, "--check")
-        for _, patcher in selected:
-            run_patcher(patcher, reference)
+        run_patcher(CAMERA_PATCHER, generated, "--check")
+        states = runner.check(simple_mods)
+        for mod in simple_mods:
+            expected = PatchState.PATCHED if mod.id in selected else PatchState.ORIGINAL
+            if states[mod.id] != expected:
+                raise BuildError(f"game variant {name} has unexpected {mod.id} state {states[mod.id].value}")
 
-        if generated.read_bytes() != reference.read_bytes():
-            raise BuildError(f"game variant {name} differs from direct sequential patching")
-        for _, patcher in reversed(selected):
-            run_patcher(patcher, reference, "--restore")
+        images = {"game/sys/game.dll": bytearray(generated.read_bytes())}
+        if selected_mods:
+            PatchRunner(images).restore(selected_mods)
+        reference.write_bytes(images["game/sys/game.dll"])
+        if "camera" in selected:
+            run_patcher(CAMERA_PATCHER, reference, "--restore")
         if sha256(reference) != pristine_hash:
             raise BuildError(f"game variant {name} did not restore to pristine bytes")
 
@@ -92,7 +100,7 @@ def build_game_variants(source, payload, work):
         variants[name] = {
             "file": destination.name,
             "sha256": payload_hash,
-            "components": [component for component, _ in selected],
+            "components": list(selected),
         }
 
     if len(hashes) != 8:
@@ -101,17 +109,23 @@ def build_game_variants(source, payload, work):
 
 
 def build_dx8_payloads(source, payload, work):
+    release = load_release(PROJECT_ROOT)
+    mod = load_binary_mods(release, ("dx8_vsync",))[0]
     stock = payload / "dx8-stock.dll"
     vsync = payload / "dx8-vsync.dll"
     shutil.copyfile(source, stock)
-    shutil.copyfile(source, vsync)
-    run_patcher(DX8_PATCHER, vsync)
-    run_patcher(DX8_PATCHER, stock, "--check")
-    run_patcher(DX8_PATCHER, vsync, "--check")
+    images = {"sys/dx8.dll": bytearray(source.read_bytes())}
+    runner = PatchRunner(images)
+    runner.apply([mod])
+    vsync.write_bytes(images["sys/dx8.dll"])
+    if PatchRunner({"sys/dx8.dll": bytearray(stock.read_bytes())}).check([mod])[mod.id] != PatchState.ORIGINAL:
+        raise BuildError("DX8 stock payload failed original-state verification")
+    if runner.check([mod])[mod.id] != PatchState.PATCHED:
+        raise BuildError("DX8 vsync payload failed patched-state verification")
 
     restored = work / "dx8-restored.dll"
-    shutil.copyfile(vsync, restored)
-    run_patcher(DX8_PATCHER, restored, "--restore")
+    runner.restore([mod])
+    restored.write_bytes(images["sys/dx8.dll"])
     if restored.read_bytes() != source.read_bytes():
         raise BuildError("DX8 vsync patch did not restore to pristine bytes")
 
@@ -166,9 +180,8 @@ def build(args):
             raise BuildError(
                 f"{label} SHA-256 mismatch for {path}: expected {expected}, got {actual}"
             )
-    for _, patcher in (*GAME_PATCHERS, ("dx8", DX8_PATCHER)):
-        if not patcher.is_file():
-            raise BuildError(f"patcher not found: {patcher}")
+    if not CAMERA_PATCHER.is_file():
+        raise BuildError(f"patcher not found: {CAMERA_PATCHER}")
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
         TEMPLATE_ROOT / "Setup.ps1",
