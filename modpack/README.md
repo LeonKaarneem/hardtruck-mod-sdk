@@ -52,7 +52,7 @@ Use a 32-bit Wine prefix and install the game normally. Extract `HardTruckModern
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
 ```
 
-The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
+The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, rejects symlinks and existing non-regular destinations before recording changes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
 
 For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 

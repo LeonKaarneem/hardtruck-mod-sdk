@@ -109,6 +109,42 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(len(entries), 16)
         self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 14)
 
+    def test_directory_and_symlink_destinations_are_rejected_before_any_change(self):
+        for kind in ("directory", "symlink"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = root / "package"
+                shutil.copytree(self.package, package)
+                game = root / "game"
+                shutil.copytree(self.game, game)
+                original_game = (game / "game/sys/game.dll").read_bytes()
+                original_dx8 = (game / "sys/dx8.dll").read_bytes()
+                destination = game / "game/usr/config.cfg"
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if kind == "directory":
+                    destination.mkdir()
+                    sentinel = destination / "keep.txt"
+                    sentinel.write_bytes(b"keep")
+                else:
+                    outside = root / "outside.cfg"
+                    outside.write_bytes(b"outside original")
+                    destination.symlink_to(outside)
+
+                result = self.run_install(package=package, game=game)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(result.stdout + result.stderr, "regular file|symlink")
+                self.assertEqual((game / "game/sys/game.dll").read_bytes(), original_game)
+                self.assertEqual((game / "sys/dx8.dll").read_bytes(), original_dx8)
+                self.assertFalse((package / "installer/backups").exists())
+                self.assertFalse(list(game.rglob("*.htmod-shell-*")))
+                self.assertFalse(list(game.rglob("*.htmod-rollback-*")))
+                if kind == "directory":
+                    self.assertEqual((destination / "keep.txt").read_bytes(), b"keep")
+                    self.assertEqual(list(destination.iterdir()), [destination / "keep.txt"])
+                else:
+                    self.assertTrue(destination.is_symlink())
+                    self.assertEqual(outside.read_bytes(), b"outside original")
+
     def test_mid_install_failure_rolls_back_every_earlier_file_and_preserves_sentinel(self):
         manifest = self.manifest()
         original_game = (self.game / "game/sys/game.dll").read_bytes()

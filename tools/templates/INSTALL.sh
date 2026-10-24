@@ -95,6 +95,23 @@ if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ "$DATA_COUNT" -eq 0 ]; t
     exit 1
 fi
 
+while IFS="$TAB" read -r kind relative expected; do
+    case $kind in
+        install-game) destination=$GAME/game/sys/game.dll ;;
+        install-dx8) destination=$GAME/sys/dx8.dll ;;
+        data) destination=$GAME/game/usr/${relative#data/} ;;
+        *) continue ;;
+    esac
+    if [ -L "$destination" ]; then
+        echo "error: destination is a symlink; refusing to replace it: $destination" >&2
+        exit 1
+    fi
+    if [ -e "$destination" ] && [ ! -f "$destination" ]; then
+        echo "error: destination exists but is not a regular file: $destination" >&2
+        exit 1
+    fi
+done < "$MANIFEST"
+
 if [ "$ASSUME_YES" -ne 1 ]; then
     printf 'Install ALL Hard Truck Modern components into %s? Definition changes require a NEW profile. [y/N] ' "$GAME"
     read -r REPLY
