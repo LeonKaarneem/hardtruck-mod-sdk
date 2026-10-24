@@ -23,6 +23,7 @@ spawn ui_window {
 			area:"28.066956 140.000000 226.511047 443.000000"
 			coords:"28.066956 140.000000 226.511047 443.000000"
 			spawn btn_common {
+				look:"21"
 				value:"@@i_graphics@@"
 				type:"radio"
 				tab:"1"
@@ -32,6 +33,7 @@ spawn ui_window {
 				name:"graphics"
 			}
 			spawn btn_common {
+				look:"21"
 				value:"@@i_sound@@"
 				type:"radio"
 				tab:"2"
@@ -41,6 +43,7 @@ spawn ui_window {
 				name:"sound"
 			}
 			spawn btn_common {
+				look:"21"
 				value:"@@i_controls@@"
 				type:"radio"
 				tab:"3"

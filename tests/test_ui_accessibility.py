@@ -14,6 +14,7 @@ import tempfile
 
 
 UI_ROOT = ROOT / "modpack/mods/config/files/ui"
+DEF_ROOT = ROOT / "modpack/mods/config/files/defs/ui"
 EXPECTED_TABS = {
     "mmain.sc": {
         "2": 1,
@@ -77,6 +78,12 @@ CONFIG_UI_DESTINATIONS = [
     "data/ui/options/mgraphics.sc",
     "data/ui/options/mcontrols.sc",
 ]
+NATIVE_FILES = {
+    **{relative: UI_ROOT / relative for relative in EXPECTED_TABS},
+    "options/mcontrols.sc": UI_ROOT / "options/mcontrols.sc",
+    "defs/ui/btn.def": DEF_ROOT / "btn.def",
+    "defs/ui/txt.def": DEF_ROOT / "txt.def",
+}
 
 
 def sha256(path):
@@ -97,12 +104,32 @@ def controls(relative):
         body = match.group(2)
         identifier = re.search(rb'(?m)^\s*id:"([0-9]+)"', body)
         tab = re.search(rb'(?m)^\s*tab:"(-?[0-9]+)"', body)
+        look = re.search(rb'(?m)^\s*look:"([0-9]+)"', body)
+        area = re.search(rb'(?m)^\s*area:"([^"]+)"', body)
+        coords = re.search(rb'(?m)^\s*coords:"([^"]+)"', body)
         result.append({
             "class": match.group(1).decode("ascii"),
             "id": identifier.group(1).decode("ascii") if identifier else None,
             "tab": int(tab.group(1)) if tab else None,
+            "look": int(look.group(1)) if look else 0,
+            "area": area.group(1).decode("ascii") if area else None,
+            "coords": coords.group(1).decode("ascii") if coords else None,
         })
     return result
+
+
+def definitions(name):
+    path = DEF_ROOT / name
+    if not path.is_file():
+        return {}
+    return {
+        int(match.group(1)): match.group(2)
+        for match in re.finditer(
+            rb'(?m)^def template([0-9]+) \{(.*?)\r\n\}',
+            path.read_bytes(),
+            re.DOTALL,
+        )
+    }
 
 
 class ControlMap(dict):
@@ -151,14 +178,107 @@ class NativeTabOrderTests(unittest.TestCase):
         self.assertIsNone(actual["91"]["tab"])
 
 
+class NativeVisualAccessibilityTests(unittest.TestCase):
+    def test_accessible_chrome_is_appended_as_look21_with_native_state_cues(self):
+        templates = definitions("btn.def")
+        self.assertEqual(list(templates), list(range(22)))
+        accessible = templates.get(21, b"")
+        self.assertIn(b'name:"Accessible Chrome Long"', accessible)
+        states = {}
+        for state in ("n", "s", "s2", "p", "d"):
+            match = re.search(rb'(?m)^\s*' + state.encode() + rb'_pml:"([^"]+)"', accessible)
+            self.assertIsNotNone(match, state)
+            states[state] = match.group(1) if match else b""
+            self.assertIn(b"xscale=0.5 yscale=0.5", states[state])
+            self.assertIn(b"<color value=ff000000>", states[state])
+            self.assertIn(b"ui_small.font", states[state])
+            self.assertIn(b"but01", states[state])
+        self.assertIn(b">%0</font>", states["n"])
+        self.assertIn(b"> %0</font>", states["s"])
+        self.assertIn(b"[x] %0</font>", states["s2"])
+        self.assertIn(b"> %0</font>", states["p"])
+        for state, cue in (("s", "> %0"), ("s2", "[x] %0"), ("p", "> %0")):
+            with self.subTest(state=state, cue_layers=3):
+                self.assertEqual(states[state].count(cue.encode()), 3)
+        self.assertIn(b'width:"256"', accessible)
+        self.assertIn(b'height:"64"', accessible)
+        self.assertIn(b'areaoff:"34 16 34 16"', accessible)
+
+    def test_accessible_panel_is_appended_as_look25_with_white_on_dark(self):
+        templates = definitions("txt.def")
+        self.assertEqual(list(templates), list(range(26)))
+        accessible = templates.get(25, b"")
+        self.assertIn(b'name:"Accessible Panel"', accessible)
+        self.assertIn(b"backg1.shd color=c0000000 xscale=stretch yscale=stretch", accessible)
+        self.assertIn(b"xscale=0.7 yscale=0.7", accessible)
+        self.assertIn(b"<color value=ffffffff>%0</font>", accessible)
+        self.assertIn(b"hstyle=center vstyle=center", accessible)
+
+    def test_stock_definition_bytes_are_preserved_before_appended_looks(self):
+        for name, ordinal, expected in (
+            ("btn.def", 21, "e990f429b291d16e5990beada3dfd72d608e8933e504b68bde67f754f149e920"),
+            ("txt.def", 25, "297a26ff78233126032ff453a59a3bdb4830ee0242a7097882b9cf215da125f8"),
+        ):
+            with self.subTest(definition=name):
+                content = (DEF_ROOT / name).read_bytes() if (DEF_ROOT / name).is_file() else b""
+                stock, separator, _ = content.rpartition(
+                    b"\r\ndef template" + f"{ordinal:02d}".encode() + b" {"
+                )
+                self.assertTrue(separator)
+                self.assertEqual(hashlib.sha256(stock).hexdigest(), expected)
+
+    def test_look21_is_opted_in_only_for_main_six_and_options_pages(self):
+        expected = {
+            *(('mmain.sc', identifier) for identifier in ("2", "3", "4", "5", "10", "11")),
+            *(('moptions.sc', identifier) for identifier in ("10", "11", "12")),
+        }
+        actual = {
+            (path.relative_to(UI_ROOT).as_posix(), control["id"])
+            for path in UI_ROOT.rglob("*.sc")
+            for control in controls(path.relative_to(UI_ROOT).as_posix())
+            if control["look"] == 21
+        }
+        self.assertEqual(actual, expected)
+        self.assertEqual(by_id("mmain.sc")["1"]["look"], 5)
+
+    def test_look25_is_opted_in_only_for_quick_setup_info(self):
+        content = (UI_ROOT / "cosetup.sc").read_bytes()
+        info = re.search(
+            rb'spawn txt_common \{(?=[^}]*value:"UNOFFICIAL MOD)(.*?)\r\n\t\}',
+            content,
+            re.DOTALL,
+        )
+        self.assertIsNotNone(info)
+        self.assertIn(b'look:"25"', info.group(1) if info else b"")
+        total = sum(path.read_bytes().count(b'look:"25"') for path in UI_ROOT.rglob("*.sc"))
+        self.assertEqual(total, 1)
+
+    def test_hit_areas_grow_without_moving_visual_coords(self):
+        expected = {
+            "2": ("34.000000 156.000000 242.000000 204.000000", "0.000000 140.000000 256.000000 204.000000"),
+            "3": ("34.000000 207.000000 242.000000 255.000000", "0.000000 191.000000 256.000000 255.000000"),
+            "4": ("34.000000 259.000000 242.000000 307.000000", "0.000000 243.000000 256.000000 307.000000"),
+            "5": ("34.000000 353.000000 242.000000 401.000000", "0.000000 337.000000 256.000000 401.000000"),
+            "10": ("34.000000 411.000000 242.000000 459.000000", "0.000000 395.000000 256.000000 459.000000"),
+            "11": ("34.000000 469.000000 242.000000 517.000000", "0.000000 453.000000 256.000000 517.000000"),
+        }
+        actual = by_id("mmain.sc")
+        for identifier, (area, coords) in expected.items():
+            with self.subTest(button=identifier):
+                self.assertEqual(actual[identifier]["area"], area)
+                self.assertEqual(actual[identifier]["coords"], coords)
+        quick_ok = by_id("cosetup.sc")["1"]
+        self.assertEqual(quick_ok["area"], "429.000000 556.000000 604.000000 600.000000")
+        self.assertEqual(quick_ok["coords"], "449.000000 566.000000 584.000000 590.000000")
+
+
 class NativePreservationTests(unittest.TestCase):
     def test_scripts_are_crlf_and_match_exact_goldens(self):
         golden = json.loads(
             (ROOT / "tests/golden/ui_accessibility.json").read_text(encoding="utf-8")
         )
         actual = {}
-        for relative in EXPECTED_TABS.keys() | {"options/mcontrols.sc"}:
-            path = UI_ROOT / relative
+        for relative, path in NATIVE_FILES.items():
             if not path.is_file():
                 actual[relative] = None
                 continue
@@ -173,7 +293,10 @@ class NativePreservationTests(unittest.TestCase):
         release = load_release(ROOT)
         with tempfile.TemporaryDirectory() as temporary:
             components = materialize_data(release, Path(temporary))
-        self.assertEqual(components["config"], ["data/config.cfg", *CONFIG_UI_DESTINATIONS])
+        self.assertEqual(
+            components["config"],
+            ["data/config.cfg", "data/defs/ui/btn.def", "data/defs/ui/txt.def", *CONFIG_UI_DESTINATIONS],
+        )
 
 
 if __name__ == "__main__":

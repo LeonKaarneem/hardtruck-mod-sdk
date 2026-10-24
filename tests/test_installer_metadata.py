@@ -21,7 +21,7 @@ QUICK_SETUP_VALUE = (
 )
 QUICK_SETUP_BLOCK = (
     '\tspawn txt_common {\r\n'
-    '\t\tlook:"3"\r\n'
+    '\t\tlook:"25"\r\n'
     f'\t\tvalue:"{QUICK_SETUP_VALUE}"\r\n'
     '\t\tarea:"262.000000 625.000000 762.000000 735.000000"\r\n'
     '\t\tcoords:"262.000000 625.000000 762.000000 735.000000"\r\n'
@@ -97,6 +97,8 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
         )
         self.assertEqual(manifest["data_components"]["config"], [
             "data/config.cfg",
+            "data/defs/ui/btn.def",
+            "data/defs/ui/txt.def",
             "data/ui/mmain.sc",
             "data/ui/cosetup.sc",
             "data/ui/moptions.sc",
@@ -117,6 +119,10 @@ class QuickSetupTests(unittest.TestCase):
         stock = stock.replace(b'\t\ttab:"1"\r\n\t\tid:"10"', b'\t\tid:"10"')
         stock = stock.replace(b'\t\ttab:"2"\r\n\t\tid:"11"', b'\t\tid:"11"')
         stock = stock.replace(b'\t\ttab:"3"\r\n\t\tid:"1"', b'\t\ttab:"8"\r\n\t\tid:"1"')
+        stock = stock.replace(
+            b'\t\tarea:"429.000000 556.000000 604.000000 600.000000"',
+            b'\t\tarea:"449.000000 566.000000 584.000000 590.000000"',
+        )
         self.assertEqual(hashlib.sha256(stock).hexdigest(), STOCK_QUICK_SETUP_SHA256)
         frame_end = stock.index(b"\t}\r\n", stock.index(b'\tspawn frm_common {')) + len(b"\t}\r\n")
         self.assertEqual(content[frame_end:frame_end + len(QUICK_SETUP_BLOCK)], QUICK_SETUP_BLOCK)

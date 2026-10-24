@@ -1,10 +1,12 @@
 {
   "schema_version": 1,
   "files": {
-    "mmain.sc": "c20921d3d0c1e8745e6ddd6b7e61c645a8f2120c640f212b2e8c75c738fbcb40",
-    "cosetup.sc": "b69477e7ed4b0d2cfa4fb2202a5730d7aea8534f1fbeebd1210f745c97fe049f",
-    "moptions.sc": "a0a57dce1c34b119c5dae3c37bcb13463d8ec5285c6a6b71fb6c99ba83ac4a91",
+    "mmain.sc": "89f3f3e45a291ad1531fd2aaf082f581c985c596e73e1f19b871672f0760f8f1",
+    "cosetup.sc": "795b83c07d7c7d45d5dc100383b1543d66a2f9c3a72f3b11b811045e5629a18c",
+    "moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
-    "options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3"
+    "options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
+    "defs/ui/btn.def": "552b80aa2511065f75a31d024c6f520b9a1e350da0a5d6a91a97fb5a5ea2d270",
+    "defs/ui/txt.def": "c183801602bcd623b97f7e191268ab71bc9fe863f7ff9d9edd8dee442a0df26d"
   }
 }

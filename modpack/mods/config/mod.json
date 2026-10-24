@@ -18,6 +18,14 @@
       "transforms": ["strip_r_renderer"]
     },
     {
+      "source": "defs/ui/btn.def",
+      "destination": "game/usr/defs/ui/btn.def"
+    },
+    {
+      "source": "defs/ui/txt.def",
+      "destination": "game/usr/defs/ui/txt.def"
+    },
+    {
       "source": "ui/mmain.sc",
       "destination": "game/usr/ui/mmain.sc"
     },

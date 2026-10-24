@@ -1,0 +1,132 @@
+###########################
+#
+#	text templates
+#	DO NOT CHANGE ORDER!!
+#
+###########################
+
+def template00 {
+	name:"Heading 1 Left Center"
+	text:"<align hstyle=left vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1>%0</font></align>"
+}
+
+def template01 {
+	name:"Heading 1 Right Center"
+	text:"<align hstyle=right vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1>%0</font></align>"
+}
+
+def template02 {
+	name:"Impulse"
+	text:"<img src=shaders/ui/white.shd color=ff606060 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1>%0</font></align>"
+}
+
+def template03 {
+	name:"Heading 2 Center Center"
+	text:"<img src=shaders/ui/backg1.shd color=20ffffff xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.7 yscale=0.7 spacing=1>%0</font></align>"
+}
+
+def template04 {
+	name:"Digital HUD Right Bottom"
+	text:"<align hstyle=right vstyle=bottom><font face=fixedsys.font xscale=1.0 yscale=1.3 spacing=1>%0</font></align>"
+}
+
+def template05 {
+	name:"Digital HUD Small"
+	text:"<font face=fixedsys.font xscale=0.8 yscale=0.8 spacing=1>%0</font>"
+}
+
+def template06 {
+	name:"Digital Ingame Left Top"
+	text:"<font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font>"
+}
+
+def template07 {
+	name:"Digital Ingame Center Center"
+	text:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template08 {
+	name:"Digital Ingame Right Center"
+	text:"<align hstyle=right vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template09 {
+	name:"Digital Ingame Left Center"
+	text:"<align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template10 {
+	name:"Digital Ingame Heading Center Center"
+	text:"<img src=shaders/ui/ingame/note_bcg2.shd xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template11 {
+	name:"Digital Ingame Bgr"
+	text:"<font face=ui_small.font xscale=0.4 yscale=0.4 spacing=1><color value=ff476A41>%0</font></align>"
+}
+
+def template12 {
+	name:"Digital HUD Center Center 3D"
+	text:"<align hstyle=center vstyle=center><font face=fixedsys.font xscale=1.0 yscale=1.3 type=1 spacing=1>%0</font></align>"
+}
+
+def template13 {
+	name:"Digital HUD Left Top"
+	text:"<font face=fixedsys.font xscale=1.0 yscale=1.3 spacing=1>%0</font>"
+}
+
+def template14 {
+	name:"Digital HUD Center Center"
+	text:"<align hstyle=center vstyle=center><font face=fixedsys.font xscale=1.0 yscale=1.3 spacing=1>%0</font></align>"
+}
+
+def template15 {
+	name:"Digital Ingame Heading Left Center"
+	text:"<img src=shaders/ui/ingame/note_bcg2.shd xscale=stretch yscale=stretch><ret><align hstyle=left vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template16 {
+	name:"Digital Ingame Heading Right Center"
+	text:"<img src=shaders/ui/ingame/note_bcg2.shd xscale=stretch yscale=stretch><ret><align hstyle=right vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+def template17 {
+	name:"Heading 1 Center Center"
+	text:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1>%0</font></align>"
+}
+def template18 {
+	name:"Main Tooltip"
+	text:"<font face=ui_tooltip.font xscale=0.55 yscale=0.55 spacing=1 blanks=true>%0</font>"
+}
+def template19 {
+	name:"Digital Ingame Heading2 Center Center"
+	text:"<img src=shaders/ui/ingame/note_line1.shd xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+def template20 {
+	name:"Savegame"
+	text:"<align hstyle=center vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1>%0</font></align>"
+}
+
+def template21 {
+	name:"Heading 2 Center Center Lat"
+	text:"<img src=shaders/ui/backg1.shd color=20ffffff xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.7 yscale=0.7 spacing=1>%0</font></align>"
+}
+
+def template22 {
+	name:"Heading 1 Center Center Lat"
+	text:"<align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1>%0</font></align>"
+}
+
+def template23 {
+	name:"Digital Ingame Left Center Lat"
+	text:"<align vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template24 {
+	name:"Digital Ingame Center Center Lat"
+	text:"<align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+}
+
+def template25 {
+	name:"Accessible Panel"
+	text:"<img src=shaders/ui/backg1.shd color=c0000000 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.7 yscale=0.7 spacing=1><color value=ffffffff>%0</font></align>"
+}

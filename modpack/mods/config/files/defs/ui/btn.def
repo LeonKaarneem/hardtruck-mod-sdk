@@ -1,0 +1,236 @@
+###########################
+#
+#	button templates
+#	DO NOT CHANGE ORDER!!
+#
+###########################
+
+def template00 {
+	name:"Chrome Long"
+	n_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.4 yscale=0.4 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff1b1564>%0</font></font></align><ret><img src=shaders/ui/but01.shd>"
+	s_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.4 yscale=0.4 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	s2_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.4 yscale=0.4 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	p_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.4 yscale=0.4 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff275d25>%0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	d_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.4 yscale=0.4 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=80ffffff>%0</font></font></align><ret><img src=shaders/ui/but01.shd>"
+	width:"256"
+	height:"64"
+	areaoff:"34 16 34 16"
+}
+
+def template01 {
+	name:"Chrome Round"
+	n_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=2><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff1b1564>%0</font></font></align><ret><img src=shaders/ui/but02.shd>"
+	s_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=2><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align><ret><img src=shaders/ui/but02.shd>"
+	s2_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=2><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align><ret><img src=shaders/ui/but02.shd>"
+	p_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=2><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff275d25>%0</font></font></align><ret><img src=shaders/ui/but02.shd>"
+	d_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=2><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=80ffffff>%0</font></font></align><ret><img src=shaders/ui/but02.shd>"
+	width:"64"
+	height:"64"
+	areaoff:"0 0 0 0"
+}
+
+def template02 {
+	name:"Flat"
+	n_pml:"<font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff>%0</font>"
+	s_pml:"<font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	s2_pml:"<font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	p_pml:"<font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	d_pml:"<font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff>%0</font>"
+}
+
+def template03 {
+	name:"Flat Centered"
+	n_pml:"<align vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff>%0</font></align>"
+	s_pml:"<align vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	s2_pml:"<align vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	p_pml:"<align vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	d_pml:"<align vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff>%0</font></align>"
+}
+
+def template04 {
+	name:"Impulse"
+	n_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff><verbatim>%0</verbatim></font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff><verbatim>%0</verbatim></font></align>"
+}
+
+def template05 {
+	name:"Flat Emboss"
+	n_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=1><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff1b1564>%0</font></font></align>"
+	s_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=1><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align>"
+	s2_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=1><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff376d35>%0</font></font></align>"
+	p_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=1><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=ff275d25>%0</font></font></align>"
+	d_pml:"<align hstyle=center vstyle=center><font face=ui_main.font xscale=0.6 yscale=0.6 spacing=1><font type=1><offset hshift=2 vshift=2>%0</font><ret><font type=2><offset hshift=-2 vshift=-2>%0</font><ret><font type=0><color value=80ffffff>%0</font></font></align>"
+}
+
+def template06 {
+	name:"Digital Center Center"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font></align>"
+	height:"24"
+}
+
+def template07 {
+	name:"Digital Text-Check"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font></align>"
+	type:"check"
+	height:"24"
+	areaoff:"0 0 0 0"
+}
+
+def template08 {
+	name:"Digital Pict-Check"
+	n_pml:"<img src=shaders/ui/hud/check_a.shd>"
+	s_pml:"<img src=shaders/ui/hud/check_a.shd>"
+	s2_pml:"<img src=shaders/ui/hud/check_b.shd>"
+	p_pml:"<img src=shaders/ui/hud/check_b.shd>"
+	d_pml:"<img src=shaders/ui/hud/check.shd>"
+	width:"16"
+	height:"16"
+	areaoff:"0 0 0 0"
+	type:"check"
+}
+
+def template09 {
+	name:"Digital Left Center"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font></align>"
+	height:"24"
+}
+
+def template10 {
+	name:"Digital Pict-Radio"
+	n_pml:"<img src=shaders/ui/hud/check_a.shd>"
+	s_pml:"<img src=shaders/ui/hud/check_a.shd>"
+	s2_pml:"<img src=shaders/ui/hud/check_b.shd>"
+	p_pml:"<img src=shaders/ui/hud/check_b.shd>"
+	d_pml:"<img src=shaders/ui/hud/check.shd>"
+	width:"16"
+	height:"16"
+	areaoff:"0 0 0 0"
+	type:"radio"
+}
+
+def template11 {
+	name:"Digital List NO-SELECTION"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	height:"24"
+}
+
+def template12 {
+	name:"Fixed-List Main"
+	n_pml:"<font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ffffffff>%0</font>"
+	s_pml:"<font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff03d6fb>%0</font>"
+	s2_pml:"<font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff03d6fb>%0</font>"
+	p_pml:"<font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff03d6fb>%0</font>"
+	d_pml:"<font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=80ffffff>%0</font>"
+}
+
+def template13 {
+	name:"Fixed-List Game"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=default.font xscale=1.2 yscale=2.1 spacing=1><color value=ff405f45>%0</font></align>"
+	height:"24"
+}
+
+def template14 {
+	name:"Digital Text-Check Left Center"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><font face=ui_small.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font>"
+	type:"check"
+	height:"24"
+	areaoff:"0 0 0 0"
+}
+
+def template15 {
+	name:"Impulse Lat"
+	n_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff><verbatim>%0</verbatim></font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb><verbatim>%0</verbatim></font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff303030 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff><verbatim>%0</verbatim></font></align>"
+}
+
+def template16 {
+	name:"Digital Left Center Lat"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font></align>"
+	height:"24"
+}
+
+def template17 {
+	name:"Digital Center Center Lat"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font></align>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font></align>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font></align>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><align hstyle=center vstyle=center><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font></align>"
+	height:"24"
+}
+
+def template18 {
+	name:"Digital Text-Check Left Center Lat"
+	n_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff074537>%0</font>"
+	s_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font>"
+	s2_pml:"<img src=shaders/ui/white.shd color=ff095947 xscale=stretch yscale=stretch><ret><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d735s>%0</font>"
+	p_pml:"<img src=shaders/ui/white.shd color=ff074537 xscale=stretch yscale=stretch><ret><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff4d7353>%0</font>"
+	d_pml:"<img src=shaders/ui/white.shd color=ff4d7353 xscale=stretch yscale=stretch><ret><font face=ui_small_lat.font xscale=0.6 yscale=0.6 spacing=1><color value=ff405f45>%0</font>"
+	type:"check"
+	height:"24"
+	areaoff:"0 0 0 0"
+}
+
+def template19 {
+	name:"Flat Lat"
+	n_pml:"<font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff>%0</font>"
+	s_pml:"<font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	s2_pml:"<font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	p_pml:"<font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font>"
+	d_pml:"<font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff>%0</font>"
+}
+
+def template20 {
+	name:"Flat Centered Lat"
+	n_pml:"<align vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ffffffff>%0</font></align>"
+	s_pml:"<align vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	s2_pml:"<align vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	p_pml:"<align vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=ff03d6fb>%0</font></align>"
+	d_pml:"<align vstyle=center><font face=ui_small_lat.font xscale=0.55 yscale=0.55 spacing=1><color value=80ffffff>%0</font></align>"
+}
+
+def template21 {
+	name:"Accessible Chrome Long"
+	n_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.5 yscale=0.5 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff000000>%0</font></font></align><ret><img src=shaders/ui/but01.shd>"
+	s_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.5 yscale=0.5 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>> %0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>> %0</font><ret><font type=0><color value=ff000000>> %0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	s2_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.5 yscale=0.5 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>[x] %0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>[x] %0</font><ret><font type=0><color value=ff000000>[x] %0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	p_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.5 yscale=0.5 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>> %0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>> %0</font><ret><font type=0><color value=ff000000>> %0</font></font></align><ret><img src=shaders/ui/but01a.shd>"
+	d_pml:"<align hstyle=center vstyle=center><font face=ui_small.font xscale=0.5 yscale=0.5 spacing=2><font type=1><offset hshift=1.6 vshift=1.6>%0</font><ret><font type=2><offset hshift=-1.6 vshift=-1.6>%0</font><ret><font type=0><color value=ff000000>%0</font></font></align><ret><img src=shaders/ui/but01.shd>"
+	width:"256"
+	height:"64"
+	areaoff:"34 16 34 16"
+}
