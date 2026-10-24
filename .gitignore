@@ -5,3 +5,5 @@ test-*/
 *.log
 /*.png
 /*.out
+.worktrees/
+release/
