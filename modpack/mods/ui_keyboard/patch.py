@@ -54,15 +54,24 @@ class UIKeyboardMod(BinaryMod):
         section = image.section(NEWSEC_NAME)
         if section != image.sections[-1]:
             return False
+        last_va_end = max(
+            item.virtual_address + align(item.virtual_span, image.section_alignment)
+            for item in image.sections[:-1]
+        )
+        expected_vaddr = align(last_va_end, image.section_alignment)
+        previous_raw_end = max(
+            item.raw_offset + item.raw_size for item in image.sections[:-1]
+        )
+        expected_raw_offset = align(previous_raw_end, image.file_alignment)
+        if section.virtual_address != expected_vaddr \
+                or section.raw_offset != expected_raw_offset:
+            return False
         if (section.virtual_size, section.raw_size, section.flags) != (
             NEWSEC_SIZE, NEWSEC_SIZE, NEWSEC_FLAGS
         ):
             return False
         if len(image.data) != section.raw_offset + section.raw_size:
             return False
-        previous_raw_end = max(
-            item.raw_offset + item.raw_size for item in image.sections[:-1]
-        )
         if previous_raw_end > section.raw_offset or any(
             image.data[previous_raw_end:section.raw_offset]
         ):

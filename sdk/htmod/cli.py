@@ -34,6 +34,8 @@ def main(argv=None):
             return 0
         Selection(args.mod_ids).validate(release.mods)
         binary_ids = [mod_id for mod_id in args.mod_ids if release.mods[mod_id].kind == "binary"]
+        if not binary_ids:
+            raise PatchError("no binary mods selected")
         mods = load_binary_mods(release, binary_ids)
         runner = runner_from_directory(args.game_dir, mods)
         states = runner.check(mods)

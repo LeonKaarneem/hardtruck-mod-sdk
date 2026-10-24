@@ -316,7 +316,9 @@ class CliTests(unittest.TestCase):
             target.parent.mkdir(parents=True)
             target.write_bytes(data)
             runner = PatchRunner(images, {"game/sys/game.dll": target})
-            with mock.patch("htmod.cli.load_release"), \
+            release = mock.Mock()
+            release.mods = {mod_id: mock.Mock(kind="binary") for mod_id in ("alpha", "beta")}
+            with mock.patch("htmod.cli.load_release", return_value=release), \
                     mock.patch("htmod.cli.Selection"), \
                     mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
                     mock.patch("htmod.cli.runner_from_directory", return_value=runner), \
@@ -352,7 +354,9 @@ class CliTests(unittest.TestCase):
                 target.parent.mkdir(parents=True)
                 target.write_bytes(data)
                 runner = PatchRunner({"game/sys/game.dll": data}, {"game/sys/game.dll": target})
-                with mock.patch("htmod.cli.load_release"), \
+                release = mock.Mock()
+                release.mods = {mod_id: mock.Mock(kind="binary") for mod_id in ("alpha", "beta")}
+                with mock.patch("htmod.cli.load_release", return_value=release), \
                         mock.patch("htmod.cli.Selection"), \
                         mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
                         mock.patch("htmod.cli.runner_from_directory", return_value=runner), \

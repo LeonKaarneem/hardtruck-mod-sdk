@@ -157,6 +157,68 @@ class UIKeyboardContractTests(unittest.TestCase):
                     PatchRunner({mod.target: candidate}).restore([mod])
                 self.assertEqual(candidate, before)
 
+    def test_noncanonical_section_va_is_refused_even_with_coordinated_hook_and_image_size(self):
+        module = self.require_module()
+        mod = load_binary_mods(load_release(ROOT), ["ui_keyboard"])[0]
+        candidate = bytearray(pristine_game())
+        PatchRunner({mod.target: candidate}).apply([mod])
+        image = PEImage.parse(candidate)
+        section = image.section(".uitab")
+        noncanonical_va = section.virtual_address + 0x1000
+        header = image.section_table + 40 * (len(image.sections) - 1)
+        struct.pack_into("<I", candidate, header + 12, noncanonical_va)
+        base_va = image.image_base + noncanonical_va
+        offset = image.va_to_offset(0x10070E20)
+        candidate[offset:offset + 5] = module.i_jmp(0x10070E20, base_va)
+        candidate[section.raw_offset:section.raw_offset + 0x1000] = (
+            module.build_wrapper(base_va) + bytes(0x1000 - len(module.WRAPPER))
+        )
+        struct.pack_into(
+            "<I", candidate, image.optional_offset + 56,
+            module.align(noncanonical_va + 0x1000, image.section_alignment),
+        )
+        before = candidate[:]
+        self.assertEqual(mod.inspect_bytes(candidate), PatchState.FOREIGN)
+        with self.assertRaises(StateError):
+            PatchRunner({mod.target: candidate}).restore([mod])
+        self.assertEqual(candidate, before)
+
+    def test_noncanonical_raw_offset_is_refused_without_mutation(self):
+        mod = load_binary_mods(load_release(ROOT), ["ui_keyboard"])[0]
+        candidate = bytearray(pristine_game())
+        PatchRunner({mod.target: candidate}).apply([mod])
+        image = PEImage.parse(candidate)
+        section = image.section(".uitab")
+        header = image.section_table + 40 * (len(image.sections) - 1)
+        candidate[section.raw_offset:section.raw_offset] = b"\0"
+        struct.pack_into("<I", candidate, header + 20, section.raw_offset + 1)
+        before = candidate[:]
+        self.assertEqual(mod.inspect_bytes(candidate), PatchState.FOREIGN)
+        with self.assertRaises(StateError):
+            PatchRunner({mod.target: candidate}).restore([mod])
+        self.assertEqual(candidate, before)
+
+    def test_noncanonical_aligned_raw_offset_and_eof_are_refused_without_mutation(self):
+        mod = load_binary_mods(load_release(ROOT), ["ui_keyboard"])[0]
+        candidate = bytearray(pristine_game())
+        PatchRunner({mod.target: candidate}).apply([mod])
+        image = PEImage.parse(candidate)
+        section = image.section(".uitab")
+        header = image.section_table + 40 * (len(image.sections) - 1)
+        candidate[section.raw_offset:section.raw_offset] = bytes(image.file_alignment)
+        struct.pack_into("<I", candidate, header + 20, section.raw_offset + image.file_alignment)
+        before = candidate[:]
+        self.assertEqual(mod.inspect_bytes(candidate), PatchState.FOREIGN)
+        with self.assertRaises(StateError):
+            PatchRunner({mod.target: candidate}).restore([mod])
+        self.assertEqual(candidate, before)
+
+    def test_cli_rejects_data_only_selection(self):
+        from htmod import cli
+
+        result = cli.main(["--root", str(ROOT), "check", "--game-dir", str(ROOT), "--mod", "config"])
+        self.assertEqual(result, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
