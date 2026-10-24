@@ -241,7 +241,17 @@ function Write-Json {
         $Value
     )
     $json = $Value | ConvertTo-Json -Depth 10
-    [System.IO.File]::WriteAllText($Path, $json + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+    $parent = Split-Path -Parent $Path
+    $temporary = Join-Path $parent ("." + [System.IO.Path]::GetFileName($Path) + "." + [Guid]::NewGuid().ToString("N") + ".tmp")
+    try {
+        [System.IO.File]::WriteAllText($temporary, $json + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+        Move-Item -Force -LiteralPath $temporary -Destination $Path
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporary -PathType Leaf) {
+            Remove-Item -LiteralPath $temporary -Force
+        }
+    }
 }
 
 function New-BackupDirectory {
@@ -267,6 +277,9 @@ function Rollback-Install {
         $destination = Join-Path $script:GamePath $entry.destination
         try {
             if ($entry.existed) {
+                if (Test-Hash $destination $entry.original_sha256) {
+                    continue
+                }
                 if ((Test-Path -LiteralPath $destination -PathType Leaf) -and
                     -not (Test-Hash $destination $entry.installed_sha256)) {
                     $errors += "Rollback skipped a file modified during installation: $($entry.destination)"
@@ -462,27 +475,27 @@ function Uninstall-Mods {
         throw "No installed backup manifest was found for this game folder."
     }
 
-    $processedDestinations = @{}
+    $blockedDestinations = @{}
     foreach ($run in $history) {
-        if ($run.manifest.status -eq "UninstallPartial") {
-            foreach ($item in $run.items) {
-                $processedDestinations[$item.relative] = $true
-                if ($run.manifest.skipped -contains $item.relative) {
-                    Write-Warning "Still skipping user-modified or missing file: $($item.relative)"
-                }
-            }
-            continue
-        }
         $skipped = @()
         foreach ($item in $run.items) {
-            if ($processedDestinations.ContainsKey($item.relative)) {
+            if ($blockedDestinations.ContainsKey($item.relative)) {
+                $skipped += $item.relative
                 continue
             }
-            $processedDestinations[$item.relative] = $true
             $entry = $item.entry
             $destination = $item.destination
+            if ($entry.existed -and (Test-Hash $destination $entry.original_sha256)) {
+                Write-Host "Already restored: $($item.relative)"
+                continue
+            }
+            if (-not $entry.existed -and -not (Test-Path -LiteralPath $destination)) {
+                Write-Host "Already removed: $($item.relative)"
+                continue
+            }
             if (-not (Test-Hash $destination $entry.installed_sha256)) {
                 Write-Warning "Skipping user-modified or missing file: $($item.relative)"
+                $blockedDestinations[$item.relative] = $true
                 $skipped += $item.relative
                 continue
             }
@@ -496,19 +509,19 @@ function Uninstall-Mods {
             }
         }
         $run.manifest.status = if ($skipped.Count -eq 0) { "Uninstalled" } else { "UninstallPartial" }
-        $run.manifest | Add-Member -NotePropertyName uninstalled -NotePropertyValue (Get-Date).ToString("o")
-        $run.manifest | Add-Member -NotePropertyName skipped -NotePropertyValue $skipped
+        $run.manifest | Add-Member -Force -NotePropertyName uninstalled -NotePropertyValue (Get-Date).ToString("o")
+        $run.manifest | Add-Member -Force -NotePropertyName skipped -NotePropertyValue $skipped
         Write-Json $run.path $run.manifest
         Write-Host "Uninstall manifest updated: $($run.path)"
     }
 }
 
 try {
-    $manifest = Read-PayloadManifest
     $selection = Get-Selection $Action $Components -NonInteractive:$NonInteractive
     if ($script:SelectedAction -eq "Quit") {
         if ($Action -eq "Menu") { exit 2 } else { exit 0 }
     }
+    $manifest = Read-PayloadManifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
     Write-Warning "The game must be closed before setup continues."
     if ($script:SelectedAction -eq "Uninstall") {
