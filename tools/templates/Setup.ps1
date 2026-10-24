@@ -422,69 +422,85 @@ function Uninstall-Mods {
     if (-not (Test-Path -LiteralPath $script:BackupRoot -PathType Container)) {
         throw "No installer backups were found; nothing to uninstall."
     }
-    $latest = $null
-    $latestManifest = $null
+    $history = @()
     foreach ($file in (Get-ChildItem -LiteralPath $script:BackupRoot -Filter installation.json -Recurse -File | Sort-Object FullName -Descending)) {
         $candidate = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($candidate.status -eq "Installed" -and $candidate.entries.Count -gt 0 -and $candidate.game_path -ieq $script:GamePath) {
-            $latest = $file.FullName
-            $latestManifest = $candidate
-            break
+        if (($candidate.status -eq "Installed" -or $candidate.status -eq "UninstallPartial") -and $candidate.entries.Count -gt 0 -and $candidate.game_path -ieq $script:GamePath) {
+            $items = @()
+            foreach ($entry in $candidate.entries) {
+                $relative = Test-SafeDestination $entry.destination $Manifest
+                if ($entry.installed_sha256 -notmatch "^[0-9a-fA-F]{64}$") {
+                    throw "Invalid installed hash in backup manifest: $($file.FullName)"
+                }
+                $destination = Join-Path $script:GamePath $relative
+                $backup = $null
+                if ($entry.existed) {
+                    if ($entry.original_sha256 -notmatch "^[0-9a-fA-F]{64}$") {
+                        throw "Invalid original hash in backup manifest: $($file.FullName)"
+                    }
+                    $backupRelative = Get-SafeRelativePath $entry.backup_file
+                    $backup = Join-Path (Split-Path -Parent $file.FullName) $backupRelative
+                    if (-not (Test-Hash $backup $entry.original_sha256)) {
+                        throw "Backup is missing or corrupt for $relative"
+                    }
+                }
+                $items += @{
+                    entry = $entry
+                    destination = $destination
+                    relative = $relative
+                    backup = $backup
+                }
+            }
+            $history += @{
+                path = $file.FullName
+                manifest = $candidate
+                items = $items
+            }
         }
     }
-    if ($null -eq $latestManifest) {
+    if ($history.Count -eq 0) {
         throw "No installed backup manifest was found for this game folder."
     }
 
-    $validated = @()
-    foreach ($entry in $latestManifest.entries) {
-        $relative = Test-SafeDestination $entry.destination $Manifest
-        if ($entry.installed_sha256 -notmatch "^[0-9a-fA-F]{64}$") {
-            throw "Invalid installed hash in backup manifest: $latest"
-        }
-        $destination = Join-Path $script:GamePath $relative
-        $backup = $null
-        if ($entry.existed) {
-            if ($entry.original_sha256 -notmatch "^[0-9a-fA-F]{64}$") {
-                throw "Invalid original hash in backup manifest: $latest"
+    $processedDestinations = @{}
+    foreach ($run in $history) {
+        if ($run.manifest.status -eq "UninstallPartial") {
+            foreach ($item in $run.items) {
+                $processedDestinations[$item.relative] = $true
+                if ($run.manifest.skipped -contains $item.relative) {
+                    Write-Warning "Still skipping user-modified or missing file: $($item.relative)"
+                }
             }
-            $backupRelative = Get-SafeRelativePath $entry.backup_file
-            $backup = Join-Path (Split-Path -Parent $latest) $backupRelative
-            if (-not (Test-Hash $backup $entry.original_sha256)) {
-                throw "Backup is missing or corrupt for $relative"
-            }
-        }
-        $validated += @{
-            entry = $entry
-            destination = $destination
-            relative = $relative
-            backup = $backup
-        }
-    }
-
-    $skipped = @()
-    foreach ($item in $validated) {
-        $entry = $item.entry
-        $destination = $item.destination
-        if (-not (Test-Hash $destination $entry.installed_sha256)) {
-            Write-Warning "Skipping user-modified or missing file: $($item.relative)"
-            $skipped += $item.relative
             continue
         }
-        if ($entry.existed) {
-            Copy-Atomic $item.backup $destination $entry.original_sha256
-            Write-Host "Restored: $($item.relative)"
+        $skipped = @()
+        foreach ($item in $run.items) {
+            if ($processedDestinations.ContainsKey($item.relative)) {
+                continue
+            }
+            $processedDestinations[$item.relative] = $true
+            $entry = $item.entry
+            $destination = $item.destination
+            if (-not (Test-Hash $destination $entry.installed_sha256)) {
+                Write-Warning "Skipping user-modified or missing file: $($item.relative)"
+                $skipped += $item.relative
+                continue
+            }
+            if ($entry.existed) {
+                Copy-Atomic $item.backup $destination $entry.original_sha256
+                Write-Host "Restored: $($item.relative)"
+            }
+            else {
+                Remove-Item -LiteralPath $destination -Force
+                Write-Host "Removed installer-created file: $($item.relative)"
+            }
         }
-        else {
-            Remove-Item -LiteralPath $destination -Force
-            Write-Host "Removed installer-created file: $($item.relative)"
-        }
+        $run.manifest.status = if ($skipped.Count -eq 0) { "Uninstalled" } else { "UninstallPartial" }
+        $run.manifest | Add-Member -NotePropertyName uninstalled -NotePropertyValue (Get-Date).ToString("o")
+        $run.manifest | Add-Member -NotePropertyName skipped -NotePropertyValue $skipped
+        Write-Json $run.path $run.manifest
+        Write-Host "Uninstall manifest updated: $($run.path)"
     }
-    $latestManifest.status = if ($skipped.Count -eq 0) { "Uninstalled" } else { "UninstallPartial" }
-    $latestManifest | Add-Member -NotePropertyName uninstalled -NotePropertyValue (Get-Date).ToString("o")
-    $latestManifest | Add-Member -NotePropertyName skipped -NotePropertyValue $skipped
-    Write-Json $latest $latestManifest
-    Write-Host "Uninstall manifest updated: $latest"
 }
 
 try {
