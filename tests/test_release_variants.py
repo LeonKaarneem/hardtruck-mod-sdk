@@ -105,6 +105,56 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                 with self.assertRaisesRegex(Exception, "whole-file|unrecognized"):
                     runner_module.runner_from_directory(direct, mods)
 
+    def test_builder_loads_all_handlers_but_validates_each_curated_selection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            modpack = Path(temporary) / "modpack"
+            shutil.copytree(ROOT / "modpack", modpack)
+            release_path = modpack / "release.json"
+            value = json.loads(release_path.read_text(encoding="utf-8"))
+            value["game_variants"] = {
+                name: value["game_variants"][name]
+                for name in ("001", "010", "100")
+            }
+            release_path.write_text(json.dumps(value), encoding="utf-8")
+            camera_path = modpack / "mods/camera/mod.json"
+            camera = json.loads(camera_path.read_text(encoding="utf-8"))
+            camera["requires"] = ["config"]
+            camera_path.write_text(json.dumps(camera), encoding="utf-8")
+            physics_path = modpack / "mods/physics/mod.json"
+            physics = json.loads(physics_path.read_text(encoding="utf-8"))
+            physics["conflicts"] = ["ai"]
+            physics_path.write_text(json.dumps(physics), encoding="utf-8")
+            release = load_release(Path(temporary))
+            payload = Path(temporary) / "payload"
+            work = Path(temporary) / "work"
+            payload.mkdir()
+            work.mkdir()
+            with mock.patch.object(build_windows_release, "load_release", return_value=release):
+                variants = build_windows_release.build_game_variants(
+                    build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+                    payload,
+                    work,
+                )
+            self.assertEqual(list(variants), ["001", "010", "100"])
+
+            value["game_variants"] = {
+                "110": {"file": "game-110.dll", "components": ["physics", "ai"]}
+            }
+            release_path.write_text(json.dumps(value), encoding="utf-8")
+            invalid = load_release(Path(temporary))
+            with mock.patch.object(build_windows_release, "load_release", return_value=invalid), \
+                    self.assertRaisesRegex(Exception, "conflicts"):
+                build_windows_release.build_game_variants(
+                    build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+                    payload,
+                    work,
+                )
+
+            from htmod import cli as cli_module
+            with mock.patch("htmod.cli.load_release", return_value=release):
+                result = cli_module.main(["check", "--game-dir", str(temporary), "--mod", "camera"])
+            self.assertEqual(result, 1)
+
     def test_variant_width_and_component_bits_must_match_registered_game_components(self):
         with tempfile.TemporaryDirectory() as temporary:
             with mock.patch.object(manifest_module, "BINARY_HANDLERS", manifest_module.BINARY_HANDLERS | {"fourth"}), \

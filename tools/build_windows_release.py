@@ -10,7 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "sdk"))
 
-from htmod import PatchError, load_release
+from htmod import PatchError, Selection, load_release
 from htmod.patch import PatchRunner, PatchState
 from htmod.runner import load_binary_mods, materialize_data
 
@@ -37,6 +37,7 @@ def build_game_variants(source, payload, work):
         mod_id for mod_id, mod in release.mods.items()
         if mod.kind == "binary" and mod.target == "game/sys/game.dll"
     )
+    non_game_components = tuple(mod_id for mod_id in release.mods if mod_id not in game_components)
     game_mods = load_binary_mods(release, game_components)
     variants = {}
     hashes = set()
@@ -44,6 +45,7 @@ def build_game_variants(source, payload, work):
 
     for name, variant in release.game_variants.items():
         selected = variant.components
+        Selection(selected + non_game_components).validate(release.mods)
         selected_mods = [mod for mod in game_mods if mod.id in selected]
         generated = work / f"generated-{name}.dll"
         reference = work / f"reference-{name}.dll"

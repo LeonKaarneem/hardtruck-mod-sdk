@@ -117,6 +117,36 @@ class PESectionTests(unittest.TestCase):
         self.assertEqual(image.data, original)
         self.assertEqual(struct.unpack_from("<I", image.data, image.optional_offset + 56)[0], 0x12345678)
 
+    def test_size_of_image_uses_section_alignment_and_restores_original(self):
+        data = make_pe()
+        struct.pack_into("<II", data, 0x98 + 32, 0x200, 0x200)
+        original_size = 0x3456
+        struct.pack_into("<I", data, 0x98 + 56, original_size)
+        image = PEImage.parse(data)
+        image.append_section(".odd", b"abcde", 0xE0000020)
+        self.assertEqual(struct.unpack_from("<I", image.data, image.optional_offset + 56)[0], 0x2400)
+        image.remove_section(".odd")
+        self.assertEqual(struct.unpack_from("<I", image.data, image.optional_offset + 56)[0], original_size)
+
+    def test_relocation_blocks_are_dword_padded_and_round_trip(self):
+        for offsets, expected_size in (((0x024,), 12), ((0x024, 0x04C), 12), ((0x024, 0x04C, 0x080), 16)):
+            with self.subTest(offsets=offsets):
+                data = make_pe()
+                struct.pack_into("<II", data, 0x98 + 96 + 5 * 8, 0x2000, 0)
+                image = PEImage.parse(data)
+                image.append_highlow_relocations(0x1000, offsets)
+                reloc_rva, reloc_size = directory(image, 5)
+                self.assertEqual(reloc_size, expected_size)
+                block = image.rva_to_offset(reloc_rva, expected_size)
+                expected_entries = tuple(0x3000 | offset for offset in offsets)
+                actual = struct.unpack_from("<II" + "H" * len(offsets), image.data, block)
+                self.assertEqual(actual, (0x1000, expected_size, *expected_entries))
+                if len(offsets) % 2:
+                    self.assertEqual(struct.unpack_from("<H", image.data, block + expected_size - 2)[0], 0)
+                image.remove_highlow_relocations(0x1000, offsets)
+                self.assertEqual(directory(image, 5), (0x2000, 0))
+                self.assertEqual(image.data[block:block + expected_size], bytes(expected_size))
+
     def test_foreign_appended_padding_is_refused_without_mutation(self):
         image = PEImage.parse(make_pe() + b"x")
         section = image.append_section(".odd", b"abc", 0xE0000020)

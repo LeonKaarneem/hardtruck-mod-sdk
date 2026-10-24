@@ -1,5 +1,4 @@
 import hashlib
-import json
 from pathlib import Path
 import sys
 import tempfile
@@ -64,11 +63,32 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["game_variants"], {})
         self.assertEqual(manifest["dx8"], {})
 
-    def test_real_release_manifest_is_schema_two_with_all_curated_variants(self):
-        manifest_path = ROOT / "release/HardTruckModern/installer/payload/manifest.json"
-        self.assertTrue(manifest_path.is_file(), "generated release manifest is missing")
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    def test_generated_release_manifest_is_schema_two_with_all_curated_variants(self):
         release = load_release(ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            payload = Path(temporary) / "payload"
+            work = Path(temporary) / "work"
+            payload.mkdir()
+            work.mkdir()
+            variants = build_windows_release.build_game_variants(
+                build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+                payload,
+                work,
+            )
+            dx8 = build_windows_release.build_dx8_payloads(
+                build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+                payload,
+                work,
+            )
+            build_windows_release.copy_data(release, payload)
+            manifest = build_windows_release.build_payload_manifest(
+                release,
+                payload,
+                variants,
+                dx8,
+                build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+                build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+            )
         self.assertEqual(manifest["schema_version"], 2)
         self.assertEqual(list(manifest["components"]), list(release.mods))
         self.assertEqual(

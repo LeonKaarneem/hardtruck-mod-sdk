@@ -5,7 +5,6 @@ import re
 import shutil
 
 from .errors import PatchError
-from .manifest import Selection
 from .patch import PatchRunner
 
 
@@ -51,9 +50,10 @@ def materialize_data(release, payload):
 
 
 def load_binary_mods(release, mod_ids):
-    Selection(mod_ids).validate(release.mods)
     loaded = []
     for mod_id in mod_ids:
+        if mod_id not in release.mods:
+            raise PatchError(f"selection contains unknown mod '{mod_id}'")
         manifest = release.mods[mod_id]
         if manifest.kind != "binary":
             raise PatchError(f"mod '{mod_id}' is not a binary mod")
@@ -71,6 +71,15 @@ def load_binary_mods(release, mod_ids):
         except (OSError, ImportError, AttributeError) as error:
             raise PatchError(f"cannot load registered binary handler '{handler}': {error}") from error
         loaded_mod = module.MOD
+        if loaded_mod.id != mod_id:
+            raise PatchError(
+                f"handler '{handler}' id '{loaded_mod.id}' does not match manifest id '{mod_id}'"
+            )
+        if loaded_mod.target != manifest.target:
+            raise PatchError(
+                f"handler '{handler}' target '{loaded_mod.target}' does not match "
+                f"manifest target '{manifest.target}'"
+            )
         loaded_mod.source_sha256 = manifest.source_sha256
         loaded.append(loaded_mod)
     return loaded

@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 
 from .errors import PatchError
-from .manifest import load_release
+from .manifest import Selection, load_release
 from .patch import PatchState
 from .runner import load_binary_mods, runner_from_directory
 
@@ -32,6 +32,7 @@ def main(argv=None):
         if args.command == "validate":
             print(f"Release valid: {len(release.mods)} mods, {len(release.game_variants)} game variants")
             return 0
+        Selection(args.mod_ids).validate(release.mods)
         mods = load_binary_mods(release, args.mod_ids)
         runner = runner_from_directory(args.game_dir, mods)
         states = runner.check(mods)

@@ -172,7 +172,7 @@ class PEImage:
         )
         struct.pack_into("<H", self.data, self.coff + 2, len(self.sections) + 1)
         image_end = virtual_address + align(len(payload), self.section_alignment)
-        struct.pack_into("<I", self.data, self.optional_offset + 56, align(image_end, 0x1000))
+        struct.pack_into("<I", self.data, self.optional_offset + 56, align(image_end, self.section_alignment))
         section = Section(name, virtual_address, len(payload), raw_offset, raw_size, flags)
         self.sections += (section,)
         self._section_undo[name] = undo
@@ -212,7 +212,7 @@ class PEImage:
 
         expected_image = align(
             section.virtual_address + align(section.virtual_size, self.section_alignment),
-            0x1000,
+            self.section_alignment,
         )
         current_image = struct.unpack_from("<I", self.data, self.optional_offset + 56)[0]
         entry = self.section_table + 40 * index
@@ -240,7 +240,7 @@ class PEImage:
         offsets = tuple(offsets)
         if not offsets or any(offset < 0 or offset > 0xFFF for offset in offsets):
             raise PEError("invalid HIGHLOW relocation offset list")
-        size = 8 + 2 * len(offsets)
+        size = align(8 + 2 * len(offsets), 4)
         directory_rva, directory_size = self.data_directory(5)
         block = self.rva_to_offset(directory_rva + directory_size, size)
         if block is None:
@@ -248,13 +248,15 @@ class PEImage:
         if any(self.data[block:block + size]):
             raise PEError("relocation destination is not empty or has later data")
         entries = [0x3000 | offset for offset in offsets]
+        if len(entries) % 2:
+            entries.append(0)
         struct.pack_into("<II" + "H" * len(entries), self.data, block,
                          page_rva, size, *entries)
         self._set_directory_size(5, directory_size + size)
 
     def remove_highlow_relocations(self, page_rva, offsets):
         offsets = tuple(offsets)
-        size = 8 + 2 * len(offsets)
+        size = align(8 + 2 * len(offsets), 4)
         directory_rva, directory_size = self.data_directory(5)
         if directory_size < size:
             raise PEError("relocation directory is smaller than owned block")
@@ -262,6 +264,8 @@ class PEImage:
         if block is None:
             raise PEError("owned relocation block is not mapped")
         entries = [0x3000 | offset for offset in offsets]
+        if len(entries) % 2:
+            entries.append(0)
         expected = struct.pack("<II" + "H" * len(entries), page_rva, size, *entries)
         if bytes(self.data[block:block + size]) != expected:
             raise PEError("final relocation block is foreign or has later data; refusing")

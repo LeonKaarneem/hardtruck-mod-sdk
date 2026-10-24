@@ -12,6 +12,11 @@ FORBIDDEN_DIRECTORIES = frozenset({"save", "saves", "music", "log", "logs", "__p
 FORBIDDEN_EXTENSIONS = frozenset({".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"})
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+WINDOWS_RESERVED_NAME = re.compile(
+    r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9]|conin\$|conout\$)(?:\..*)?$",
+    re.IGNORECASE,
+)
+WINDOWS_FORBIDDEN_CHARACTERS = frozenset('<>:"|?*')
 
 
 @dataclass(frozen=True)
@@ -108,9 +113,14 @@ def string_list(value, field, context):
 def safe_path(value, field, context):
     if not isinstance(value, str) or not value or "\\" in value or "\0" in value:
         raise ManifestError(f"{context} has unsafe {field} path: {value!r}")
+    if any(ord(character) < 32 or character in WINDOWS_FORBIDDEN_CHARACTERS for character in value):
+        raise ManifestError(f"{context} has nonportable {field} path: {value!r}")
     path = PurePosixPath(value)
     if path.is_absolute() or any(part in {"", ".", ".."} for part in value.split("/")):
         raise ManifestError(f"{context} has unsafe {field} path: {value!r}")
+    for part in path.parts:
+        if part.endswith((" ", ".")) or WINDOWS_RESERVED_NAME.fullmatch(part):
+            raise ManifestError(f"{context} has reserved or nonportable {field} path: {value!r}")
     return path
 
 

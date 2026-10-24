@@ -317,6 +317,7 @@ class CliTests(unittest.TestCase):
             target.write_bytes(data)
             runner = PatchRunner(images, {"game/sys/game.dll": target})
             with mock.patch("htmod.cli.load_release"), \
+                    mock.patch("htmod.cli.Selection"), \
                     mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
                     mock.patch("htmod.cli.runner_from_directory", return_value=runner), \
                     mock.patch.object(runner, "commit") as commit:
@@ -352,6 +353,7 @@ class CliTests(unittest.TestCase):
                 target.write_bytes(data)
                 runner = PatchRunner({"game/sys/game.dll": data}, {"game/sys/game.dll": target})
                 with mock.patch("htmod.cli.load_release"), \
+                        mock.patch("htmod.cli.Selection"), \
                         mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
                         mock.patch("htmod.cli.runner_from_directory", return_value=runner), \
                         mock.patch.object(runner, "commit") as commit:

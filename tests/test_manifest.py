@@ -60,9 +60,7 @@ class ReleaseFactory:
         release = release or {
             "schema_version": 1,
             "mods": ["alpha"],
-            "game_variants": {
-                "000": {"file": "game-000.dll", "components": []}
-            },
+            "game_variants": {},
         }
         mods = mods or {"alpha": copy.deepcopy(VALID_MOD)}
         (self.modpack / "release.json").write_text(
@@ -200,6 +198,43 @@ class ManifestTests(unittest.TestCase):
                 mod = copy.deepcopy(VALID_MOD)
                 mod["files"][0]["destination"] = destination
                 self.assert_invalid(factory.write(mods={"alpha": mod}), "destination")
+
+    def test_rejects_nonportable_windows_source_and_destination_paths(self):
+        destinations = (
+            "game/usr/CON",
+            "game/usr/con.sc",
+            "game/usr/PRN",
+            "game/usr/AUX.txt",
+            "game/usr/NUL",
+            "game/usr/COM1",
+            "game/usr/com9.sc",
+            "game/usr/LPT1",
+            "game/usr/lpt9.sc",
+            "game/usr/CONIN$",
+            "game/usr/CONOUT$.sc",
+            "game/usr/file:ads",
+            "game/usr/trailing.",
+            "game/usr/trailing ",
+            "game/usr/<invalid",
+            "game/usr/invalid>",
+            'game/usr/invalid"',
+            "game/usr/invalid|",
+            "game/usr/invalid?",
+            "game/usr/invalid*",
+            "game/usr/invalid\x01name",
+        )
+        for destination in destinations:
+            with self.subTest(destination=repr(destination)):
+                factory = self.factory()
+                mod = copy.deepcopy(VALID_MOD)
+                mod["files"][0]["destination"] = destination
+                self.assert_invalid(factory.write(mods={"alpha": mod}), "nonportable|reserved|unsafe")
+        for source in ("CON", "file:ads", "trailing.", "bad\x01name"):
+            with self.subTest(source=repr(source)):
+                factory = self.factory()
+                mod = copy.deepcopy(VALID_MOD)
+                mod["files"][0]["source"] = source
+                self.assert_invalid(factory.write(mods={"alpha": mod}), "nonportable|reserved|unsafe")
 
     def test_rejects_missing_dependency_and_conflict_references(self):
         for field in ("requires", "conflicts"):
