@@ -8,7 +8,7 @@ from .manifest import Selection
 from .patch import PatchRunner
 
 
-REGISTERED_BINARY_HANDLERS = frozenset({"physics", "ai", "dx8_vsync"})
+REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "dx8_vsync"})
 
 
 def strip_r_renderer(data):
@@ -58,7 +58,7 @@ def load_binary_mods(release, mod_ids):
             raise PatchError(f"mod '{mod_id}' is not a binary mod")
         handler = manifest.handler
         if handler not in REGISTERED_BINARY_HANDLERS:
-            raise PatchError(f"binary handler '{handler}' is not registered in Task 2")
+            raise PatchError(f"binary handler '{handler}' is not registered")
         module_name = f"_htmod_registered_{handler}"
         module_path = release.root / "mods" / handler / "patch.py"
         spec = importlib.util.spec_from_file_location(module_name, module_path)

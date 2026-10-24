@@ -57,7 +57,7 @@ def selected_components(number):
 
 def build_game_variants(source, payload, work):
     release = load_release(PROJECT_ROOT)
-    simple_mods = load_binary_mods(release, ("physics", "ai"))
+    simple_mods = load_binary_mods(release, ("camera", "physics", "ai"))
     variants = {}
     hashes = set()
     pristine_hash = sha256(source)
@@ -69,15 +69,12 @@ def build_game_variants(source, payload, work):
         generated = work / f"generated-{name}.dll"
         reference = work / f"reference-{name}.dll"
         shutil.copyfile(source, generated)
-        if "camera" in selected:
-            run_patcher(CAMERA_PATCHER, generated)
         images = {"game/sys/game.dll": bytearray(generated.read_bytes())}
         runner = PatchRunner(images)
         if selected_mods:
             runner.apply(selected_mods)
         generated.write_bytes(images["game/sys/game.dll"])
 
-        run_patcher(CAMERA_PATCHER, generated, "--check")
         states = runner.check(simple_mods)
         for mod in simple_mods:
             expected = PatchState.PATCHED if mod.id in selected else PatchState.ORIGINAL
@@ -88,8 +85,6 @@ def build_game_variants(source, payload, work):
         if selected_mods:
             PatchRunner(images).restore(selected_mods)
         reference.write_bytes(images["game/sys/game.dll"])
-        if "camera" in selected:
-            run_patcher(CAMERA_PATCHER, reference, "--restore")
         if sha256(reference) != pristine_hash:
             raise BuildError(f"game variant {name} did not restore to pristine bytes")
 

@@ -4,6 +4,12 @@ import struct
 from .errors import PEError
 
 
+def align(value, alignment):
+    if alignment <= 0 or alignment & (alignment - 1):
+        raise PEError(f"invalid PE alignment {alignment:#x}")
+    return (value + alignment - 1) & ~(alignment - 1)
+
+
 @dataclass(frozen=True)
 class Section:
     name: str
@@ -11,6 +17,7 @@ class Section:
     virtual_size: int
     raw_offset: int
     raw_size: int
+    flags: int = 0
 
     @property
     def virtual_span(self):
@@ -18,10 +25,17 @@ class Section:
 
 
 class PEImage:
-    def __init__(self, data, image_base, sections):
+    def __init__(self, data, image_base, sections, coff, optional_offset, optional_size,
+                 section_table, file_alignment, section_alignment):
         self.data = data
         self.image_base = image_base
         self.sections = tuple(sections)
+        self.coff = coff
+        self.optional_offset = optional_offset
+        self.optional_size = optional_size
+        self.section_table = section_table
+        self.file_alignment = file_alignment
+        self.section_alignment = section_alignment
 
     @classmethod
     def parse(cls, data):
@@ -54,7 +68,11 @@ class PEImage:
             raise PEError("64-bit PE is not supported")
         if magic != 0x10B:
             raise PEError(f"unexpected optional header magic {magic:#x} (want PE32)")
+        require(optional, 64, "PE32 alignment fields")
         image_base = struct.unpack_from("<I", data, optional + 28)[0]
+        section_alignment, file_alignment = struct.unpack_from("<II", data, optional + 32)
+        align(0, section_alignment)
+        align(0, file_alignment)
         table = optional + optional_size
         require(table, count * 40, "section table")
         sections = []
@@ -64,10 +82,12 @@ class PEImage:
             virtual_size, virtual_address, raw_size, raw_offset = struct.unpack_from(
                 "<IIII", data, offset + 8
             )
+            flags = struct.unpack_from("<I", data, offset + 36)[0]
             if raw_size:
                 require(raw_offset, raw_size, f"section '{name}' raw data")
-            sections.append(Section(name, virtual_address, virtual_size, raw_offset, raw_size))
-        return cls(data, image_base, sections)
+            sections.append(Section(name, virtual_address, virtual_size, raw_offset, raw_size, flags))
+        return cls(data, image_base, sections, coff, optional, optional_size, table,
+                   file_alignment, section_alignment)
 
     def section(self, name):
         for section in self.sections:
@@ -103,3 +123,114 @@ class PEImage:
     def raw_to_va(self, offset, size=1):
         rva = self.raw_to_rva(offset, size)
         return None if rva is None else self.image_base + rva
+
+    def next_section_layout(self, raw_size):
+        if raw_size <= 0:
+            raise PEError("new section raw size must be positive")
+        last_va_end = 0
+        for section in self.sections:
+            last_va_end = max(
+                last_va_end,
+                section.virtual_address + align(section.virtual_span, self.section_alignment),
+            )
+        return align(last_va_end, self.section_alignment), align(len(self.data), self.file_alignment)
+
+    def append_section(self, name, payload, flags):
+        if not name or len(name.encode("ascii")) > 8:
+            raise PEError("new section name must contain 1..8 ASCII bytes")
+        if any(section.name == name for section in self.sections):
+            raise PEError(f"section '{name}' already exists")
+        if len(self.sections) >= 16:
+            raise PEError("no room for another section table entry")
+        payload = bytes(payload)
+        virtual_address, raw_offset = self.next_section_layout(len(payload))
+        entry = self.section_table + 40 * len(self.sections)
+        if entry + 40 > len(self.data):
+            raise PEError("section table would overflow file")
+        if any(self.data[entry:entry + 40]):
+            raise PEError("section table destination is not empty")
+        if raw_offset > len(self.data):
+            self.data += bytes(raw_offset - len(self.data))
+        self.data += payload
+        struct.pack_into(
+            "<8sIIIIIIHHI", self.data, entry, name.encode("ascii").ljust(8, b"\0"),
+            len(payload), virtual_address, len(payload), raw_offset, 0, 0, 0, 0, flags,
+        )
+        struct.pack_into("<H", self.data, self.coff + 2, len(self.sections) + 1)
+        image_end = virtual_address + align(len(payload), self.section_alignment)
+        struct.pack_into("<I", self.data, self.optional_offset + 56, align(image_end, 0x1000))
+        section = Section(name, virtual_address, len(payload), raw_offset, len(payload), flags)
+        self.sections += (section,)
+        return section
+
+    def remove_section(self, name):
+        if not self.sections or self.sections[-1].name != name:
+            raise PEError(f"last section is not '{name}'; refusing removal")
+        index = len(self.sections) - 1
+        section = self.sections[-1]
+        if len(self.data) != section.raw_offset + section.raw_size:
+            raise PEError("later file data follows appended section; refusing truncation")
+        previous_raw_end = max(
+            (item.raw_offset + item.raw_size for item in self.sections[:-1]),
+            default=0,
+        )
+        if previous_raw_end > section.raw_offset or any(
+            self.data[previous_raw_end:section.raw_offset]
+        ):
+            raise PEError("foreign data in appended-section padding; refusing truncation")
+        entry = self.section_table + 40 * index
+        self.data[entry:entry + 40] = bytes(40)
+        struct.pack_into("<H", self.data, self.coff + 2, index)
+        expected_image = align(
+            section.virtual_address + align(section.virtual_span, self.section_alignment),
+            0x1000,
+        )
+        current_image = struct.unpack_from("<I", self.data, self.optional_offset + 56)[0]
+        if current_image == expected_image:
+            struct.pack_into(
+                "<I", self.data, self.optional_offset + 56,
+                align(section.virtual_address, self.section_alignment),
+            )
+        del self.data[section.raw_offset:]
+        self.sections = self.sections[:-1]
+
+    def data_directory(self, index):
+        end = 96 + (index + 1) * 8
+        if index < 0 or end > self.optional_size:
+            raise PEError(f"data directory {index} is outside the optional header")
+        return struct.unpack_from("<II", self.data, self.optional_offset + 96 + index * 8)
+
+    def _set_directory_size(self, index, size):
+        struct.pack_into("<I", self.data, self.optional_offset + 96 + index * 8 + 4, size)
+
+    def append_highlow_relocations(self, page_rva, offsets):
+        offsets = tuple(offsets)
+        if not offsets or any(offset < 0 or offset > 0xFFF for offset in offsets):
+            raise PEError("invalid HIGHLOW relocation offset list")
+        size = 8 + 2 * len(offsets)
+        directory_rva, directory_size = self.data_directory(5)
+        block = self.rva_to_offset(directory_rva + directory_size, size)
+        if block is None:
+            raise PEError("no mapped room for HIGHLOW relocation block")
+        if any(self.data[block:block + size]):
+            raise PEError("relocation destination is not empty or has later data")
+        entries = [0x3000 | offset for offset in offsets]
+        struct.pack_into("<II" + "H" * len(entries), self.data, block,
+                         page_rva, size, *entries)
+        self._set_directory_size(5, directory_size + size)
+
+    def remove_highlow_relocations(self, page_rva, offsets):
+        offsets = tuple(offsets)
+        size = 8 + 2 * len(offsets)
+        directory_rva, directory_size = self.data_directory(5)
+        if directory_size < size:
+            raise PEError("relocation directory is smaller than owned block")
+        block = self.rva_to_offset(directory_rva + directory_size - size, size)
+        if block is None:
+            raise PEError("owned relocation block is not mapped")
+        entries = [0x3000 | offset for offset in offsets]
+        expected = struct.pack("<II" + "H" * len(entries), page_rva, size, *entries)
+        if bytes(self.data[block:block + size]) != expected:
+            raise PEError("final relocation block is foreign or has later data; refusing")
+        self.data[block:block + size] = bytes(size)
+        self._set_directory_size(5, directory_size - size)

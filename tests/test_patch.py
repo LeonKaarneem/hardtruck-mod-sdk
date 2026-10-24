@@ -297,8 +297,8 @@ class CliTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("--mod", result.stderr)
 
-    def test_unknown_data_and_camera_mods_fail_without_tracebacks(self):
-        for mod_id in ("missing", "config", "camera"):
+    def test_unknown_data_mods_fail_without_tracebacks(self):
+        for mod_id in ("missing", "config"):
             with self.subTest(mod=mod_id):
                 result = self.run_cli(
                     "check", "--game-dir", str(ROOT), "--mod", mod_id

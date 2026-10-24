@@ -23,6 +23,7 @@ def make_pe(sections=None, image_base=0x10000000):
     struct.pack_into("<HHIIIHH", data, 0x84, 0x14C, len(sections), 0, 0, 0, 0xE0, 0)
     struct.pack_into("<H", data, 0x98, 0x10B)
     struct.pack_into("<I", data, 0x98 + 28, image_base)
+    struct.pack_into("<II", data, 0x98 + 32, 0x1000, 0x200)
     table = 0x98 + 0xE0
     for index, (name, vaddr, vsize, rawoff, rawsize) in enumerate(sections):
         offset = table + index * 40

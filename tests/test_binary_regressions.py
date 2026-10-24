@@ -136,12 +136,8 @@ class BinaryRegressionTests(unittest.TestCase):
         from unittest import mock
         from tools import build_windows_release
 
-        original_run_patcher = build_windows_release.run_patcher
-
-        def camera_only(patcher, dll, mode=None):
-            if patcher.name != "patch_camera_mods.py":
-                raise AssertionError(f"legacy simple patcher invoked: {patcher.name}")
-            return original_run_patcher(patcher, dll, mode)
+        def no_legacy(patcher, dll, mode=None):
+            raise AssertionError(f"legacy simple patcher invoked: {patcher.name}")
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -149,7 +145,7 @@ class BinaryRegressionTests(unittest.TestCase):
             work = root / "work"
             payload.mkdir()
             work.mkdir()
-            with mock.patch.object(build_windows_release, "run_patcher", side_effect=camera_only):
+            with mock.patch.object(build_windows_release, "run_patcher", side_effect=no_legacy):
                 variants = build_windows_release.build_game_variants(self.game_path, payload, work)
                 dx8 = build_windows_release.build_dx8_payloads(self.dx8_path, payload, work)
             for name, record in variants.items():
