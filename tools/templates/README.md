@@ -10,7 +10,7 @@ The installer supports pristine Hard Truck v1.2 and its own installed variants. 
 
 ## Linux / Wine
 
-Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. There is no component selection or automatic shell uninstaller; retain the backup for manual restoration. Start a new profile after installation.
+Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
 
 ## Controls and display
 

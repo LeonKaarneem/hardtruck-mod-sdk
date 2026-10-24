@@ -149,6 +149,78 @@ class BinaryRegressionTests(unittest.TestCase):
             self.assertRegex(result.stderr, "source SHA-256|unrecognized source")
             self.assertEqual(sha256(target.read_bytes()), before)
 
+    def test_cli_rejects_appended_bytes_from_otherwise_valid_patched_handlers(self):
+        cases = (
+            ("physics", "game/sys/game.dll", "010"),
+            ("ai", "game/sys/game.dll", "100"),
+            ("dx8_vsync", "sys/dx8.dll", None),
+        )
+        for mod, relative, variant in cases:
+            with self.subTest(mod=mod), tempfile.TemporaryDirectory() as temporary:
+                game_dir = Path(temporary)
+                target = game_dir / relative
+                target.parent.mkdir(parents=True)
+                if mod == "dx8_vsync":
+                    shutil.copyfile(self.dx8_path, target)
+                else:
+                    shutil.copyfile(self.game_path, target)
+
+                def run(command):
+                    return subprocess.run(
+                        [sys.executable, str(ROOT / "tools/htmod.py"), command, "--game-dir", str(game_dir), "--mod", mod],
+                        cwd=ROOT,
+                        text=True,
+                        capture_output=True,
+                    )
+
+                result = run("apply")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                if variant is not None:
+                    self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"][variant]["sha256"])
+                else:
+                    self.assertEqual(sha256(target.read_bytes()), self.golden["dx8"]["vsync"])
+                target.write_bytes(target.read_bytes() + b"unknown composed suffix")
+                before = target.read_bytes()
+                result = run("apply")
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertRegex(result.stderr, "whole-file|exact|unrecognized")
+                self.assertEqual(target.read_bytes(), before)
+
+    def test_cli_every_curated_composed_state_reruns_and_restores_exactly(self):
+        for number in range(8):
+            name = f"{number:03b}"
+            selected = [
+                component
+                for bit, component in enumerate(("camera", "physics", "ai"))
+                if number & (1 << bit)
+            ]
+            with self.subTest(variant=name), tempfile.TemporaryDirectory() as temporary:
+                game_dir = Path(temporary)
+                target = game_dir / "game/sys/game.dll"
+                target.parent.mkdir(parents=True)
+                shutil.copyfile(self.game_path, target)
+                if not selected:
+                    self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"][name]["sha256"])
+                    continue
+
+                def run(command, mods):
+                    arguments = [sys.executable, str(ROOT / "tools/htmod.py"), command, "--game-dir", str(game_dir)]
+                    for mod in mods:
+                        arguments += ["--mod", mod]
+                    return subprocess.run(arguments, cwd=ROOT, text=True, capture_output=True)
+
+                cumulative = []
+                for mod in selected:
+                    cumulative.append(mod)
+                    result = run("apply", cumulative)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                result = run("apply", selected)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"][name]["sha256"])
+                result = run("restore", selected)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(sha256(target.read_bytes()), self.golden["pristine"]["game_dll"])
+
     def test_cli_recognizes_composed_states_and_reruns_only_pending_mods(self):
         with tempfile.TemporaryDirectory() as temporary:
             game_dir = Path(temporary)

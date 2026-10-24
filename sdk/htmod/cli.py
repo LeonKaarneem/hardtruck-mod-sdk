@@ -43,6 +43,9 @@ def main(argv=None):
         pending = [mod for mod in mods if states[mod.id] == pending_state]
         if pending:
             getattr(runner, args.command)(pending)
+            final_states = runner.check(mods)
+            if any(state == PatchState.FOREIGN for state in final_states.values()):
+                raise PatchError(f"selected mods have FOREIGN final state; refusing commit: {final_states}")
             runner.commit()
         for mod_id, state in runner.check(mods).items():
             print(f"{mod_id}: {state.value}")

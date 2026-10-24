@@ -109,6 +109,27 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(len(entries), 16)
         self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 14)
 
+    def test_mid_install_failure_rolls_back_every_earlier_file_and_preserves_sentinel(self):
+        manifest = self.manifest()
+        original_game = (self.game / "game/sys/game.dll").read_bytes()
+        original_dx8 = (self.game / "sys/dx8.dll").read_bytes()
+        sentinel = self.game / "game/usr/defs"
+        sentinel.parent.mkdir(parents=True)
+        sentinel.write_bytes(b"user sentinel; mkdir must fail")
+
+        result = self.run_install()
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Rollback complete", result.stdout + result.stderr)
+        self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), original_game)
+        self.assertEqual((self.game / "sys/dx8.dll").read_bytes(), original_dx8)
+        self.assertEqual(sentinel.read_bytes(), b"user sentinel; mkdir must fail")
+        for relative in ("config.cfg", "ui/mmain.sc", "ui/cosetup.sc"):
+            self.assertFalse((self.game / "game/usr" / relative).exists(), relative)
+        backups = list((self.package / "installer/backups").glob("shell-*/installation.tsv"))
+        self.assertEqual(len(backups), 1)
+        self.assertIn("game/sys/game.dll", backups[0].read_text(encoding="utf-8"))
+        self.assertEqual(manifest["game_variants"]["000"]["sha256"], sha256(self.game / "game/sys/game.dll"))
+
     def test_unknown_source_or_corrupt_payload_changes_nothing(self):
         for failure in ("unknown-source", "corrupt-payload"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:

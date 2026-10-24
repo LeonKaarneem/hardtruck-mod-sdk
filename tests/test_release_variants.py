@@ -91,6 +91,20 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                 self.assertEqual(installer["game_variants"]["1000"]["components"], ["fourth"])
                 self.assertEqual(installer["components"]["fourth"]["target"], "game/sys/game.dll")
 
+                direct = Path(temporary) / "direct"
+                direct.mkdir()
+                mods = runner_module.load_binary_mods(release, ("camera", "physics", "ai", "fourth"))
+                for name, record in variants.items():
+                    with self.subTest(direct_variant=name):
+                        target = direct / "game/sys/game.dll"
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_bytes((payload / record["file"]).read_bytes())
+                        recognized = runner_module.runner_from_directory(direct, mods)
+                        self.assertEqual(recognized.images["game/sys/game.dll"], target.read_bytes())
+                target.write_bytes((payload / "game-1000.dll").read_bytes() + b"unknown suffix")
+                with self.assertRaisesRegex(Exception, "whole-file|unrecognized"):
+                    runner_module.runner_from_directory(direct, mods)
+
     def test_variant_width_and_component_bits_must_match_registered_game_components(self):
         with tempfile.TemporaryDirectory() as temporary:
             with mock.patch.object(manifest_module, "BINARY_HANDLERS", manifest_module.BINARY_HANDLERS | {"fourth"}), \

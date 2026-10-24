@@ -297,6 +297,33 @@ class CliTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("--mod", result.stderr)
 
+    def test_conflicting_handler_makes_any_selected_foreign_state_fail_before_commit(self):
+        from htmod import cli as cli_module
+
+        class ConflictingMod(BinaryMod):
+            def apply(self, image):
+                super().apply(image)
+                image.data[0x20E:0x210] = b"\x00\x00"
+
+        alpha = binary_mod()
+        beta = ConflictingMod("beta", "game/sys/game.dll", binary_mod("beta", offset=0x220).patches)
+        data = image_with_patch()
+        data[0x21E:0x224] = b"\xaa\xbb\x00\x01\xcc\xdd"
+        alpha.apply_bytes(data)
+        images = {"game/sys/game.dll": data}
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "game/sys/game.dll"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(data)
+            runner = PatchRunner(images, {"game/sys/game.dll": target})
+            with mock.patch("htmod.cli.load_release"), \
+                    mock.patch("htmod.cli.load_binary_mods", return_value=[alpha, beta]), \
+                    mock.patch("htmod.cli.runner_from_directory", return_value=runner), \
+                    mock.patch.object(runner, "commit") as commit:
+                result = cli_module.main(["apply", "--game-dir", str(temporary), "--mod", "alpha", "--mod", "beta"])
+            self.assertEqual(result, 1)
+            commit.assert_not_called()
+
     def test_unknown_data_mods_fail_without_tracebacks(self):
         for mod_id in ("missing", "config"):
             with self.subTest(mod=mod_id):

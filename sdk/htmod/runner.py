@@ -6,7 +6,7 @@ import shutil
 
 from .errors import PatchError
 from .manifest import Selection
-from .patch import PatchRunner, PatchState
+from .patch import PatchRunner
 
 
 REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "dx8_vsync"})
@@ -76,6 +76,26 @@ def load_binary_mods(release, mod_ids):
     return loaded
 
 
+def matches_exact_recognized_state(data, target, target_mods, pristine_sha256):
+    if len(target_mods) > 4:
+        raise PatchError(f"target '{target}' has too many selected mods for bounded exact-state recognition")
+    restored = {target: bytearray(data)}
+    try:
+        PatchRunner(restored).restore(target_mods)
+    except PatchError as error:
+        raise PatchError(f"target '{target}' cannot restore to its pinned pristine image: {error}") from error
+    pristine = restored[target]
+    if hashlib.sha256(pristine).hexdigest() != pristine_sha256:
+        return False
+    for bits in range(1, 1 << len(target_mods)):
+        subset = [mod for index, mod in enumerate(target_mods) if bits & (1 << index)]
+        candidate = {target: bytearray(pristine)}
+        PatchRunner(candidate).apply(subset)
+        if candidate[target] == data:
+            return True
+    return False
+
+
 def runner_from_directory(game_dir, mods):
     root = Path(game_dir).resolve()
     if not root.is_dir():
@@ -100,14 +120,13 @@ def runner_from_directory(game_dir, mods):
         pristine_hashes = {mod.source_sha256 for mod in target_mods}
         if len(pristine_hashes) != 1:
             raise PatchError(f"target '{target}' selected mods disagree on pristine source SHA-256")
-        if hashlib.sha256(data).hexdigest() in pristine_hashes:
+        pristine_sha256 = pristine_hashes.pop()
+        if hashlib.sha256(data).hexdigest() == pristine_sha256:
             continue
-        states = runner.check(target_mods)
-        if any(state == PatchState.FOREIGN for state in states.values()) or not any(
-            state == PatchState.PATCHED for state in states.values()
-        ):
+        if not matches_exact_recognized_state(data, target, target_mods, pristine_sha256):
             raise PatchError(
-                f"target '{target}' has unrecognized source SHA-256 and selected mods "
-                f"do not recognize a composed patched state: {states}"
+                f"target '{target}' has unrecognized source SHA-256 and does not match any "
+                "exact recognized whole-file state "
+                "for the selected mods"
             )
     return runner

@@ -34,12 +34,12 @@ Do not add a payload copy map, standalone patcher, or release-only special case.
    diff -r /tmp/htmod-build-a /tmp/htmod-build-b
    ```
    The builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll`; override their locations with `--game-dll` and `--dx8-dll` when necessary.
-7. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the installer suite against it before publishing:
+7. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the **complete** suite against it before publishing. With `HTMOD_RELEASE_ZIP` set, both the PowerShell installer tests and `tests/test_shell_installer.py` extract and exercise that ZIP:
    ```sh
    PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-v3.zip \
-     python3 -m unittest discover -s tests -p 'test_installer_runtime.py' -v
+     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
    ```
-   Check ZIP integrity and forbidden files (`__pycache__`, Python bytecode, research, test prefixes, logs, saves, backups, and other non-release content). Never publish merely because an in-tree build passed.
+   Check ZIP integrity and forbidden files (`__pycache__`, Python bytecode, research, test prefixes, logs, saves, backups, and other non-release content). Never publish merely because an in-tree build or only the PowerShell suite passed.
 
 ## Example: data mod
 
@@ -153,7 +153,9 @@ python3 tools/htmod.py restore --game-dir "/path/to/test game" \
 python3 tools/htmod.py check --game-dir "/path/to/test game" --mod dx8_vsync
 ```
 
-These commands handle registered binary mods only. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or be a recognized composed state of the selected mods: at least one selected mod on that target is PATCHED and none is FOREIGN. To add a mod to an already patched target, select both the existing and new mods; selecting only the new one does not recognize the existing state. Apply and restore skip mods already in the requested state, so composed installs and reruns are idempotent. Builder input pins remain global and unchanged.
+These commands handle registered binary mods only. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or match an **exact recognized whole-file state**. For a non-pristine target, the SDK restores the selected mods in memory and requires the pinned pristine hash, then applies every selected-mod subset (bounded at four target mods) to that verified pristine image and compares complete bytes. Local PATCHED anchors or appended unknown data are not sufficient. To add a mod to an already patched target, select both existing and new mods; selecting only the new one does not recognize the existing state.
+
+Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. After each action, every selected mod is checked again and any FOREIGN final state fails before commit with a nonzero CLI result. Builder input pins remain global and unchanged.
 
 Data is materialized into the release by manifests. End users install both data and binary components through Windows `Setup.bat` or the generated install-all `INSTALL.sh` on Linux/Wine.
 
@@ -186,6 +188,6 @@ Each script writes screenshots, Wine/Xvfb/openbox logs, and `summary.json`. Proc
 
 ## Release rules
 
-Keep the Python-free end-user experience unchanged. `tools/templates/Setup.ps1` consumes generated component metadata; do not duplicate labels, dependencies, conflicts, data ownership, component IDs, or variant-selection rules in PowerShell. Preserve schema-1 backup compatibility, known-hash gates, backups, rollback, uninstall history, save/unrelated-file guards, and automatic detection. `tools/templates/INSTALL.sh` consumes generated `install-manifest.tsv` for a simple Linux/Wine install-all path with payload validation and per-run backups; do not add a second payload mapping. Windows `Setup.bat` remains unchanged.
+Keep the Python-free end-user experience unchanged. `tools/templates/Setup.ps1` consumes generated component metadata; do not duplicate labels, dependencies, conflicts, data ownership, component IDs, or variant-selection rules in PowerShell. Preserve schema-1 backup compatibility, known-hash gates, backups, rollback, uninstall history, save/unrelated-file guards, and automatic detection. `tools/templates/INSTALL.sh` consumes generated `install-manifest.tsv` for a simple Linux/Wine install-all path with payload validation, per-run backups, and reverse-order rollback on ordinary mid-install failure; retain manual recovery instructions for catastrophic interruption and do not add a second payload mapping. Windows `Setup.bat` remains unchanged.
 
 The experimental FOV attempt remains outside manifests, registry, release payloads, and supported author examples. Native Windows PowerShell 5.1 and visual live checks require separate evidence on environments where they actually ran.

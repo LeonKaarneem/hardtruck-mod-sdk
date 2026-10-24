@@ -108,6 +108,83 @@ BACKUP=$PACKAGE/installer/backups/shell-$(date +%Y%m%d-%H%M%S)-$$
 mkdir -p "$BACKUP/files"
 ENTRIES=$BACKUP/installation.tsv
 : > "$ENTRIES"
+INSTALL_SUCCESS=0
+
+rollback() {
+    printf 'Install failed; rolling back using %s\n' "$BACKUP" >&2
+    rollback_errors=0
+    reverse=$BACKUP/.rollback-order
+    if ! awk '{ lines[NR] = $0 } END { for (i = NR; i >= 1; i--) print lines[i] }' "$ENTRIES" > "$reverse"; then
+        rollback_errors=1
+        : > "$reverse"
+    fi
+    while IFS="$TAB" read -r action relative original installed backup_relative; do
+        destination=$GAME/$relative
+        current=
+        if [ -f "$destination" ]; then
+            current=$(hash_file "$destination") || current=
+        fi
+        case $action in
+            created)
+                if [ -n "$current" ] && [ "$current" != "$installed" ]; then
+                    printf 'Rollback preserving externally changed file: %s\n' "$destination" >&2
+                    rollback_errors=1
+                elif [ -f "$destination" ] && ! rm -f "$destination"; then
+                    rollback_errors=1
+                fi
+                ;;
+            replaced)
+                backup_file=$BACKUP/$backup_relative
+                if [ "$current" = "$original" ]; then
+                    continue
+                fi
+                if [ -n "$current" ] && [ "$current" != "$installed" ]; then
+                    printf 'Rollback preserving externally changed file: %s\n' "$destination" >&2
+                    rollback_errors=1
+                    continue
+                fi
+                if [ ! -f "$backup_file" ]; then
+                    printf 'Rollback backup missing: %s\n' "$backup_file" >&2
+                    rollback_errors=1
+                    continue
+                fi
+                restore_temporary=$destination.htmod-rollback-$$
+                rm -f "$restore_temporary"
+                if ! mkdir -p "$(dirname "$destination")" || ! cp -p "$backup_file" "$restore_temporary" || ! mv -f "$restore_temporary" "$destination"; then
+                    rollback_errors=1
+                    continue
+                fi
+                restored=$(hash_file "$destination") || restored=
+                if [ "$restored" != "$original" ]; then
+                    printf 'Rollback hash mismatch: %s\n' "$destination" >&2
+                    rollback_errors=1
+                fi
+                ;;
+        esac
+    done < "$reverse"
+    rm -f "$reverse"
+    if [ "$rollback_errors" -ne 0 ]; then
+        printf 'Rollback incomplete; manual recovery required from %s and installation.tsv.\n' "$BACKUP" >&2
+        return 1
+    fi
+    printf 'Rollback complete; recovery manifest retained: %s\n' "$BACKUP" >&2
+}
+
+on_exit() {
+    exit_status=$?
+    trap - EXIT
+    if [ "$INSTALL_SUCCESS" -ne 1 ]; then
+        set +e
+        rollback
+        if [ "$?" -ne 0 ] || [ "$exit_status" -eq 0 ]; then
+            exit_status=1
+        fi
+    fi
+    exit "$exit_status"
+}
+
+trap on_exit EXIT
+trap 'exit 1' HUP INT TERM
 
 install_file() {
     source=$1
@@ -170,5 +247,6 @@ while IFS="$TAB" read -r kind relative expected; do
     fi
 done < "$MANIFEST"
 
+INSTALL_SUCCESS=1
 printf 'Install all complete. Backup: %s\n' "$BACKUP"
 printf 'Start a NEW profile: old saves are incompatible with the definition changes.\n'
