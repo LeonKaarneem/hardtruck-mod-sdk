@@ -132,6 +132,59 @@ class BinaryRegressionTests(unittest.TestCase):
             self.assertEqual(sha256((game_dir / "game/sys/game.dll").read_bytes()), self.golden["pristine"]["game_dll"])
             self.assertEqual(sha256((game_dir / "sys/dx8.dll").read_bytes()), self.golden["pristine"]["dx8_dll"])
 
+    def test_cli_rejects_unknown_source_hash_before_changes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            game_dir = Path(temporary)
+            target = game_dir / "game/sys/game.dll"
+            target.parent.mkdir(parents=True)
+            target.write_bytes(self.game + b"foreign")
+            before = sha256(target.read_bytes())
+            result = subprocess.run(
+                [sys.executable, str(ROOT / "tools/htmod.py"), "apply", "--game-dir", str(game_dir), "--mod", "camera"],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 1)
+            self.assertRegex(result.stderr, "source SHA-256|unrecognized source")
+            self.assertEqual(sha256(target.read_bytes()), before)
+
+    def test_cli_recognizes_composed_states_and_reruns_only_pending_mods(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            game_dir = Path(temporary)
+            target = game_dir / "game/sys/game.dll"
+            target.parent.mkdir(parents=True)
+            shutil.copyfile(self.game_path, target)
+
+            def run(command, *mods):
+                arguments = [sys.executable, str(ROOT / "tools/htmod.py"), command, "--game-dir", str(game_dir)]
+                for mod in mods:
+                    arguments += ["--mod", mod]
+                return subprocess.run(arguments, cwd=ROOT, text=True, capture_output=True)
+
+            result = run("apply", "camera")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["001"]["sha256"])
+
+            result = run("apply", "physics")
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("selected mods", result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["001"]["sha256"])
+
+            result = run("apply", "camera", "physics")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["011"]["sha256"])
+            result = run("apply", "camera", "physics")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["game_variants"]["011"]["sha256"])
+
+            result = run("restore", "camera", "physics")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["pristine"]["game_dll"])
+            result = run("restore", "camera", "physics")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(sha256(target.read_bytes()), self.golden["pristine"]["game_dll"])
+
     def test_release_builder_uses_sdk_for_every_simple_binary_payload(self):
         from unittest import mock
         from tools import build_windows_release

@@ -46,7 +46,13 @@ Widescreen is Vert- (cropped vertically). For the original field of view, use a 
 
 ## Linux / Wine
 
-Use a 32-bit Wine prefix and install the game normally. Generate the release on a machine with the author prerequisites, then run its PowerShell installer where available, or perform binary changes through the SDK on a disposable copy and materialize data through a release build. There is no supported raw `modpack/game` directory to copy.
+Use a 32-bit Wine prefix and install the game normally. Extract `HardTruckModern-v3.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
+
+```sh
+./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
+```
+
+The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. This simple path has no component selection or automatic uninstaller; keep the backup to restore manually. Start a **new profile** after installation.
 
 For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 
@@ -67,7 +73,7 @@ The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works thro
 
 ## Authors and advanced recovery
 
-All active additions use manifests and the static SDK registry. The retired raw-copy `INSTALL.bat`/`INSTALL.sh` workflow and standalone camera/physics/AI/DX8 patchers have been removed; there is no second active implementation to drift from the release.
+All active additions use manifests and the static SDK registry. The retired raw-copy source-tree `INSTALL.bat`/`INSTALL.sh` helpers and standalone camera/physics/AI/DX8 patchers have been removed; the generated release `INSTALL.sh` instead consumes the same prebuilt manifest-owned payloads as Windows Setup.
 
 See **`sdk/README.md`** for data mods, operand patches, code hooks, dependencies/conflicts, tests, live smokes, and release packaging. Registered binary components can be inspected or reversed on a backed-up test game:
 

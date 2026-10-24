@@ -583,8 +583,20 @@ function Install-Mods {
         throw "Unknown, wrapped, or unsupported dx8.dll. Restore the stock v1.2 DX8 DLL; no files were changed."
     }
 
-    $variantName = ([int]$Selection.ai).ToString() + ([int]$Selection.physics).ToString() + ([int]$Selection.camera).ToString()
-    $variant = $Manifest.game_variants.$variantName
+    $selectedGameComponents = @(
+        Get-ComponentRecords $Manifest |
+            Where-Object { $_.Value.target -eq "game/sys/game.dll" -and $Selection[$_.Name] } |
+            ForEach-Object { $_.Name }
+    )
+    $selectedGameKey = $selectedGameComponents -join ","
+    $variantRecords = @(
+        $Manifest.game_variants.PSObject.Properties |
+            Where-Object { (@($_.Value.components) -join ",") -eq $selectedGameKey }
+    )
+    if ($variantRecords.Count -ne 1) {
+        throw "No unique curated game.dll variant matches the selected components; no files were changed."
+    }
+    $variant = $variantRecords[0].Value
     $dx8Choice = if ($Selection.dx8_vsync) { "vsync" } else { "stock" }
     $dx8 = $Manifest.dx8.$dx8Choice
     $jobs = @()

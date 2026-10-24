@@ -137,7 +137,7 @@ Using `example_operand` as the ID:
    "conflicts": ["example_other"]
    ```
    `Selection.validate` rejects missing selections and conflicts before file changes; generated schema-2 installer metadata carries the same rules to Setup.
-5. For a `game.dll` component, deliberately extend the curated variant list and `GAME_COMPONENTS` in `tools/build_windows_release.py`. Preserve existing `game-000` through `game-111` names and bit meanings; never silently generate an exponential matrix. Other new targets require an explicit builder payload path driven by the validated release metadata.
+5. For a `game.dll` component, deliberately extend `game_variants` in `modpack/release.json`. Game-component bit positions follow release order; every variant name has exactly one bit per game component, and its `components` list must match those bits. The builder iterates only this curated list-never an automatically generated exponential matrix-and PowerShell selects the variant by generated component metadata. Preserve existing `game-000` through `game-111` names, bit meanings, and payload bytes. Other new targets require an explicit builder payload path driven by the validated release metadata. The generated shell install-all manifest also requires one variant containing every game component.
 
 ## Check, apply, and restore on a test game
 
@@ -153,11 +153,13 @@ python3 tools/htmod.py restore --game-dir "/path/to/test game" \
 python3 tools/htmod.py check --game-dir "/path/to/test game" --mod dx8_vsync
 ```
 
-These commands handle registered binary mods only. Data is materialized into the release by manifests; end users install both data and binary components through `Setup.bat`.
+These commands handle registered binary mods only. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or be a recognized composed state of the selected mods: at least one selected mod on that target is PATCHED and none is FOREIGN. To add a mod to an already patched target, select both the existing and new mods; selecting only the new one does not recognize the existing state. Apply and restore skip mods already in the requested state, so composed installs and reruns are idempotent. Builder input pins remain global and unchanged.
+
+Data is materialized into the release by manifests. End users install both data and binary components through Windows `Setup.bat` or the generated install-all `INSTALL.sh` on Linux/Wine.
 
 ## Live Wine smokes
 
-Prerequisites: Wine with 32-bit application support, Xvfb, openbox, xdotool, scrot, Python 3, and a disposable full game copy. Use a fresh/dedicated prefix and an unused display for each run. The harness starts only its own Xvfb/openbox/Wine processes, records their PIDs in `owned-pids`, terminates only those PIDs, and scopes `wineserver -k` to the caller's dedicated prefix. It never uses `pkill` or name-based cleanup.
+Prerequisites: Wine with 32-bit application support, Xvfb, openbox, xdotool, scrot, Python 3, and a disposable full game copy. Use a fresh/dedicated prefix and an unused display for each run. The harness starts only its own Xvfb/openbox/Wine processes, records their PIDs in `owned-pids`, terminates only those PIDs, and scopes `wineserver -k` to the caller's dedicated prefix. It never uses `pkill` or name-based cleanup. Owned Xvfb/openbox/Wine liveness is checked before dependent startup, window search, and scrot; an already-used or dead display aborts before xdotool/scrot interaction and triggers owned-process cleanup.
 
 Install `config` (and `camera` for the camera smoke) into the test copy with the generated release Setup first. Set `uset r_mode` in that copy's `game/usr/config.cfg` to match `--resolution`. The camera smoke also requires these **test-copy-only** bindings; they are not added to the shipped config, and the harness refuses to run without them:
 
@@ -184,6 +186,6 @@ Each script writes screenshots, Wine/Xvfb/openbox logs, and `summary.json`. Proc
 
 ## Release rules
 
-Keep the Python-free end-user experience unchanged. `tools/templates/Setup.ps1` consumes generated component metadata; do not duplicate labels, dependencies, conflicts, data ownership, or component IDs in PowerShell. Preserve schema-1 backup compatibility, known-hash gates, backups, rollback, uninstall history, save/unrelated-file guards, and automatic detection.
+Keep the Python-free end-user experience unchanged. `tools/templates/Setup.ps1` consumes generated component metadata; do not duplicate labels, dependencies, conflicts, data ownership, component IDs, or variant-selection rules in PowerShell. Preserve schema-1 backup compatibility, known-hash gates, backups, rollback, uninstall history, save/unrelated-file guards, and automatic detection. `tools/templates/INSTALL.sh` consumes generated `install-manifest.tsv` for a simple Linux/Wine install-all path with payload validation and per-run backups; do not add a second payload mapping. Windows `Setup.bat` remains unchanged.
 
 The experimental FOV attempt remains outside manifests, registry, release payloads, and supported author examples. Native Windows PowerShell 5.1 and visual live checks require separate evidence on environments where they actually ran.

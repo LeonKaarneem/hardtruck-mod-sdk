@@ -77,6 +77,8 @@ class WineSession:
         self.resolution = resolution
         self.title = title
         self.processes = []
+        self.xvfb_process = None
+        self.openbox_process = None
         self.game_process = None
         self.environment = os.environ.copy()
         self.environment.update(DISPLAY=self.display, WINEPREFIX=str(self.prefix))
@@ -102,16 +104,33 @@ class WineSession:
             raise LiveSmokeError("missing live-smoke commands: " + ", ".join(missing))
         self.output.mkdir(parents=True, exist_ok=True)
         self.prefix.mkdir(parents=True, exist_ok=True)
-        self.spawn("xvfb", ["Xvfb", self.display, "-screen", "0", self.resolution + "x24", "-nolisten", "tcp"])
+        self.xvfb_process = self.spawn(
+            "xvfb",
+            ["Xvfb", self.display, "-screen", "0", self.resolution + "x24", "-nolisten", "tcp"],
+        )
         time.sleep(2)
-        self.spawn("openbox", ["openbox"])
+        self.require_alive()
+        self.openbox_process = self.spawn("openbox", ["openbox"])
         time.sleep(2)
+        self.require_alive()
         self.game_process = self.spawn(
             "wine",
             ["wine", "./prism3d.exe", "-game", "game", "-icon", "game.ico", "-title", self.title],
             cwd=self.game,
         )
+        self.require_alive()
         self.wait_for_window(45)
+
+    def require_alive(self):
+        for name, process in (
+            ("Xvfb", self.xvfb_process),
+            ("openbox", self.openbox_process),
+            ("Wine", self.game_process),
+        ):
+            if process is not None and process.poll() is not None:
+                raise LiveSmokeError(
+                    f"{name} exited on {self.display}; display may be unavailable or already in use"
+                )
 
     def spawn(self, name, command, cwd=None):
         with (self.output / (name + ".log")).open("ab") as log:
@@ -139,6 +158,7 @@ class WineSession:
         )
 
     def window_id(self):
+        self.require_alive()
         result = subprocess.run(
             ["xdotool", "search", "--name", self.title],
             env=self.environment,
@@ -211,10 +231,12 @@ class WineSession:
         self.close_console()
 
     def capture(self, name):
+        self.require_alive()
         self.activate()
         destination = self.output / name
         temporary = self.output / ("." + name + ".new.png")
         temporary.unlink(missing_ok=True)
+        self.require_alive()
         self.command(["scrot", "-z", str(temporary)])
         if not temporary.is_file():
             raise LiveSmokeError(f"scrot did not create {temporary}")

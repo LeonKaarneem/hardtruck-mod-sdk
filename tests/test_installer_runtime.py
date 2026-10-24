@@ -153,6 +153,37 @@ class InstallerMetadataRuntimeTests(InstallerCase):
                     manifest["game_variants"][name]["sha256"],
                 )
 
+    def test_synthetic_fourth_game_component_selects_its_metadata_payload(self):
+        manifest = self.manifest(self.package)
+        manifest["components"]["fourth"] = {
+            "label": "Fourth",
+            "description": "Synthetic fourth game component",
+            "default": False,
+            "requires": [],
+            "conflicts": [],
+            "new_profile": False,
+            "kind": "binary",
+            "target": "game/sys/game.dll",
+            "version": "1.0.0",
+        }
+        variants = {}
+        for name, record in manifest["game_variants"].items():
+            variants[name + "0"] = dict(record)
+        fourth_payload = self.package / "installer/payload/game-1000.dll"
+        fourth_payload.write_bytes((self.package / "installer/payload/game-001.dll").read_bytes())
+        variants["1000"] = {
+            "file": fourth_payload.name,
+            "components": ["fourth"],
+            "sha256": sha256(fourth_payload),
+        }
+        manifest["game_variants"] = variants
+        manifest["payloads"][fourth_payload.name] = sha256(fourth_payload)
+        self.write_manifest(self.package, manifest)
+
+        result = self.run_setup(self.package, self.game, action="Custom", components=["fourth"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), sha256(fourth_payload))
+
     def test_interactive_prompts_use_generated_labels_descriptions_and_defaults(self):
         manifest = self.manifest(self.package)
         for component in manifest["components"].values():

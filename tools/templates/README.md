@@ -8,6 +8,10 @@ To install only some mods, choose **Choose components** and answer each prompt. 
 
 The installer supports pristine Hard Truck v1.2 and its own installed variants. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the payloads and backups.
 
+## Linux / Wine
+
+Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. There is no component selection or automatic shell uninstaller; retain the backup for manual restoration. Start a new profile after installation.
+
 ## Controls and display
 
 `~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.

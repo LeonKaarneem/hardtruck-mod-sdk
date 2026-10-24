@@ -15,7 +15,6 @@ from htmod.patch import PatchRunner, PatchState
 from htmod.runner import load_binary_mods, materialize_data
 
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
-GAME_COMPONENTS = ("camera", "physics", "ai")
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
 
@@ -32,25 +31,20 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def selected_components(number):
-    return tuple(
-        component
-        for bit, component in enumerate(GAME_COMPONENTS)
-        if number & (1 << bit)
-    )
-
-
 def build_game_variants(source, payload, work):
     release = load_release(PROJECT_ROOT)
-    simple_mods = load_binary_mods(release, ("camera", "physics", "ai"))
+    game_components = tuple(
+        mod_id for mod_id, mod in release.mods.items()
+        if mod.kind == "binary" and mod.target == "game/sys/game.dll"
+    )
+    game_mods = load_binary_mods(release, game_components)
     variants = {}
     hashes = set()
     pristine_hash = sha256(source)
 
-    for number in range(8):
-        name = f"{number:03b}"
-        selected = selected_components(number)
-        selected_mods = [mod for mod in simple_mods if mod.id in selected]
+    for name, variant in release.game_variants.items():
+        selected = variant.components
+        selected_mods = [mod for mod in game_mods if mod.id in selected]
         generated = work / f"generated-{name}.dll"
         reference = work / f"reference-{name}.dll"
         shutil.copyfile(source, generated)
@@ -60,8 +54,8 @@ def build_game_variants(source, payload, work):
             runner.apply(selected_mods)
         generated.write_bytes(images["game/sys/game.dll"])
 
-        states = runner.check(simple_mods)
-        for mod in simple_mods:
+        states = runner.check(game_mods)
+        for mod in game_mods:
             expected = PatchState.PATCHED if mod.id in selected else PatchState.ORIGINAL
             if states[mod.id] != expected:
                 raise BuildError(f"game variant {name} has unexpected {mod.id} state {states[mod.id].value}")
@@ -83,8 +77,8 @@ def build_game_variants(source, payload, work):
             "components": list(selected),
         }
 
-    if len(hashes) != 8:
-        raise BuildError("the eight game variants are not distinct")
+    if len(hashes) != len(release.game_variants):
+        raise BuildError("curated game variant payloads are not distinct")
     return variants
 
 
@@ -164,6 +158,36 @@ def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_d
     }
 
 
+def build_shell_manifest(release, payload, game_variants, dx8):
+    records = []
+
+    def add(kind, relative, expected):
+        if any(character in relative for character in ("\t", "\r", "\n")):
+            raise BuildError(f"shell manifest path is not representable: {relative!r}")
+        records.append("\t".join((kind, relative, expected)))
+
+    for variant in game_variants.values():
+        add("variant", variant["file"], variant["sha256"])
+    game_components = tuple(
+        mod_id for mod_id, mod in release.mods.items()
+        if mod.kind == "binary" and mod.target == "game/sys/game.dll"
+    )
+    install_all = [
+        variant for variant in game_variants.values()
+        if tuple(variant["components"]) == game_components
+    ]
+    if len(install_all) != 1:
+        raise BuildError("shell installer requires one curated all-game-components variant")
+    add("install-game", install_all[0]["file"], install_all[0]["sha256"])
+    add("install-dx8", dx8["vsync"]["file"], dx8["vsync"]["sha256"])
+    add("stock-dx8", dx8["stock"]["file"], dx8["stock"]["sha256"])
+    for mod in release.mods.values():
+        for record in mod.files:
+            relative = record.destination.removeprefix("game/usr/")
+            add("data", "data/" + relative, sha256(payload / "data" / relative))
+    return "\n".join(records) + "\n"
+
+
 def default_test_base_file(relative):
     candidates = [PROJECT_ROOT / "test-base" / relative]
     if PROJECT_ROOT.parent.name == ".worktrees":
@@ -208,6 +232,7 @@ def build(args):
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
         TEMPLATE_ROOT / "Setup.ps1",
+        TEMPLATE_ROOT / "INSTALL.sh",
         TEMPLATE_ROOT / "README.md",
     ):
         if not template.is_file():
@@ -229,6 +254,8 @@ def build(args):
         installer.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", release_staging / "Setup.bat")
         shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
+        shutil.copyfile(TEMPLATE_ROOT / "INSTALL.sh", release_staging / "INSTALL.sh")
+        (release_staging / "INSTALL.sh").chmod(0o755)
         shutil.copyfile(TEMPLATE_ROOT / "README.md", release_staging / "README.md")
         with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
             temporary = Path(temporary)
@@ -250,6 +277,10 @@ def build(args):
             )
             (staging / "manifest.json").write_text(
                 json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            (staging / "install-manifest.tsv").write_text(
+                build_shell_manifest(release, staging, variants, dx8),
                 encoding="utf-8",
             )
 
@@ -281,8 +312,16 @@ def build(args):
                     ) from rollback_error
             raise replacement_error
 
+    game_component_count = sum(
+        mod.kind == "binary" and mod.target == "game/sys/game.dll"
+        for mod in release.mods.values()
+    )
     print(f"Built {output / 'installer/payload'}")
-    print("Verified 8 distinct game variants, 24 game checks, 8 restore cycles, and 2 DX8 checks")
+    print(
+        f"Verified {len(variants)} distinct game variants, "
+        f"{len(variants) * game_component_count} game checks, "
+        f"{len(variants)} restore cycles, and 2 DX8 checks"
+    )
 
 
 def main():

@@ -39,8 +39,11 @@ def main(argv=None):
             for mod_id, state in states.items():
                 print(f"{mod_id}: {state.value}")
             return 1 if any(state == PatchState.FOREIGN for state in states.values()) else 0
-        getattr(runner, args.command)(mods)
-        runner.commit()
+        pending_state = PatchState.ORIGINAL if args.command == "apply" else PatchState.PATCHED
+        pending = [mod for mod in mods if states[mod.id] == pending_state]
+        if pending:
+            getattr(runner, args.command)(pending)
+            runner.commit()
         for mod_id, state in runner.check(mods).items():
             print(f"{mod_id}: {state.value}")
         return 0

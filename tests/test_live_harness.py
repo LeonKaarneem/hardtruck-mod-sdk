@@ -36,6 +36,47 @@ class LiveHarnessTests(unittest.TestCase):
         self.assertEqual(args.display, ":121")
         self.assertEqual(args.resolution, "1024x768")
 
+    def test_dead_display_processes_abort_before_dependent_interactions(self):
+        harness = load_harness()
+        for failed_process in ("Xvfb", "openbox"):
+            with self.subTest(failed_process=failed_process), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                game = output / "game"
+                game.mkdir()
+                (game / "prism3d.exe").write_bytes(b"")
+                session = harness.WineSession(game, output / "prefix", output, ":124")
+                alive = mock.Mock()
+                alive.poll.return_value = None
+                dead = mock.Mock()
+                dead.poll.return_value = 1
+                processes = [dead, alive] if failed_process == "Xvfb" else [alive, dead]
+                session.spawn = mock.Mock(side_effect=processes)
+                session.wait_for_window = mock.Mock()
+                with mock.patch.object(harness.shutil, "which", return_value="/usr/bin/tool"), \
+                        mock.patch.object(harness.time, "sleep"), \
+                        self.assertRaisesRegex(harness.LiveSmokeError, failed_process):
+                    session.start()
+                expected_spawns = 1 if failed_process == "Xvfb" else 2
+                self.assertEqual(session.spawn.call_count, expected_spawns)
+                session.wait_for_window.assert_not_called()
+
+    def test_capture_refuses_dead_display_before_scrot(self):
+        harness = load_harness()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            session = harness.WineSession(output / "game", output / "prefix", output, ":124")
+            session.xvfb_process = mock.Mock()
+            session.xvfb_process.poll.return_value = None
+            session.openbox_process = mock.Mock()
+            session.openbox_process.poll.return_value = 1
+            session.game_process = mock.Mock()
+            session.game_process.poll.return_value = None
+            session.activate = mock.Mock()
+            session.command = mock.Mock()
+            with self.assertRaisesRegex(harness.LiveSmokeError, "openbox"):
+                session.capture("frame.png")
+            session.command.assert_not_called()
+
     def test_cleanup_terminates_only_owned_processes_and_scopes_wineserver_to_prefix(self):
         harness = load_harness()
         with tempfile.TemporaryDirectory() as temporary:

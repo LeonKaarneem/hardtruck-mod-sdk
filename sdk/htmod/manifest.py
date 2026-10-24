@@ -12,7 +12,6 @@ FORBIDDEN_DIRECTORIES = frozenset({"save", "saves", "music", "log", "logs", "__p
 FORBIDDEN_EXTENSIONS = frozenset({".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"})
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
-VARIANT_PATTERN = re.compile(r"^[01]{3}$")
 
 
 @dataclass(frozen=True)
@@ -272,10 +271,20 @@ def load_release(root):
 
     if not isinstance(value["game_variants"], dict):
         raise ManifestError("release game_variants must be an object")
+    game_components = tuple(
+        mod_id for mod_id, mod in mods.items()
+        if mod.kind == "binary" and mod.target == "game/sys/game.dll"
+    )
+    if not game_components and value["game_variants"]:
+        raise ManifestError("release game variants require at least one game.dll component")
     variants = {}
     for name, record in value["game_variants"].items():
-        if not VARIANT_PATTERN.fullmatch(name) or not isinstance(record, dict):
+        if not isinstance(record, dict):
             raise ManifestError(f"release has invalid game variant '{name}'")
+        if not isinstance(name, str) or len(name) != len(game_components) or any(bit not in "01" for bit in name):
+            raise ManifestError(
+                f"game variant '{name}' has invalid bit length; expected {len(game_components)}"
+            )
         require_fields(record, ("file", "components"), f"game variant '{name}'")
         reject_unknown_keys(record, ("file", "components"), f"game variant '{name}'")
         if record["file"] != f"game-{name}.dll":
@@ -286,5 +295,11 @@ def load_release(root):
                 raise ManifestError(f"game variant '{name}' references unknown component '{component}'")
             if mods[component].kind != "binary" or mods[component].target != "game/sys/game.dll":
                 raise ManifestError(f"game variant '{name}' includes non-game component '{component}'")
+        expected = tuple(
+            component for bit, component in enumerate(game_components)
+            if int(name, 2) & (1 << bit)
+        )
+        if components != expected:
+            raise ManifestError(f"game variant '{name}' does not match component bits")
         variants[name] = GameVariant(record["file"], components)
     return Release(modpack, mods, variants)

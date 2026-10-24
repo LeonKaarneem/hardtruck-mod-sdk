@@ -35,6 +35,18 @@ VALID_MOD = {
 }
 
 
+def valid_binary_mod():
+    mod = copy.deepcopy(VALID_MOD)
+    mod.pop("files")
+    mod.update({
+        "kind": "binary",
+        "handler": "camera",
+        "target": "game/sys/game.dll",
+        "source_sha256": "0" * 64,
+    })
+    return mod
+
+
 class ReleaseFactory:
     def __init__(self, test):
         self.test = test
@@ -207,10 +219,10 @@ class ManifestTests(unittest.TestCase):
             "schema_version": 1,
             "mods": ["alpha"],
             "game_variants": {
-                "001": {"file": "game-001.dll", "components": ["missing"]}
+                "0": {"file": "game-0.dll", "components": ["missing"]}
             },
         }
-        self.assert_invalid(factory.write(release=release), "unknown component")
+        self.assert_invalid(factory.write(release, {"alpha": valid_binary_mod()}), "unknown component")
 
     def test_rejects_noncanonical_variant_name_and_file(self):
         for name, filename in (("1", "game-001.dll"), ("001", "other.dll")):
@@ -223,7 +235,7 @@ class ManifestTests(unittest.TestCase):
                         name: {"file": filename, "components": []}
                     },
                 }
-                self.assert_invalid(factory.write(release=release), "variant")
+                self.assert_invalid(factory.write(release, {"alpha": valid_binary_mod()}), "variant")
 
     def test_rejects_files_root_symlink_escaping_mod_registry(self):
         factory = self.factory()
@@ -281,7 +293,8 @@ class ManifestTests(unittest.TestCase):
                 elif location == "file":
                     mod["files"][0]["transform"] = mod["files"][0].pop("transforms")
                 else:
-                    release["game_variants"]["000"]["unexpected"] = True
+                    mod = valid_binary_mod()
+                    release["game_variants"] = {"0": {"file": "game-0.dll", "components": [], "unexpected": True}}
                 self.assert_invalid(factory.write(release, {"alpha": mod}), "unknown key")
 
     def test_malformed_registry_types_raise_manifest_error(self):

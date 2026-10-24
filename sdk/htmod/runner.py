@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 from pathlib import Path
 import re
@@ -5,7 +6,7 @@ import shutil
 
 from .errors import PatchError
 from .manifest import Selection
-from .patch import PatchRunner
+from .patch import PatchRunner, PatchState
 
 
 REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "dx8_vsync"})
@@ -69,7 +70,9 @@ def load_binary_mods(release, mod_ids):
             spec.loader.exec_module(module)
         except (OSError, ImportError, AttributeError) as error:
             raise PatchError(f"cannot load registered binary handler '{handler}': {error}") from error
-        loaded.append(module.MOD)
+        loaded_mod = module.MOD
+        loaded_mod.source_sha256 = manifest.source_sha256
+        loaded.append(loaded_mod)
     return loaded
 
 
@@ -91,4 +94,20 @@ def runner_from_directory(game_dir, mods):
             raise PatchError(f"target '{mod.target}' is unsafe or not a file")
         paths[mod.target] = resolved
         images[mod.target] = bytearray(resolved.read_bytes())
-    return PatchRunner(images, paths)
+    runner = PatchRunner(images, paths)
+    for target, data in images.items():
+        target_mods = [mod for mod in mods if mod.target == target]
+        pristine_hashes = {mod.source_sha256 for mod in target_mods}
+        if len(pristine_hashes) != 1:
+            raise PatchError(f"target '{target}' selected mods disagree on pristine source SHA-256")
+        if hashlib.sha256(data).hexdigest() in pristine_hashes:
+            continue
+        states = runner.check(target_mods)
+        if any(state == PatchState.FOREIGN for state in states.values()) or not any(
+            state == PatchState.PATCHED for state in states.values()
+        ):
+            raise PatchError(
+                f"target '{target}' has unrecognized source SHA-256 and selected mods "
+                f"do not recognize a composed patched state: {states}"
+            )
+    return runner
