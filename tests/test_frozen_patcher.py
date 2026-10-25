@@ -35,10 +35,15 @@ class FrozenSpecTests(unittest.TestCase):
         requirements = (ROOT / "tools/requirements-windows-patcher.txt").read_text(encoding="utf-8")
         self.assertIn("pyinstaller==6.11.1", requirements)
         self.assertIn("pyinstaller-hooks-contrib==2024.10", requirements)
+        for line in requirements.splitlines():
+            if line.strip():
+                self.assertIn("--hash=sha256:", line)
         script = (ROOT / "tools/build_windows_patcher.py").read_text(encoding="utf-8")
         self.assertIn("3.12.7", script)
         self.assertIn("1206721601a62c925d4e4a0dcfc371e88f2ddbe8c0c07962ebb2be9b5bde4570", script)
         self.assertIn("WINEPREFIX", script)
+        self.assertIn('"--require-hashes"', script)
+        self.assertIn("shutil.rmtree(prefix)", script)
 
 
 @unittest.skipUnless(os.environ.get("HTMOD_TEST_PATCHER_EXE"), "real frozen patcher path not supplied")

@@ -27,13 +27,17 @@ Do not add a payload copy map, standalone patcher, or release-only special case.
    ```
    Installer runtime tests need PowerShell 7 on the test machine. Set `PWSH=/path/to/pwsh` when it is not on `PATH`; without PowerShell those tests skip explicitly. Pinned binary fixtures also need the repository's normal `test-base` input or `HTMOD_TEST_BASE`.
 5. Optionally run a committed live smoke on a disposable installed game copy (see below).
-6. Build twice into separate empty directories and compare every file:
+6. Build the frozen patcher, then build twice into separate empty directories with that same executable and compare every file:
    ```sh
-   python3 tools/build_windows_release.py --output /tmp/htmod-build-a
-   python3 tools/build_windows_release.py --output /tmp/htmod-build-b
+   python3 tools/build_windows_patcher.py --work-dir /tmp/htmod-patcher-build \
+     --output /tmp/htmod-build-htmod.exe
+   python3 tools/build_windows_release.py --patcher-exe /tmp/htmod-build-htmod.exe \
+     --output /tmp/htmod-build-a
+   python3 tools/build_windows_release.py --patcher-exe /tmp/htmod-build-htmod.exe \
+     --output /tmp/htmod-build-b
    diff -r /tmp/htmod-build-a /tmp/htmod-build-b
    ```
-   The builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll`; override their locations with `--game-dll` and `--dx8-dll` when necessary.
+   The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll` only for verification; override their locations with `--game-dll` and `--dx8-dll` when necessary. Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no game/DX8 DLL payloads. A custom `--migrations` catalog must contain exactly both canonical targets, pristine lengths/hashes matching those build inputs, and every required current, released legacy, and DX8 source state.
 7. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the **complete** suite against it before publishing. With `HTMOD_RELEASE_ZIP` set, both the PowerShell installer tests and `tests/test_shell_installer.py` extract and exercise that ZIP:
    ```sh
    PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-v3.zip \
@@ -136,8 +140,8 @@ Using `example_operand` as the ID:
    "requires": ["config"],
    "conflicts": ["example_other"]
    ```
-   `Selection.validate` rejects missing selections and conflicts before file changes; generated schema-2 installer metadata carries the same rules to Setup. Handler loading itself is identity-only so the builder can load every game handler even when two handlers conflict. Each curated build selection is then validated with non-game release components available, allowing independent conflicting variants and data requirements such as `config` to build; the installer still validates the user's actual selection.
-5. For a `game.dll` component, deliberately extend `game_variants` in `modpack/release.json`. Game-component bit positions follow release order; every variant name has exactly one bit per game component, and its `components` list must match those bits. The builder iterates only this curated list-never an automatically generated exponential matrix-and PowerShell selects the variant by generated component metadata. When adding a component, preserve every prior payload byte stream while widening names and curated combinations as required, and retain those prior hashes as recognized installed states. Record hashes from released goldens in the optional `legacy_game_sha256` list: schema validation requires unique lowercase SHA-256 strings, the builder emits them into the JSON payload manifest and as hash-only `legacy-game` shell records, and both installers accept current or legacy sources before installing the selected current variant. Unknown DLL hashes remain refused; legacy payloads themselves are not shipped. Other new targets require an explicit builder payload path driven by the validated release metadata. The generated shell install-all manifest also requires one variant containing every game component.
+   `Selection.validate` rejects missing selections and conflicts before file changes; generated schema-3 metadata carries the same rules. Handler loading itself is identity-only so the builder can load every game handler even when two handlers conflict. Each curated build selection is then validated with non-game release components available, allowing independent conflicting variants and data requirements such as `config` to build; the installer still validates the user's actual selection.
+5. For a `game.dll` component, deliberately extend `game_variants` in `modpack/release.json`. Game-component bit positions follow release order; every variant name has exactly one bit per game component, and its `components` list must match those bits. The builder iterates only this curated list-never an automatically generated exponential matrix-and generates expected hashes in memory without game/DX8 DLL payloads. When adding a component, preserve every prior payload byte stream while widening names and curated combinations as required, and retain those prior hashes as recognized installed states. Record hashes from released goldens in the optional `legacy_game_sha256` list: schema validation requires unique lowercase SHA-256 strings, and release builds require every one to have migration source coverage. The schema-3 payload manifest omits this redundant list because `migrations.json` owns source recognition; the shell metadata retains hash-only `legacy-game` records for its legacy test/install path. Unknown DLL hashes remain refused during staging, and legacy payloads are never shipped. Other new targets require explicit builder and migration-catalog support driven by validated release metadata. The generated shell install-all manifest also requires one variant containing every game component.
 
 ## Check, apply, and restore on a test game
 

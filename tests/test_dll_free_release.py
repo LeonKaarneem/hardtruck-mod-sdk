@@ -87,6 +87,75 @@ class DLLFreeReleaseTests(unittest.TestCase):
             }
             self.assertEqual(first, second)
 
+    def custom_catalog(self, args, mutate=None):
+        catalog = json.loads((ROOT / "modpack/migrations.json").read_text(encoding="utf-8"))
+        if mutate is not None:
+            mutate(catalog)
+        path = args.output.parent / "custom-migrations.json"
+        path.write_text(json.dumps(catalog), encoding="utf-8")
+        args.migrations = path
+
+    def assert_catalog_rejected(self, mutate, message):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = self.make_arguments(temporary)
+            self.custom_catalog(args, mutate)
+            with self.assertRaisesRegex(Exception, message):
+                build_windows_release.build(args)
+            self.assertFalse(args.output.exists())
+
+    def test_custom_catalog_is_accepted_when_complete_and_matching(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = self.make_arguments(temporary)
+            self.custom_catalog(args)
+            build_windows_release.build(args)
+            payload = args.output / "installer/payload"
+            self.assertEqual((payload / "migrations.json").read_bytes(), args.migrations.read_bytes())
+            manifest = json.loads((payload / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["payloads"]["migrations.json"], sha256(args.migrations))
+
+    def test_custom_catalog_requires_both_canonical_targets(self):
+        self.assert_catalog_rejected(
+            lambda catalog: catalog["targets"].pop("sys/dx8.dll"),
+            "canonical targets",
+        )
+        self.assert_catalog_rejected(
+            lambda catalog: catalog["targets"].update({"other.dll": catalog["targets"]["sys/dx8.dll"]}),
+            "canonical targets",
+        )
+
+    def test_custom_catalog_pristine_must_match_build_inputs(self):
+        for target in ("game/sys/game.dll", "sys/dx8.dll"):
+            for field in ("pristine_length", "pristine_sha256"):
+                with self.subTest(target=target, field=field):
+                    def mutate(catalog, target=target, field=field):
+                        record = catalog["targets"][target]
+                        old_hash = record["pristine_sha256"]
+                        if field == "pristine_length":
+                            record[field] += 1
+                            record["sources"][old_hash]["length"] += 1
+                        else:
+                            record[field] = "0" * 64
+                            record["sources"][record[field]] = record["sources"].pop(old_hash)
+                    self.assert_catalog_rejected(mutate, "pristine.*match|match.*pristine")
+
+    def test_custom_catalog_requires_every_current_historical_and_dx8_lineage(self):
+        release = build_windows_release.load_release(ROOT)
+        variants = build_windows_release.build_game_variants(
+            build_windows_release.default_test_base_file(Path("game/sys/game.dll"))
+        )
+        cases = (
+            ("current", variants["1111"]["sha256"]),
+            ("historical", release.legacy_game_sha256[1]),
+            ("dx8-stock", build_windows_release.PRISTINE_DX8_SHA256),
+            ("dx8-vsync", json.loads((ROOT / "tests/golden/v3.json").read_text())["dx8"]["vsync"]),
+        )
+        for lineage, source_hash in cases:
+            with self.subTest(lineage=lineage):
+                def mutate(catalog, source_hash=source_hash):
+                    for target in catalog["targets"].values():
+                        target["sources"].pop(source_hash, None)
+                self.assert_catalog_rejected(mutate, "source coverage|missing.*source")
+
     def test_builder_rejects_non_64bit_patcher(self):
         with tempfile.TemporaryDirectory() as temporary:
             args = self.make_arguments(temporary)

@@ -96,6 +96,12 @@ def build(args):
     python = prefix / "drive_c/htmod-python/python.exe"
     installer = work / f"downloads/python-{PYTHON_VERSION}-amd64.exe"
     work.mkdir(parents=True, exist_ok=True)
+    if prefix.exists():
+        subprocess.run(("wineserver", "-k"), env=wine_environment(prefix), check=False)
+        shutil.rmtree(prefix)
+    for stale in (work / "dist", work / "pyinstaller"):
+        if stale.exists():
+            shutil.rmtree(stale)
     if not python.is_file():
         download_python(installer)
         run_wine(
@@ -115,7 +121,7 @@ def build(args):
         )
     if not python.is_file():
         raise BuildError(f"64-bit Windows Python was not installed at {python}")
-    run_wine((python, "-m", "pip", "install", "--no-cache-dir", "-r", REQUIREMENTS), prefix)
+    run_wine((python, "-m", "pip", "install", "--no-cache-dir", "--require-hashes", "-r", REQUIREMENTS), prefix)
     source_root = prefix / "drive_c/htmod-source"
     if source_root.exists():
         shutil.rmtree(source_root)

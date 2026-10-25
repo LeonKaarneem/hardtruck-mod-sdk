@@ -96,6 +96,26 @@ def build_dx8_payloads(source):
     }
 
 
+def validate_migration_catalog(catalog, release, game_dll, dx8_dll, game_variants, dx8):
+    expected_targets = {"game/sys/game.dll", "sys/dx8.dll"}
+    if set(catalog["targets"]) != expected_targets:
+        raise BuildError("migration catalog must contain exactly both canonical targets")
+    for target, source in (("game/sys/game.dll", game_dll), ("sys/dx8.dll", dx8_dll)):
+        record = catalog["targets"][target]
+        if record["pristine_length"] != source.stat().st_size:
+            raise BuildError(f"migration target '{target}' pristine length does not match build input")
+        if record["pristine_sha256"] != sha256(source):
+            raise BuildError(f"migration target '{target}' pristine SHA-256 does not match build input")
+    required = {
+        "game/sys/game.dll": {record["sha256"] for record in game_variants.values()} | set(release.legacy_game_sha256),
+        "sys/dx8.dll": {record["sha256"] for record in dx8.values()},
+    }
+    for target, hashes in required.items():
+        missing = hashes - set(catalog["targets"][target]["sources"])
+        if missing:
+            raise BuildError(f"migration target '{target}' missing required source coverage: {sorted(missing)[0]}")
+
+
 def copy_data(release, payload):
     return materialize_data(release, payload)
 
@@ -212,7 +232,7 @@ def build(args):
     if not args.dx8_dll.is_file():
         raise BuildError(f"pristine DX8 DLL not found: {args.dx8_dll}")
     verify_pe64(args.patcher_exe)
-    load_catalog(args.migrations)
+    catalog = load_catalog(args.migrations)
     for path, expected, label in (
         (args.game_dll, PRISTINE_GAME_SHA256, "game DLL"),
         (args.dx8_dll, PRISTINE_DX8_SHA256, "DX8 DLL"),
@@ -222,6 +242,9 @@ def build(args):
             raise BuildError(
                 f"{label} SHA-256 mismatch for {path}: expected {expected}, got {actual}"
             )
+    variants = build_game_variants(args.game_dll)
+    dx8 = build_dx8_payloads(args.dx8_dll)
+    validate_migration_catalog(catalog, release, args.game_dll, args.dx8_dll, variants, dx8)
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
         TEMPLATE_ROOT / "Play Modded.bat",
@@ -259,8 +282,6 @@ def build(args):
             staging = temporary / "payload"
             staging.mkdir()
 
-            variants = build_game_variants(args.game_dll)
-            dx8 = build_dx8_payloads(args.dx8_dll)
             copy_data(release, staging)
             shutil.copyfile(args.patcher_exe, staging / "htmod.exe")
             shutil.copyfile(args.migrations, staging / "migrations.json")

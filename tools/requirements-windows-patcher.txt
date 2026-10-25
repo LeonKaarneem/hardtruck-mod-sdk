@@ -1,8 +1,8 @@
-altgraph==0.17.4
-macholib==1.16.3
-packaging==24.2
-pefile==2023.2.7
-pyinstaller-hooks-contrib==2024.10
-pyinstaller==6.11.1
-pywin32-ctypes==0.2.3
-setuptools==75.6.0
+altgraph==0.17.4 --hash=sha256:642743b4750de17e655e6711601b077bc6598dbfa3ba5fa2b2a35ce12b508dff
+macholib==1.16.3 --hash=sha256:0e315d7583d38b8c77e815b1ecbdbf504a8258d8b3e17b61165c6feb60d18f2c
+packaging==24.2 --hash=sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759
+pefile==2023.2.7 --hash=sha256:da185cd2af68c08a6cd4481f7325ed600a88f6a813bad9dea07ab3ef73d8d8d6
+pyinstaller-hooks-contrib==2024.10 --hash=sha256:ad47db0e153683b4151e10d231cb91f2d93c85079e78d76d9e0f57ac6c8a5e10
+pyinstaller==6.11.1 --hash=sha256:7ac83c0dc0e04357dab98c487e74ad2adb30e7eb186b58157a8faf46f1fa796f
+pywin32-ctypes==0.2.3 --hash=sha256:8a1513379d709975552d202d942d9837758905c8d01eb82b8bcc30918929e7b8
+setuptools==75.6.0 --hash=sha256:ce74b49e8f7110f9bf04883b730f4765b774ef3ef28f722cce7c273d253aaf7d
