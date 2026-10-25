@@ -29,7 +29,7 @@ QUICK_SETUP_BLOCK = (
 ).encode("utf-8")
 STOCK_QUICK_SETUP_SHA256 = "2506947443d594a16cc4f34f9aa5186d4cb838fe1c1c6aae64ed83cb96cb2f62"
 CREDITS = ROOT / "modpack/mods/config/files/ui/mcredits.sc"
-STOCK_CREDITS = ROOT.parents[1] / "data/patch_zipfs/ui/mcredits.sc"
+STOCK_CREDITS = ROOT / "data/patch_zipfs/ui/mcredits.sc"
 CREDITS_BLOCK = (
     '\t\t\tspawn txt_common {\r\n'
     '\t\t\t\tlook:"3"\r\n'
