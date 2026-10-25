@@ -1,6 +1,7 @@
 extracted/
 data/
 wineprefix/
+wineprefix*/
 test-*/
 *.log
 /*.png
