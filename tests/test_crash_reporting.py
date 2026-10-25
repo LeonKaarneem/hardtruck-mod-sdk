@@ -372,23 +372,89 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             "config": {"id": "config", "status": "partial", "version": None},
         })
 
-    def test_zip_logs_redact_ipv4_and_ipv6_but_preserve_timestamps_and_versions(self):
+    def test_rollback_failed_mixed_history_uses_current_payload_state(self):
+        manifest = json.loads((self.package / "installer/payload/manifest.json").read_text(encoding="utf-8"))
+        entries = []
+
+        def add_entry(destination, installed_hash, existed=False, original_hash=None):
+            entries.append({
+                "destination": destination,
+                "installed_sha256": installed_hash,
+                "existed": existed,
+                "backup_file": None,
+                "original_sha256": original_hash,
+            })
+
+        for payload in manifest["data_components"]["config"]:
+            add_entry("game/usr/" + payload.removeprefix("data/"), manifest["payloads"][payload])
+
+        handling_files = manifest["data_components"]["handling_defs"]
+        self.assertGreater(len(handling_files), 2)
+        for index, payload in enumerate(handling_files):
+            destination = "game/usr/" + payload.removeprefix("data/")
+            add_entry(destination, manifest["payloads"][payload])
+            if index == 0:
+                target = self.game / destination
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(self.package / "installer/payload" / payload, target)
+            elif index == 1:
+                target = self.game / destination
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"remaining mismatched payload")
+
+        add_entry(
+            "game/sys/game.dll",
+            manifest["game_variants"]["0001"]["sha256"],
+            existed=True,
+            original_hash=sha256(self.game / "game/sys/game.dll"),
+        )
+        add_entry(
+            "sys/dx8.dll",
+            manifest["dx8"]["vsync"]["sha256"],
+            existed=True,
+            original_hash=sha256(self.game / "sys/dx8.dll"),
+        )
+        backup = self.package / "installer/backups/mixed-rollback"
+        backup.mkdir(parents=True)
+        (backup / "installation.json").write_text(json.dumps({
+            "schema_version": 1,
+            "status": "RollbackFailed",
+            "created": "2026-10-25T00:00:00Z",
+            "game_path": str(self.game),
+            "error": "synthetic mixed rollback",
+            "rollback_errors": ["synthetic remaining payload"],
+            "entries": entries,
+        }), encoding="utf-8")
+
+        self.assertEqual(self.report_components(), {
+            "handling_defs": {"id": "handling_defs", "status": "partial", "version": None},
+        })
+
+    def test_zip_logs_redact_prefixed_ipv4_and_ipv6_but_preserve_timestamps_and_three_part_versions(self):
         addresses = [
             "192.0.2.10",
             "10.0.0.1",
+            "1.2.3.4",
+            "192.0.2.20",
+            "203.0.113.9",
             "2001:db8::1",
             "::1",
             "2001:db8:0:1:1:1:1:1",
         ]
+        prefixed = {
+            "version 1.2.3.4": "version <IP>",
+            "v192.0.2.20": "v<IP>",
+            "server=203.0.113.9": "server=<IP>",
+        }
         ordinary_text = [
             "2026-10-25T12:34:56Z",
             "12:34:56",
-            "version 1.2.3.4",
             "v2.3.4",
+            "version 1.2.3",
             "release 1.2.3",
             "build 999.1.1.1",
         ]
-        text = "\n".join(addresses + ordinary_text) + "\n"
+        text = "\n".join(addresses + list(prefixed) + ordinary_text) + "\n"
         (self.game / "prism3d.crash").write_text(text, encoding="utf-8")
         (self.game / "prism3d.log").write_text(text, encoding="utf-8")
 
@@ -400,6 +466,8 @@ class CrashReportingRuntimeTests(unittest.TestCase):
                 for address in addresses:
                     self.assertNotIn(address, sanitized, f"{address} leaked in {name}")
                 self.assertGreaterEqual(sanitized.count("<IP>"), len(addresses))
+                for value in prefixed.values():
+                    self.assertIn(value, sanitized)
                 for value in ordinary_text:
                     self.assertIn(value, sanitized)
 

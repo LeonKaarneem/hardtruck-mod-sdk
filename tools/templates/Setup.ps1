@@ -814,15 +814,8 @@ function Protect-ReportAddresses {
         return $match.Value
     })
     $octet = '(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'
-    $versionOrIPv4 = '(?i)(?<version>\b(?:version|ver|v)\s*[:=]?\s*\d+(?:\.\d+){1,3})|(?<![0-9.])(?<ipv4>' +
-        $octet + '(?:\.' + $octet + '){3})(?![0-9.])'
-    return [regex]::Replace($result, $versionOrIPv4, {
-        param($match)
-        if ($match.Groups["ipv4"].Success) {
-            return "<IP>"
-        }
-        return $match.Value
-    })
+    $ipv4Pattern = '(?<![0-9.])' + $octet + '(?:\.' + $octet + '){3}(?![0-9.])'
+    return [regex]::Replace($result, $ipv4Pattern, "<IP>")
 }
 
 function Protect-ReportText {
@@ -886,6 +879,20 @@ function Get-ReportComponents {
                     continue
                 }
                 $relative = Test-SafeDestination ([string]$entry.destination) $Manifest
+                if ($installation.status -eq "RollbackFailed") {
+                    $destination = Join-Path $GamePath $relative
+                    if (-not (Test-Hash $destination ([string]$entry.installed_sha256))) {
+                        $restored = if ($entry.existed) {
+                            Test-Hash $destination ([string]$entry.original_sha256)
+                        }
+                        else {
+                            -not (Test-Path -LiteralPath $destination)
+                        }
+                        if ($restored) {
+                            continue
+                        }
+                    }
+                }
                 if ($relative -eq "game/sys/game.dll") {
                     foreach ($variant in @($Manifest.game_variants.PSObject.Properties)) {
                         if ($variant.Value.sha256 -ieq $entry.installed_sha256) {
