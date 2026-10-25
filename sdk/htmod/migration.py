@@ -139,7 +139,7 @@ def generate_splices(source, pristine):
 
 def normalize_to_pristine(data, target, catalog):
     _keys(catalog, ("schema_version", "targets"), "migration catalog")
-    if catalog["schema_version"] != 1 or isinstance(catalog["schema_version"], bool):
+    if type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1:
         raise MigrationError("migration catalog has unsupported schema_version")
     targets = catalog["targets"]
     if not isinstance(targets, dict) or target not in targets:
@@ -187,7 +187,7 @@ def load_catalog(path):
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise MigrationError(f"cannot read migration JSON {path}: {error}") from error
     _keys(catalog, ("schema_version", "targets"), "migration catalog")
-    if catalog["schema_version"] != 1 or isinstance(catalog["schema_version"], bool):
+    if type(catalog["schema_version"]) is not int or catalog["schema_version"] != 1:
         raise MigrationError("migration catalog has unsupported schema_version")
     targets = catalog["targets"]
     if not isinstance(targets, dict) or not targets:

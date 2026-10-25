@@ -143,6 +143,32 @@ class SpliceTests(unittest.TestCase):
                     with self.assertRaises(MigrationError):
                         load_catalog(path)
 
+    def test_schema_version_must_be_json_integer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "migrations.json"
+            catalog = self.make_catalog(b"pristine", {})
+            path.write_text(
+                json.dumps(catalog).replace('"schema_version": 1', '"schema_version": 1.0', 1),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(MigrationError, "schema_version"):
+                load_catalog(path)
+            catalog["schema_version"] = 1.0
+            with self.assertRaisesRegex(MigrationError, "schema_version"):
+                normalize_to_pristine(b"pristine", "game/sys/game.dll", catalog)
+
+    def test_catalog_loader_rejects_actual_duplicate_json_key(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "migrations.json"
+            path.write_text(
+                json.dumps(self.make_catalog(b"pristine", {})).replace(
+                    '"schema_version": 1', '"schema_version": 1, "schema_version": 1', 1,
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(MigrationError, "duplicate key 'schema_version'"):
+                load_catalog(path)
+
     def test_catalog_loader_enforces_compact_size_budget(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "migrations.json"
@@ -443,12 +469,58 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             self.assertEqual((self.output / target).read_bytes(), b"old-" + target.encode())
         self.assertFalse(list(self.output.rglob(".htmod-*")))
 
+    def test_post_rename_verification_removes_all_new_outputs(self):
+        from htmod import cli
+
+        self.write_game_source(self.game_sources[0][1])
+        self.write_dx8_source(self.dx8_sources[0][1])
+        expected = {
+            "game/sys/game.dll": self.golden["pristine"]["game_dll"],
+            "sys/dx8.dll": self.golden["pristine"]["dx8_dll"],
+        }
+        original_read_bytes = Path.read_bytes
+        corrupted = False
+
+        def corrupt_first_post_rename_read(path):
+            nonlocal corrupted
+            if path.is_relative_to(self.output) and not corrupted:
+                corrupted = True
+                return b"post-rename corruption"
+            return original_read_bytes(path)
+
+        with mock.patch.object(cli.Path, "read_bytes", corrupt_first_post_rename_read):
+            with self.assertRaisesRegex(Exception, "post-write verification"):
+                cli.stage(self.release, self.game, self.output, self.catalog_path, [], expected)
+        self.assertTrue(corrupted)
+        for target in expected:
+            self.assertFalse((self.output / target).exists())
+        self.assertFalse(list(self.output.rglob(".htmod-*")))
+
     def test_frozen_root_discovers_bundled_release(self):
         from htmod import cli
 
         with mock.patch.object(cli.sys, "frozen", True, create=True), \
                 mock.patch.object(cli.sys, "_MEIPASS", str(ROOT), create=True):
             self.assertEqual(cli.default_root(), ROOT)
+
+    def test_frozen_cli_loads_bundled_release_and_handler(self):
+        from htmod import cli
+
+        bundle = self.root / "frozen-bundle"
+        shutil.copytree(ROOT / "modpack", bundle / "modpack")
+        self.write_game_source(self.game_sources[0][1])
+        expected = self.golden["game_variants"]["0001"]["sha256"]
+        with mock.patch.object(cli.sys, "frozen", True, create=True), \
+                mock.patch.object(cli.sys, "_MEIPASS", str(bundle), create=True), \
+                mock.patch.object(cli, "load_release", wraps=cli.load_release) as bundled_release:
+            result = cli.main([
+                "stage", "--game-dir", str(self.game), "--output-dir", str(self.output),
+                "--migrations", str(self.catalog_path), "--mod", "camera",
+                "--expect", f"game/sys/game.dll={expected}",
+            ])
+        self.assertEqual(result, 0)
+        bundled_release.assert_called_once_with(bundle)
+        self.assertEqual(digest((self.output / "game/sys/game.dll").read_bytes()), expected)
 
 
 if __name__ == "__main__":
