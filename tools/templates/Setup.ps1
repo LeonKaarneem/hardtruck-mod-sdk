@@ -2,7 +2,7 @@
 param(
     [Parameter(Position = 0)]
     [string]$GamePath,
-    [ValidateSet("Menu", "InstallAll", "Custom", "Uninstall", "Quit")]
+    [ValidateSet("Menu", "InstallAll", "Custom", "Uninstall", "Play", "CrashReport", "Quit")]
     [string]$Action = "Menu",
     [string[]]$Components = @(),
     [switch]$NonInteractive
@@ -106,7 +106,7 @@ function Resolve-SetupAction {
         return $Action
     }
     if ($NonInteractive) {
-        throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, or Quit."
+        throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, Play, CrashReport, or Quit."
     }
     Write-Host ""
     Write-Host "Hard Truck Modern setup"
@@ -114,12 +114,16 @@ function Resolve-SetupAction {
     Write-Host "2. Choose components"
     Write-Host "3. Uninstall"
     Write-Host "4. Quit"
-    $choice = Read-Host "Select 1-4"
+    Write-Host "5. Play modded"
+    Write-Host "6. Create crash report"
+    $choice = Read-Host "Select 1-6"
     switch ($choice) {
         "1" { return "InstallAll" }
         "2" { return "Custom" }
         "3" { return "Uninstall" }
         "4" { return "Quit" }
+        "5" { return "Play" }
+        "6" { return "CrashReport" }
         default { throw "Invalid menu selection; setup cancelled." }
     }
 }
@@ -133,7 +137,7 @@ function Get-Selection {
     )
     $effectiveAction = $Action
     $script:SelectedAction = $effectiveAction
-    if ($effectiveAction -eq "Quit" -or $effectiveAction -eq "Uninstall") {
+    if ($effectiveAction -in @("Quit", "Uninstall", "Play", "CrashReport")) {
         return $null
     }
 
@@ -791,6 +795,308 @@ function Uninstall-Mods {
     }
 }
 
+function Protect-ReportText {
+    param(
+        [AllowNull()]
+        [string]$Text,
+        [string]$GamePath
+    )
+    if ($null -eq $Text) {
+        return ""
+    }
+    $pairs = @(
+        @{ Value = $GamePath; Replacement = "<GAME>" },
+        @{ Value = $script:PackageRoot; Replacement = "<PACKAGE>" },
+        @{ Value = [Environment]::GetFolderPath("UserProfile"); Replacement = "<HOME>" },
+        @{ Value = [Environment]::GetEnvironmentVariable("USERPROFILE"); Replacement = "<HOME>" },
+        @{ Value = [Environment]::GetEnvironmentVariable("HOME"); Replacement = "<HOME>" },
+        @{ Value = [Environment]::UserName; Replacement = "<USER>" },
+        @{ Value = [Environment]::GetEnvironmentVariable("USERNAME"); Replacement = "<USER>" },
+        @{ Value = [Environment]::GetEnvironmentVariable("USER"); Replacement = "<USER>" },
+        @{ Value = [Environment]::MachineName; Replacement = "<COMPUTER>" },
+        @{ Value = [Environment]::GetEnvironmentVariable("COMPUTERNAME"); Replacement = "<COMPUTER>" }
+    )
+    $result = $Text
+    foreach ($pair in ($pairs | Sort-Object { ([string]$_.Value).Length } -Descending)) {
+        $value = [string]$pair.Value
+        if ($value.Length -eq 0) {
+            continue
+        }
+        foreach ($variant in @($value, $value.Replace("\", "/"), $value.Replace("/", "\"))) {
+            $result = [regex]::Replace(
+                $result,
+                [regex]::Escape($variant),
+                [string]$pair.Replacement,
+                [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        }
+    }
+    return $result
+}
+
+function Get-InstalledReportComponents {
+    param(
+        $Manifest,
+        [string]$GamePath
+    )
+    $ids = @{}
+    if (-not (Test-Path -LiteralPath $script:BackupRoot -PathType Container)) {
+        return @()
+    }
+    $files = @(Get-ChildItem -LiteralPath $script:BackupRoot -Filter installation.json -Recurse -File | Sort-Object FullName -Descending)
+    foreach ($file in $files) {
+        try {
+            $installation = Get-Content -LiteralPath $file.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (@("Installed", "UninstallPartial", "RollbackFailed") -notcontains $installation.status -or
+                $installation.game_path -ine $GamePath) {
+                continue
+            }
+            foreach ($entry in @($installation.entries)) {
+                $relative = Test-SafeDestination ([string]$entry.destination) $Manifest
+                $destination = Join-Path $GamePath $relative
+                if (-not (Test-Hash $destination ([string]$entry.installed_sha256))) {
+                    continue
+                }
+                if ($relative -eq "game/sys/game.dll") {
+                    foreach ($variant in @($Manifest.game_variants.PSObject.Properties)) {
+                        if ($variant.Value.sha256 -ieq $entry.installed_sha256) {
+                            foreach ($id in @($variant.Value.components)) {
+                                $ids[$id] = $true
+                            }
+                        }
+                    }
+                }
+                elseif ($relative -eq "sys/dx8.dll") {
+                    if ($Manifest.dx8.vsync.sha256 -ieq $entry.installed_sha256) {
+                        $ids["dx8_vsync"] = $true
+                    }
+                }
+                else {
+                    foreach ($component in @($Manifest.data_components.PSObject.Properties)) {
+                        foreach ($payload in @($component.Value)) {
+                            if ($relative -eq ("game/usr/" + $payload.Substring("data/".Length))) {
+                                $ids[$component.Name] = $true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch {
+            continue
+        }
+    }
+    $components = @()
+    foreach ($id in @($ids.Keys | Sort-Object)) {
+        if ($null -ne $Manifest.components.PSObject.Properties[$id]) {
+            $components += [ordered]@{
+                id = $id
+                version = [string]$Manifest.components.$id.version
+            }
+        }
+    }
+    return $components
+}
+
+function Get-ReportGpu {
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        return @()
+    }
+    try {
+        $items = @()
+        foreach ($controller in @(Get-CimInstance -ClassName Win32_VideoController -ErrorAction Stop)) {
+            $items += [ordered]@{
+                name = [string]$controller.Name
+                driver_version = [string]$controller.DriverVersion
+            }
+        }
+        return $items
+    }
+    catch {
+        return @()
+    }
+}
+
+function Add-ReportTextEntry {
+    param(
+        $Archive,
+        [string]$Name,
+        [string]$Text,
+        [string]$GamePath
+    )
+    $entry = $Archive.CreateEntry($Name)
+    $stream = $entry.Open()
+    $writer = New-Object System.IO.StreamWriter($stream, (New-Object System.Text.UTF8Encoding($false)))
+    try {
+        $writer.Write((Protect-ReportText $Text $GamePath))
+    }
+    finally {
+        $writer.Dispose()
+    }
+}
+
+function Get-UniqueReportPath {
+    param([string]$Directory)
+    $base = "HardTruckCrashReport-" + [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss")
+    $candidate = Join-Path $Directory ($base + ".zip")
+    $number = 1
+    while (Test-Path -LiteralPath $candidate) {
+        $candidate = Join-Path $Directory ($base + "-" + $number + ".zip")
+        $number += 1
+    }
+    return $candidate
+}
+
+function New-CrashReport {
+    param(
+        $Manifest,
+        [string]$GamePath,
+        $ExitCode = $null,
+        $Launch = $null
+    )
+    $crashPath = Join-Path $GamePath "prism3d.crash"
+    $logPath = Join-Path $GamePath "prism3d.log"
+    $crashPresent = Test-Path -LiteralPath $crashPath -PathType Leaf
+    $logPresent = Test-Path -LiteralPath $logPath -PathType Leaf
+    $crashText = $null
+    $logText = $null
+    if ($crashPresent) {
+        $crashText = [System.IO.File]::ReadAllText($crashPath)
+    }
+    if ($logPresent) {
+        $lines = [System.IO.File]::ReadAllLines($logPath)
+        $logText = (@($lines | Select-Object -Last 4000) -join [Environment]::NewLine)
+    }
+
+    $report = [ordered]@{
+        schema_version = 1
+        created_utc = [DateTime]::UtcNow.ToString("o")
+        exit_code = $ExitCode
+        game_hashes = [ordered]@{
+            "prism3d.exe" = (Get-FileHash -LiteralPath (Join-Path $GamePath "prism3d.exe") -Algorithm SHA256).Hash.ToLowerInvariant()
+            "game/sys/game.dll" = (Get-FileHash -LiteralPath (Join-Path $GamePath "game/sys/game.dll") -Algorithm SHA256).Hash.ToLowerInvariant()
+            "sys/dx8.dll" = (Get-FileHash -LiteralPath (Join-Path $GamePath "sys/dx8.dll") -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        payload_manifest_schema = $Manifest.schema_version
+        components = @(Get-InstalledReportComponents $Manifest $GamePath)
+        os = [ordered]@{
+            platform = [string][Environment]::OSVersion.Platform
+            version = [string][Environment]::OSVersion.VersionString
+        }
+        gpu = @(Get-ReportGpu)
+        logs = [ordered]@{
+            "prism3d.crash" = $crashPresent
+            "prism3d.log" = $logPresent
+        }
+    }
+    if ($null -ne $Launch) {
+        foreach ($key in @($Launch.Keys)) {
+            $report[$key] = $Launch[$key]
+        }
+    }
+    $reportJson = $report | ConvertTo-Json -Depth 10
+    $readme = @"
+Hard Truck Modern crash report
+
+This archive contains sanitized Prism3D crash/log text, installation and system metadata, and this README.
+The game log is limited to its last 4000 lines. Paths, user names, and computer names are replaced with placeholders.
+It does not contain saves, profiles, backups, memory dumps, registry exports, dxdiag, MSInfo, or arbitrary documents.
+Nothing was uploaded. Review the archive and share it only with someone you trust when requesting support.
+"@
+
+    Add-Type -AssemblyName System.IO.Compression
+    $memory = New-Object System.IO.MemoryStream
+    try {
+        $archive = New-Object System.IO.Compression.ZipArchive($memory, [System.IO.Compression.ZipArchiveMode]::Create, $true)
+        try {
+            if ($null -ne $crashText) {
+                Add-ReportTextEntry $archive "prism3d.crash" $crashText $GamePath
+            }
+            if ($null -ne $logText) {
+                Add-ReportTextEntry $archive "prism3d.log" $logText $GamePath
+            }
+            Add-ReportTextEntry $archive "report.json" $reportJson $GamePath
+            Add-ReportTextEntry $archive "README.txt" $readme $GamePath
+        }
+        finally {
+            $archive.Dispose()
+        }
+        $bytes = $memory.ToArray()
+    }
+    finally {
+        $memory.Dispose()
+    }
+
+    $desktop = [Environment]::GetEnvironmentVariable("HARDTRUCK_DESKTOP_PATH")
+    if ([string]::IsNullOrWhiteSpace($desktop)) {
+        $desktop = [Environment]::GetFolderPath("Desktop")
+    }
+    $directories = @()
+    if (-not [string]::IsNullOrWhiteSpace($desktop)) {
+        $directories += $desktop
+    }
+    $directories += $script:PackageRoot
+    $lastError = $null
+    foreach ($directory in $directories) {
+        try {
+            if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+                [void](New-Item -ItemType Directory -Path $directory -Force)
+            }
+            $destination = Get-UniqueReportPath $directory
+            [System.IO.File]::WriteAllBytes($destination, $bytes)
+            Write-Host "Crash report created: $destination"
+            return $destination
+        }
+        catch {
+            $lastError = $_
+        }
+    }
+    throw "Could not create the crash report: $($lastError.Exception.Message)"
+}
+
+function Invoke-Play {
+    param(
+        $Manifest,
+        [string]$GamePath,
+        [switch]$NonInteractive
+    )
+    $crashPath = Join-Path $GamePath "prism3d.crash"
+    $previousCrashTimestamp = $null
+    if (Test-Path -LiteralPath $crashPath -PathType Leaf) {
+        $previousCrashTimestamp = (Get-Item -LiteralPath $crashPath).LastWriteTimeUtc
+    }
+    $started = [DateTime]::UtcNow
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = Join-Path $GamePath "prism3d.exe"
+    $startInfo.Arguments = '-game game -icon game.ico -title "Hard Truck Modern"'
+    $startInfo.WorkingDirectory = $GamePath
+    $startInfo.UseShellExecute = $false
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    try {
+        $process.WaitForExit()
+        $exitCode = $process.ExitCode
+    }
+    finally {
+        $process.Dispose()
+    }
+    $currentCrashTimestamp = $null
+    if (Test-Path -LiteralPath $crashPath -PathType Leaf) {
+        $currentCrashTimestamp = (Get-Item -LiteralPath $crashPath).LastWriteTimeUtc
+    }
+    $newerCrash = $null -ne $currentCrashTimestamp -and
+        ($null -eq $previousCrashTimestamp -or $currentCrashTimestamp -gt $previousCrashTimestamp)
+    $launch = @{
+        started_utc = $started.ToString("o")
+        working_directory = "<GAME>"
+        crash_timestamp_before_utc = if ($null -eq $previousCrashTimestamp) { $null } else { $previousCrashTimestamp.ToString("o") }
+        crash_timestamp_utc = if ($null -eq $currentCrashTimestamp) { $null } else { $currentCrashTimestamp.ToString("o") }
+    }
+    if ($exitCode -ne 0 -or $newerCrash) {
+        if (Read-YesNo "Create a crash report?" -DefaultYes $true -NonInteractive:$NonInteractive) {
+            New-CrashReport $Manifest $GamePath $exitCode $launch
+        }
+    }
+}
+
 try {
     $effectiveAction = Resolve-SetupAction $Action -NonInteractive:$NonInteractive
     $script:SelectedAction = $effectiveAction
@@ -800,6 +1106,16 @@ try {
     $manifest = Read-PayloadManifest
     $selection = Get-Selection $effectiveAction $Components -NonInteractive:$NonInteractive -Manifest $manifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
+    if ($effectiveAction -eq "Play") {
+        Invoke-Play $manifest $script:GamePath -NonInteractive:$NonInteractive
+        if ($Action -eq "Menu") { exit 2 } else { exit 0 }
+    }
+    if ($effectiveAction -eq "CrashReport") {
+        if ((Read-YesNo "Create crash report from engine logs?" -DefaultYes $true -NonInteractive:$NonInteractive)) {
+            New-CrashReport $manifest $script:GamePath
+        }
+        if ($Action -eq "Menu") { exit 2 } else { exit 0 }
+    }
     if (-not $NonInteractive) {
         $confirmed = Read-YesNo "Confirm that the game is closed before setup continues" -DefaultYes $false
         if (-not $confirmed) {

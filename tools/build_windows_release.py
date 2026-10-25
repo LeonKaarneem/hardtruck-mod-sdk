@@ -233,6 +233,8 @@ def build(args):
             )
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
+        TEMPLATE_ROOT / "Play Modded.bat",
+        TEMPLATE_ROOT / "CrashReport.bat",
         TEMPLATE_ROOT / "Setup.ps1",
         TEMPLATE_ROOT / "INSTALL.sh",
         TEMPLATE_ROOT / "README.md",
@@ -255,6 +257,8 @@ def build(args):
         installer = release_staging / "installer"
         installer.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATE_ROOT / "Setup.bat", release_staging / "Setup.bat")
+        shutil.copyfile(TEMPLATE_ROOT / "Play Modded.bat", release_staging / "Play Modded.bat")
+        shutil.copyfile(TEMPLATE_ROOT / "CrashReport.bat", release_staging / "CrashReport.bat")
         shutil.copyfile(TEMPLATE_ROOT / "Setup.ps1", installer / "Setup.ps1")
         shutil.copyfile(TEMPLATE_ROOT / "INSTALL.sh", release_staging / "INSTALL.sh")
         (release_staging / "INSTALL.sh").chmod(0o755)

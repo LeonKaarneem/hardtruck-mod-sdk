@@ -1,0 +1,255 @@
+import hashlib
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+from types import SimpleNamespace
+import subprocess
+import tempfile
+import unittest
+import zipfile
+
+from tools import build_windows_release
+
+
+ROOT = Path(__file__).resolve().parents[1]
+PWSH = os.environ.get("PWSH") or shutil.which("pwsh")
+COMPONENT_IDS = {
+    "config",
+    "handling_defs",
+    "economy_def",
+    "driver_def",
+    "camera",
+    "physics",
+    "ai",
+    "ui_keyboard",
+    "dx8_vsync",
+}
+
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+class CrashReportTemplateTests(unittest.TestCase):
+    def test_batch_templates_forward_arguments_to_their_actions(self):
+        for name, action in (("Play Modded.bat", "Play"), ("CrashReport.bat", "CrashReport")):
+            with self.subTest(template=name):
+                text = (ROOT / "tools/templates" / name).read_text(encoding="utf-8")
+                self.assertIn("powershell.exe", text)
+                self.assertIn("installer\\Setup.ps1", text)
+                self.assertIn(f"-Action {action}", text)
+                self.assertIn("%*", text)
+
+
+@unittest.skipIf(PWSH is None, "PowerShell 7 is required for crash reporting runtime tests")
+class CrashReportingRuntimeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.release_temporary = tempfile.TemporaryDirectory(prefix="htmod-crash-release-")
+        cls.release = Path(cls.release_temporary.name) / "HardTruckModern"
+        build_windows_release.build(SimpleNamespace(
+            output=cls.release,
+            game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+            dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+        ))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.release_temporary.cleanup()
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="htmod-crash-test-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.package = self.root / "private package"
+        shutil.copytree(self.release, self.package)
+        self.game = self.root / "private game"
+        (self.game / "game/sys").mkdir(parents=True)
+        (self.game / "sys").mkdir()
+        shutil.copyfile(build_windows_release.default_test_base_file(Path("game/sys/game.dll")), self.game / "game/sys/game.dll")
+        shutil.copyfile(build_windows_release.default_test_base_file(Path("sys/dx8.dll")), self.game / "sys/dx8.dll")
+        self.marker = self.root / "fake-process.txt"
+        self.desktop = self.root / "Desktop"
+        self.desktop.mkdir()
+        self.home = self.root / "home" / "sensitive_user"
+        self.home.mkdir(parents=True)
+        self.write_fake_game()
+
+    def write_fake_game(self, exit_code=0, newer_crash=False):
+        crash = ""
+        if newer_crash:
+            crash = "sleep 1\nprintf 'new crash from fake executable\\n' > prism3d.crash\n"
+        script = (
+            "#!/bin/sh\n"
+            "printf '%s\\n' \"$PWD\" > \"$HARDTRUCK_FAKE_MARKER\"\n"
+            "printf '%s\\n' \"$@\" >> \"$HARDTRUCK_FAKE_MARKER\"\n"
+            f"{crash}"
+            f"exit {exit_code}\n"
+        )
+        executable = self.game / "prism3d.exe"
+        executable.write_text(script, encoding="utf-8")
+        executable.chmod(0o755)
+
+    def run_setup(self, action, interactive=False, input_text=None, package=None):
+        package = package or self.package
+        command = [
+            PWSH,
+            "-NoProfile",
+            "-File",
+            str(package / "installer/Setup.ps1"),
+            "-GamePath",
+            str(self.game),
+            "-Action",
+            action,
+        ]
+        if not interactive:
+            command.append("-NonInteractive")
+        environment = os.environ.copy()
+        environment.pop("USER", None)
+        environment.update({
+            "POWERSHELL_TELEMETRY_OPTOUT": "1",
+            "HARDTRUCK_FAKE_MARKER": str(self.marker),
+            "HARDTRUCK_DESKTOP_PATH": str(self.desktop),
+            "HOME": str(self.home),
+            "USERPROFILE": str(self.home),
+            "USERNAME": "sensitive_user",
+            "COMPUTERNAME": "sensitive_computer",
+        })
+        return subprocess.run(
+            command,
+            input=input_text,
+            text=True,
+            capture_output=True,
+            env=environment,
+            timeout=45,
+        )
+
+    def reports(self):
+        return list(self.desktop.glob("HardTruckCrashReport-*.zip"))
+
+    def test_builder_copies_batch_entry_points(self):
+        for name in ("Play Modded.bat", "CrashReport.bat"):
+            self.assertEqual(
+                (self.package / name).read_bytes(),
+                (ROOT / "tools/templates" / name).read_bytes(),
+            )
+
+    def test_play_normal_exit_uses_game_working_directory_and_does_not_prompt(self):
+        result = self.run_setup("Play", interactive=True, input_text="")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.reports(), [])
+        self.assertNotIn("Create a crash report?", result.stdout)
+        self.assertEqual(self.marker.read_text(encoding="utf-8").splitlines(), [
+            str(self.game),
+            "-game",
+            "game",
+            "-icon",
+            "game.ico",
+            "-title",
+            "Hard Truck Modern",
+        ])
+
+    def test_play_nonzero_exit_offers_default_yes_and_records_exit_code(self):
+        self.write_fake_game(exit_code=7)
+        result = self.run_setup("Play", interactive=True, input_text="\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Create a crash report? [Y/n]", result.stdout)
+        self.assertEqual(len(self.reports()), 1)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            report = json.loads(archive.read("report.json"))
+        self.assertEqual(report["exit_code"], 7)
+        self.assertEqual(report["working_directory"], "<GAME>")
+        self.assertIn("started_utc", report)
+
+    def test_play_newer_crash_offers_report_even_after_zero_exit(self):
+        self.write_fake_game(newer_crash=True)
+        result = self.run_setup("Play", interactive=True, input_text="\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Create a crash report? [Y/n]", result.stdout)
+        self.assertEqual(len(self.reports()), 1)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            report = json.loads(archive.read("report.json"))
+            self.assertEqual(report["exit_code"], 0)
+            self.assertIn("new crash from fake executable", archive.read("prism3d.crash").decode("utf-8"))
+
+    def test_play_report_decline_creates_no_archive(self):
+        self.write_fake_game(exit_code=9)
+        result = self.run_setup("Play", interactive=True, input_text="n\n")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("Create a crash report? [Y/n]", result.stdout)
+        self.assertEqual(self.reports(), [])
+
+    def test_manual_report_contains_sanitized_logs_metadata_and_only_allowed_entries(self):
+        installed = self.run_setup("InstallAll")
+        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+        sensitive = [
+            str(self.game),
+            str(self.package),
+            str(self.home),
+            "sensitive_user",
+            "sensitive_computer",
+            platform.node(),
+        ]
+        crash_text = "fake crash\n" + "\n".join(sensitive) + "\n"
+        (self.game / "prism3d.crash").write_text(crash_text, encoding="utf-8")
+        lines = [f"log-line-{number}" for number in range(1, 4006)]
+        lines.extend(sensitive)
+        (self.game / "prism3d.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for relative in ("game/usr/save/private.sav", "game/usr/profile/private.cfg", "memory.dmp", "dxdiag.txt"):
+            target = self.game / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("must not be collected", encoding="utf-8")
+
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("game is closed", result.stdout + result.stderr)
+        self.assertEqual(len(self.reports()), 1)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(set(archive.namelist()), {
+                "prism3d.crash",
+                "prism3d.log",
+                "report.json",
+                "README.txt",
+            })
+            log = archive.read("prism3d.log").decode("utf-8").splitlines()
+            self.assertEqual(len(log), 4000)
+            self.assertEqual(log[0], "log-line-12")
+            self.assertIn("log-line-4005", log)
+            report = json.loads(archive.read("report.json"))
+            for name in archive.namelist():
+                text = archive.read(name).decode("utf-8")
+                for value in sensitive:
+                    self.assertNotIn(value, text, f"{value!r} leaked in {name}")
+
+        self.assertIsNone(report["exit_code"])
+        self.assertEqual(report["payload_manifest_schema"], 2)
+        self.assertEqual({item["id"] for item in report["components"]}, COMPONENT_IDS)
+        self.assertTrue(all(item["version"] for item in report["components"]))
+        self.assertEqual(report["game_hashes"], {
+            "prism3d.exe": sha256(self.game / "prism3d.exe"),
+            "game/sys/game.dll": sha256(self.game / "game/sys/game.dll"),
+            "sys/dx8.dll": sha256(self.game / "sys/dx8.dll"),
+        })
+        self.assertEqual(report["logs"], {"prism3d.crash": True, "prism3d.log": True})
+        self.assertIn("os", report)
+        self.assertIn("gpu", report)
+        self.assertTrue(report["created_utc"].endswith("Z"))
+
+    def test_manual_and_menu_report_actions_skip_game_closed_confirmation(self):
+        manual = self.run_setup("CrashReport", interactive=True, input_text="\n")
+        self.assertEqual(manual.returncode, 0, manual.stdout + manual.stderr)
+        self.assertNotIn("game is closed", manual.stdout + manual.stderr)
+        self.assertEqual(len(self.reports()), 1)
+
+        menu = self.run_setup("Menu", interactive=True, input_text="6\n\n")
+        self.assertEqual(menu.returncode, 2, menu.stdout + menu.stderr)
+        self.assertIn("Create crash report", menu.stdout)
+        self.assertNotIn("game is closed", menu.stdout + menu.stderr)
+        self.assertEqual(len(self.reports()), 2)
+
+
+if __name__ == "__main__":
+    unittest.main()
