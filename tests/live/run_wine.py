@@ -30,10 +30,11 @@ def parse_args(argv=None):
     parser.add_argument("--output", required=True, type=Path, help="screenshot and log output folder")
     parser.add_argument("--display", required=True, type=normalize_display, help="unused X11 display, for example :121")
     parser.add_argument("--resolution", choices=("1024x768", "1920x1080"), default="1024x768")
-    parser.add_argument("--smoke", choices=("quick-setup", "camera", "accessibility"), default="quick-setup")
+    parser.add_argument("--smoke", choices=("quick-setup", "camera", "accessibility", "credits"), default="quick-setup")
     parser.add_argument("--title", default="HTMODSDKSMOKE", help="unique window title used to find the game")
     parser.add_argument("--boot-wait", type=float, default=30)
     parser.add_argument("--map-wait", type=float, default=25)
+    parser.add_argument("--page-wait", type=float, default=3)
     return parser.parse_args(argv)
 
 
@@ -52,12 +53,20 @@ def validate_camera_bindings(game):
         )
 
 
-def validate_game_log(text, require_quick_setup=False, allow_headless_graphics=False):
+def validate_game_log(
+    text,
+    require_quick_setup=False,
+    allow_headless_graphics=False,
+    require_game_state=True,
+    require_credits=False,
+):
     lowered = text.casefold()
-    if "setting state game" not in lowered:
+    if require_game_state and "setting state game" not in lowered:
         raise LiveSmokeError("game log did not reach GAME state")
     if require_quick_setup and "script ui/cosetup.sc read ok" not in lowered:
         raise LiveSmokeError("game log did not load ui/cosetup.sc")
+    if require_credits and "script ui/mcredits.sc read ok" not in lowered:
+        raise LiveSmokeError("game log did not load ui/mcredits.sc")
     for marker in ("page fault", "0x88888786", "creation failed", "unhandled exception", "assertion failed"):
         if marker in lowered:
             raise LiveSmokeError(f"fatal game/Wine log marker: {marker}")
@@ -349,7 +358,13 @@ class WineSession:
     def game_log(self):
         return (self.game / "prism3d.log").read_text(encoding="utf-8", errors="replace")
 
-    def finish(self, require_quick_setup=True, allow_headless_graphics=False):
+    def finish(
+        self,
+        require_quick_setup=True,
+        allow_headless_graphics=False,
+        require_game_state=True,
+        require_credits=False,
+    ):
         if self.game_process.poll() is not None:
             raise LiveSmokeError(f"Wine exited during smoke; see {self.output / 'wine.log'}")
         text = self.game_log()
@@ -357,6 +372,8 @@ class WineSession:
             text,
             require_quick_setup=require_quick_setup,
             allow_headless_graphics=allow_headless_graphics,
+            require_game_state=require_game_state,
+            require_credits=require_credits,
         )
         truck_summary = None
         if self.truck_address is not None:
@@ -472,6 +489,23 @@ def run_camera(session, args):
     session.finish(require_quick_setup=True)
 
 
+def run_credits(session, args):
+    time.sleep(args.boot_wait)
+    session.key("Tab", repeat=6)
+    session.capture("01-credits-focused.png")
+    session.key("Return")
+    time.sleep(2)
+    for page in range(1, 6):
+        if page > 1:
+            time.sleep(args.page_wait)
+        session.capture(f"{page + 1:02d}-credits-page-{page}.png")
+    session.finish(
+        require_quick_setup=False,
+        require_game_state=False,
+        require_credits=True,
+    )
+
+
 def run_accessibility(session, args):
     time.sleep(args.boot_wait)
     session.capture("01-main-normal.png")
@@ -541,8 +575,10 @@ def main(argv=None):
                 run_quick_setup(session, args)
             elif args.smoke == "camera":
                 run_camera(session, args)
-            else:
+            elif args.smoke == "accessibility":
                 run_accessibility(session, args)
+            else:
+                run_credits(session, args)
     except (LiveSmokeError, OSError, subprocess.SubprocessError) as error:
         print(f"live smoke failed: {error}", file=sys.stderr)
         return 1

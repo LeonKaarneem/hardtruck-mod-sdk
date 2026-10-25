@@ -39,7 +39,7 @@ CREDITS_BLOCK = (
     '\t\t\t}\r\n'
     '\t\t\tspawn txt_common {\r\n'
     '\t\t\t\tlook:"22"\r\n'
-    '\t\t\t\tvalue:"MOD SDK: Sonny"\r\n'
+    '\t\t\t\tvalue:"MOD SDK: LeonKaarneem"\r\n'
     '\t\t\t\tarea:"306.000000 716.000000 717.000000 748.000000"\r\n'
     '\t\t\t\tcoords:"306.000000 716.000000 717.000000 748.000000"\r\n'
     '\t\t\t}\r\n'
@@ -126,20 +126,22 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
 
 
 class CreditsTests(unittest.TestCase):
-    def test_stock_patch_12_credits_are_preserved_except_for_persistent_tabx_block(self):
+    def test_stock_patch_12_credits_are_preserved_except_for_five_page_blocks(self):
         self.assertTrue(CREDITS.is_file(), "config-owned Credits override is missing")
         content = CREDITS.read_bytes()
-        self.assertEqual(content.count(CREDITS_BLOCK), 1)
-        self.assertEqual(content.replace(CREDITS_BLOCK, b"", 1), STOCK_CREDITS.read_bytes())
+        self.assertEqual(content.count(CREDITS_BLOCK), 5)
+        self.assertEqual(content.replace(CREDITS_BLOCK, b""), STOCK_CREDITS.read_bytes())
         self.assertGreater(content.count(b"\r\n"), 0)
         self.assertEqual(content.count(b"\n"), content.count(b"\r\n"))
-        group_start = content.index(b'\t\tspawn ui_group {\r\n\t\t\tid:"3005"')
-        group_end = content.index(b"\r\n\t\t}\r\n", group_start) + len(b"\r\n\t\t}\r\n")
-        group = content[group_start:group_end]
-        self.assertIn(b'\t\t\tname:"tabX"\r\n', group)
-        self.assertIn(CREDITS_BLOCK, group)
-        self.assertEqual(content.count(b'value:"Hard Truck Modern"'), 1)
-        self.assertEqual(content.count(b'value:"MOD SDK: Sonny"'), 1)
+        for identifier in range(3000, 3005):
+            group_start = content.index(
+                f'\t\tspawn ui_group {{\r\n\t\t\tid:"{identifier}"'.encode("ascii")
+            )
+            group_end = content.index(b"\r\n\t\t}\r\n", group_start) + len(b"\r\n\t\t}\r\n")
+            group = content[group_start:group_end]
+            self.assertEqual(group.count(CREDITS_BLOCK), 1, identifier)
+        self.assertEqual(content.count(b'value:"Hard Truck Modern"'), 5)
+        self.assertEqual(content.count(b'value:"MOD SDK: LeonKaarneem"'), 5)
 
     def test_config_owns_and_materializes_exact_credits_bytes(self):
         release = load_release(ROOT)

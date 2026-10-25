@@ -194,6 +194,18 @@ spawn ui_window {
 			name:"tab1"
 			spawn txt_common {
 				look:"3"
+				value:"Hard Truck Modern"
+				area:"306.000000 680.000000 718.000000 712.000000"
+				coords:"306.000000 680.000000 718.000000 712.000000"
+			}
+			spawn txt_common {
+				look:"22"
+				value:"MOD SDK: LeonKaarneem"
+				area:"306.000000 716.000000 717.000000 748.000000"
+				coords:"306.000000 716.000000 717.000000 748.000000"
+			}
+			spawn txt_common {
+				look:"3"
 				value:"@@cre_production@@"
 				area:"306.000000 158.000000 718.000000 190.000000"
 				coords:"306.000000 158.000000 718.000000 190.000000"
@@ -217,6 +229,18 @@ spawn ui_window {
 			name:"tab2"
 			spawn txt_common {
 				look:"3"
+				value:"Hard Truck Modern"
+				area:"306.000000 680.000000 718.000000 712.000000"
+				coords:"306.000000 680.000000 718.000000 712.000000"
+			}
+			spawn txt_common {
+				look:"22"
+				value:"MOD SDK: LeonKaarneem"
+				area:"306.000000 716.000000 717.000000 748.000000"
+				coords:"306.000000 716.000000 717.000000 748.000000"
+			}
+			spawn txt_common {
+				look:"3"
 				value:"@@cre_programming@@"
 				area:"306.000000 157.000000 717.000000 189.000000"
 				coords:"306.000000 157.000000 717.000000 189.000000"
@@ -227,6 +251,18 @@ spawn ui_window {
 			area:"0.000000 0.000000 1024.000000 768.000000"
 			coords:"0.000000 0.000000 1024.000000 768.000000"
 			name:"tab3"
+			spawn txt_common {
+				look:"3"
+				value:"Hard Truck Modern"
+				area:"306.000000 680.000000 718.000000 712.000000"
+				coords:"306.000000 680.000000 718.000000 712.000000"
+			}
+			spawn txt_common {
+				look:"22"
+				value:"MOD SDK: LeonKaarneem"
+				area:"306.000000 716.000000 717.000000 748.000000"
+				coords:"306.000000 716.000000 717.000000 748.000000"
+			}
 			spawn txt_common {
 				look:"3"
 				value:"@@cre_art@@"
@@ -241,6 +277,18 @@ spawn ui_window {
 			name:"tab4"
 			spawn txt_common {
 				look:"3"
+				value:"Hard Truck Modern"
+				area:"306.000000 680.000000 718.000000 712.000000"
+				coords:"306.000000 680.000000 718.000000 712.000000"
+			}
+			spawn txt_common {
+				look:"22"
+				value:"MOD SDK: LeonKaarneem"
+				area:"306.000000 716.000000 717.000000 748.000000"
+				coords:"306.000000 716.000000 717.000000 748.000000"
+			}
+			spawn txt_common {
+				look:"3"
 				value:"@@cre_sfx@@"
 				area:"306.000000 157.000000 717.000000 189.000000"
 				coords:"306.000000 157.000000 717.000000 189.000000"
@@ -251,6 +299,18 @@ spawn ui_window {
 			area:"0.000000 0.000000 1024.000000 768.000000"
 			coords:"0.000000 0.000000 1024.000000 768.000000"
 			name:"tab5"
+			spawn txt_common {
+				look:"3"
+				value:"Hard Truck Modern"
+				area:"306.000000 680.000000 718.000000 712.000000"
+				coords:"306.000000 680.000000 718.000000 712.000000"
+			}
+			spawn txt_common {
+				look:"22"
+				value:"MOD SDK: LeonKaarneem"
+				area:"306.000000 716.000000 717.000000 748.000000"
+				coords:"306.000000 716.000000 717.000000 748.000000"
+			}
 			spawn txt_common {
 				look:"21"
 				value:"built on Prism3D technology"
@@ -280,18 +340,6 @@ spawn ui_window {
 			area:"0.000000 0.000000 1024.000000 768.000000"
 			coords:"0.000000 0.000000 1024.000000 768.000000"
 			name:"tabX"
-			spawn txt_common {
-				look:"3"
-				value:"Hard Truck Modern"
-				area:"306.000000 680.000000 718.000000 712.000000"
-				coords:"306.000000 680.000000 718.000000 712.000000"
-			}
-			spawn txt_common {
-				look:"22"
-				value:"MOD SDK: Sonny"
-				area:"306.000000 716.000000 717.000000 748.000000"
-				coords:"306.000000 716.000000 717.000000 748.000000"
-			}
 		}
 	}
 }

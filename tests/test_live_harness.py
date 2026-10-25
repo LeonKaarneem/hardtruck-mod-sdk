@@ -314,6 +314,61 @@ class LiveHarnessTests(unittest.TestCase):
         self.assertEqual(args.smoke, "accessibility")
         self.assertEqual(args.resolution, "1920x1080")
 
+    def test_credits_smoke_captures_each_timed_page_and_persistent_lines(self):
+        harness = load_harness()
+
+        class FakeSession:
+            def __init__(self):
+                self.keys = []
+                self.screenshots = []
+                self.finished = None
+
+            def key(self, key, repeat=1):
+                self.keys.append((key, repeat))
+
+            def capture(self, name):
+                self.screenshots.append(name)
+
+            def finish(self, require_quick_setup, require_game_state, require_credits):
+                self.finished = (require_quick_setup, require_game_state, require_credits)
+
+        session = FakeSession()
+        with mock.patch.object(harness.time, "sleep") as sleep:
+            harness.run_credits(session, mock.Mock(boot_wait=0, page_wait=3))
+        self.assertEqual(session.keys, [("Tab", 6), ("Return", 1)])
+        self.assertEqual(session.screenshots, [
+            "01-credits-focused.png",
+            "02-credits-page-1.png",
+            "03-credits-page-2.png",
+            "04-credits-page-3.png",
+            "05-credits-page-4.png",
+            "06-credits-page-5.png",
+        ])
+        self.assertEqual(
+            [call.args[0] for call in sleep.call_args_list],
+            [0, 2, 3, 3, 3, 3],
+        )
+        self.assertEqual(session.finished, (False, False, True))
+
+    def test_credits_entrypoint_and_menu_log_validation(self):
+        entrypoint = ROOT / "tests/live/credits.py"
+        self.assertTrue(entrypoint.is_file())
+        self.assertIn('from run_wine import main', entrypoint.read_text(encoding="utf-8"))
+        harness = load_harness()
+        args = harness.parse_args([
+            "--game", "/game", "--prefix", "/prefix", "--output", "/output",
+            "--display", ":125", "--resolution", "1920x1080", "--smoke", "credits",
+            "--page-wait", "4",
+        ])
+        self.assertEqual(args.smoke, "credits")
+        self.assertEqual(args.page_wait, 4)
+        harness.validate_game_log(
+            "script ui/mcredits.sc read OK\n",
+            require_quick_setup=False,
+            require_game_state=False,
+            require_credits=True,
+        )
+
     def test_retired_one_off_patchers_are_not_active_sources(self):
         for name in (
             "patch_camera_mods.py",

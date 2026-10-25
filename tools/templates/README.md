@@ -10,7 +10,9 @@ The installer supports pristine Hard Truck v1.2, current installed variants, and
 
 ## Play Modded and crash reports
 
-Run **`Play Modded.bat`** (or Setup menu option 5) to launch the game and wait for it to exit. Normal exit creates nothing and does not prompt. A nonzero exit or newly updated `prism3d.crash` offers a default-Yes crash report; answering No creates no archive. For a manual report, run **`CrashReport.bat`** or choose Setup menu option 6 and confirm. These actions do not intentionally crash the game.
+Run **`Play Modded.bat`** to review the **Hard Truck Modern v3** dialog and **MOD SDK: LeonKaarneem** credit. **Play**/Enter launches the game; **Cancel**, Escape, or closing the window starts no game and creates no report. Setup menu option 5 and noninteractive automation retain their direct launch behavior.
+
+After launch, normal exit creates nothing and does not prompt. A nonzero exit or newly updated `prism3d.crash` offers a default-Yes crash report; answering No creates no archive. For a manual report, run **`CrashReport.bat`** or choose Setup menu option 6 and confirm. These actions do not intentionally crash the game. Native Windows dialog appearance and DPI rendering remain unverified from Linux.
 
 The timestamped `HardTruckCrashReport-*.zip` is saved on your Desktop, falling back to the extracted package folder if needed. It contains only sanitized `prism3d.crash` and the last 4000 lines of sanitized `prism3d.log` when those files exist, plus `report.json` and `README.txt`. Metadata records the report schema/UTC time, Play launch and exit details when available, hashes of the game executable and game/DX8 DLLs, payload schema, installed component IDs/statuses/versions, basic OS/GPU details, and log-presence flags.
 
@@ -24,7 +26,7 @@ Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. Thi
 
 `~` opens the console; `2` selects the mouse-orbit chase camera. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot. Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders.
 
-With Configuration and Keyboard navigation installed, the main menu has larger text and targets. Options Graphics/Sound/Controls selectors have larger text, `>` keyboard-focus cues, and `[x]` selected-page cues without enlarged targets. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right.
+With Configuration and Keyboard navigation installed, the main menu has larger text and targets. Options Graphics/Sound/Controls selectors have larger text, `>` keyboard-focus cues, and `[x]` selected-page cues without enlarged targets. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right. All five Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
 
 Key 1 retains the stock cabin camera: left/right look behaves as in the unmodified game, and vertical-look inputs do not modify the cabin view. Key 2 retains the modified mouse-orbit chase camera.
 

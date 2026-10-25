@@ -55,7 +55,7 @@ class CrashReportTemplateTests(unittest.TestCase):
             "Hard Truck Modern v3",
             "Better physics, cameras and handling",
             "Improved economy and AI cleanup",
-            "MOD SDK: Sonny",
+            "MOD SDK: LeonKaarneem",
             "Play",
             "Cancel",
         ):

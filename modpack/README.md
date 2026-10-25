@@ -18,7 +18,9 @@ Setup accepts pristine v1.2, current binary variants, and upgrades from previous
 
 ## Play Modded and crash reports
 
-After installation, run **`Play Modded.bat`** to start the game directly with the mod launch arguments. The launcher waits for the game to exit. A normal exit does not create a report; a nonzero exit or a newly updated `prism3d.crash` prompts you to create one, with **Yes** as the default. You can decline without creating anything. Setup's menu also offers **Play modded** as option 5.
+After installation, run **`Play Modded.bat`** to review the **Hard Truck Modern v3** dialog, including the improvement summary and **MOD SDK: LeonKaarneem**. Choose **Play** or press Enter to start the game directly with the mod launch arguments. **Cancel**, Escape, or closing the window starts no game and creates no report. Setup menu option 5 **Play modded** and noninteractive automation retain their direct launch behavior.
+
+The launcher waits for the game to exit. A normal exit does not create a report; a nonzero exit or a newly updated `prism3d.crash` prompts you to create one, with **Yes** as the default. You can decline without creating anything. The dialog's native Windows appearance and DPI rendering have not been verified from the Linux test environment.
 
 Run **`CrashReport.bat`**, or Setup menu option 6 **Create crash report**, to create a report manually after a failure. Confirm the prompt; no game crash is triggered. Reports are named `HardTruckCrashReport-<timestamp>.zip` and written to your Desktop, or to the extracted package folder if the Desktop is unavailable.
 
@@ -45,7 +47,7 @@ Every entry is processed to replace username, computer name, home/game/package p
 | `ui_keyboard` | Tab/Shift+Tab focus navigation and Enter activation in native menus | No |
 | `dx8_vsync` | Native DX8 vsync for the stock renderer | No |
 
-With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls.
+With Configuration installed, the main menu shows **Hard Truck Modern v3** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls. All five native Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
 
 ## Controls and display
 

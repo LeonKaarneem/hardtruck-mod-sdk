@@ -1149,7 +1149,7 @@ function Show-PlayConfirmation {
     $economy.Location = New-Object System.Drawing.Point(20, 82)
 
     $sdk = New-Object System.Windows.Forms.Label
-    $sdk.Text = "MOD SDK: Sonny"
+    $sdk.Text = "MOD SDK: LeonKaarneem"
     $sdk.AutoSize = $true
     $sdk.Location = New-Object System.Drawing.Point(20, 116)
 
