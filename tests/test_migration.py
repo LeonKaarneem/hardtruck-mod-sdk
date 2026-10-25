@@ -206,7 +206,7 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             write_fixed_eye_variant,
             write_legacy_variant,
         )
-        from tools import build_windows_release
+        from tests.release_fixtures import write_current_payload
 
         cls.release = load_release(ROOT)
         cls.golden = json.loads((ROOT / "tests/golden/v3.json").read_text(encoding="utf-8"))
@@ -214,13 +214,7 @@ class RealCatalogAndStagingTests(unittest.TestCase):
         cls.addClassCleanup(cls.temporary.cleanup)
         root = Path(cls.temporary.name)
         cls.payload = root / "payload"
-        work = root / "work"
-        cls.payload.mkdir()
-        work.mkdir()
-        game_dll = build_windows_release.default_test_base_file(Path("game/sys/game.dll"))
-        dx8_dll = build_windows_release.default_test_base_file(Path("sys/dx8.dll"))
-        build_windows_release.build_game_variants(game_dll, cls.payload, work)
-        build_windows_release.build_dx8_payloads(dx8_dll, cls.payload, work)
+        write_current_payload(cls.payload)
         cls.game_sources = []
         for name in cls.golden["game_variants"]:
             cls.game_sources.append((f"current-{name}", (cls.payload / f"game-{name}.dll").read_bytes()))

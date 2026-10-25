@@ -276,15 +276,10 @@ class BinaryRegressionTests(unittest.TestCase):
             raise AssertionError(f"legacy simple patcher invoked: {patcher.name}")
 
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            payload = root / "payload"
-            work = root / "work"
-            payload.mkdir()
-            work.mkdir()
             with mock.patch.object(build_windows_release, "run_patcher", side_effect=no_legacy, create=True), \
                     mock.patch("pathlib.Path.read_bytes", autospec=True, side_effect=legacy_unavailable):
-                variants = build_windows_release.build_game_variants(self.game_path, payload, work)
-                dx8 = build_windows_release.build_dx8_payloads(self.dx8_path, payload, work)
+                variants = build_windows_release.build_game_variants(self.game_path)
+                dx8 = build_windows_release.build_dx8_payloads(self.dx8_path)
             for name, record in variants.items():
                 self.assertEqual(record["sha256"], self.golden["game_variants"][name]["sha256"])
             self.assertEqual(dx8["vsync"]["sha256"], self.golden["dx8"]["vsync"])

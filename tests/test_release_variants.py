@@ -64,23 +64,15 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                 self.assertEqual(len(release.game_variants), 16)
                 self.assertEqual(release.game_variants["1000"].components, ("fourth",))
                 payload = Path(temporary) / "payload"
-                work = Path(temporary) / "work"
                 payload.mkdir()
-                work.mkdir()
                 with mock.patch.object(build_windows_release, "load_release", return_value=release):
                     variants = build_windows_release.build_game_variants(
                         build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
-                        payload,
-                        work,
                     )
                 self.assertEqual(len(variants), 16)
                 self.assertEqual(variants["1000"]["components"], ["fourth"])
-                self.assertEqual(variants["1000"]["file"], "game-1000.dll")
+                self.assertNotIn("file", variants["1000"])
                 self.assertNotEqual(variants["1000"]["sha256"], variants["0000"]["sha256"])
-                self.assertEqual(
-                    hashlib.sha256((payload / "game-1000.dll").read_bytes()).hexdigest(),
-                    variants["1000"]["sha256"],
-                )
                 installer = build_windows_release.build_payload_manifest(
                     release,
                     payload,
@@ -95,16 +87,23 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
 
                 direct = Path(temporary) / "direct"
                 direct.mkdir()
+                from htmod.patch import PatchRunner
                 mods = runner_module.load_binary_mods(release, ("camera", "physics", "ai", "fourth"))
+                pristine = build_windows_release.default_test_base_file(Path("game/sys/game.dll")).read_bytes()
                 for name, record in variants.items():
                     with self.subTest(direct_variant=name):
                         target = direct / "game/sys/game.dll"
                         target.parent.mkdir(parents=True, exist_ok=True)
-                        target.write_bytes((payload / record["file"]).read_bytes())
+                        images = {"game/sys/game.dll": bytearray(pristine)}
+                        selected = [mod for mod in mods if mod.id in record["components"]]
+                        if selected:
+                            PatchRunner(images).apply(selected)
+                        target.write_bytes(images["game/sys/game.dll"])
+                        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), record["sha256"])
                         recognized = runner_module.runner_from_directory(direct, mods)
                         self.assertEqual(recognized.images["game/sys/game.dll"], target.read_bytes())
-                target.write_bytes((payload / "game-1000.dll").read_bytes() + b"unknown suffix")
-                with self.assertRaisesRegex(Exception, "whole-file|unrecognized"):
+                target.write_bytes(target.read_bytes() + b"unknown suffix")
+                with self.assertRaisesRegex(Exception, "whole-file|unrecognized|cannot restore"):
                     runner_module.runner_from_directory(direct, mods)
 
     def test_builder_loads_all_handlers_but_validates_each_curated_selection(self):
@@ -127,15 +126,9 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
             physics["conflicts"] = ["ai"]
             physics_path.write_text(json.dumps(physics), encoding="utf-8")
             release = load_release(Path(temporary))
-            payload = Path(temporary) / "payload"
-            work = Path(temporary) / "work"
-            payload.mkdir()
-            work.mkdir()
             with mock.patch.object(build_windows_release, "load_release", return_value=release):
                 variants = build_windows_release.build_game_variants(
                     build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
-                    payload,
-                    work,
                 )
             self.assertEqual(list(variants), ["0001", "0010", "0100"])
 
@@ -148,8 +141,6 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                     self.assertRaisesRegex(Exception, "conflicts"):
                 build_windows_release.build_game_variants(
                     build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
-                    payload,
-                    work,
                 )
 
             from htmod import cli as cli_module

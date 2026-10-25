@@ -8,11 +8,14 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "sdk"))
 
 from htmod import PatchError, Selection, load_release
+from htmod.migration import load_catalog
 from htmod.patch import PatchRunner, PatchState
 from htmod.runner import load_binary_mods, materialize_data
+from tools.build_windows_patcher import BuildError as PatcherBuildError, verify_pe64
 
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
@@ -31,7 +34,7 @@ def sha256(path):
     return digest.hexdigest()
 
 
-def build_game_variants(source, payload, work):
+def build_game_variants(source):
     release = load_release(PROJECT_ROOT)
     game_components = tuple(
         mod_id for mod_id, mod in release.mods.items()
@@ -41,73 +44,55 @@ def build_game_variants(source, payload, work):
     game_mods = load_binary_mods(release, game_components)
     variants = {}
     hashes = set()
-    pristine_hash = sha256(source)
+    pristine = source.read_bytes()
+    pristine_hash = hashlib.sha256(pristine).hexdigest()
 
     for name, variant in release.game_variants.items():
         selected = variant.components
         Selection(selected + non_game_components).validate(release.mods)
         selected_mods = [mod for mod in game_mods if mod.id in selected]
-        generated = work / f"generated-{name}.dll"
-        reference = work / f"reference-{name}.dll"
-        shutil.copyfile(source, generated)
-        images = {"game/sys/game.dll": bytearray(generated.read_bytes())}
+        images = {"game/sys/game.dll": bytearray(pristine)}
         runner = PatchRunner(images)
         if selected_mods:
             runner.apply(selected_mods)
-        generated.write_bytes(images["game/sys/game.dll"])
 
         states = runner.check(game_mods)
         for mod in game_mods:
             expected = PatchState.PATCHED if mod.id in selected else PatchState.ORIGINAL
             if states[mod.id] != expected:
                 raise BuildError(f"game variant {name} has unexpected {mod.id} state {states[mod.id].value}")
-
-        images = {"game/sys/game.dll": bytearray(generated.read_bytes())}
-        if selected_mods:
-            PatchRunner(images).restore(selected_mods)
-        reference.write_bytes(images["game/sys/game.dll"])
-        if sha256(reference) != pristine_hash:
-            raise BuildError(f"game variant {name} did not restore to pristine bytes")
-
-        destination = payload / f"game-{name}.dll"
-        shutil.copyfile(generated, destination)
-        payload_hash = sha256(destination)
+        payload_hash = hashlib.sha256(images["game/sys/game.dll"]).hexdigest()
         hashes.add(payload_hash)
-        variants[name] = {
-            "file": destination.name,
-            "sha256": payload_hash,
-            "components": list(selected),
-        }
+        variants[name] = {"sha256": payload_hash, "components": list(selected)}
+
+        if selected_mods:
+            runner.restore(selected_mods)
+        if hashlib.sha256(images["game/sys/game.dll"]).hexdigest() != pristine_hash:
+            raise BuildError(f"game variant {name} did not restore to pristine bytes")
 
     if len(hashes) != len(release.game_variants):
         raise BuildError("curated game variant payloads are not distinct")
     return variants
 
 
-def build_dx8_payloads(source, payload, work):
+def build_dx8_payloads(source):
     release = load_release(PROJECT_ROOT)
     mod = load_binary_mods(release, ("dx8_vsync",))[0]
-    stock = payload / "dx8-stock.dll"
-    vsync = payload / "dx8-vsync.dll"
-    shutil.copyfile(source, stock)
-    images = {"sys/dx8.dll": bytearray(source.read_bytes())}
+    pristine = source.read_bytes()
+    images = {"sys/dx8.dll": bytearray(pristine)}
     runner = PatchRunner(images)
-    runner.apply([mod])
-    vsync.write_bytes(images["sys/dx8.dll"])
-    if PatchRunner({"sys/dx8.dll": bytearray(stock.read_bytes())}).check([mod])[mod.id] != PatchState.ORIGINAL:
+    if runner.check([mod])[mod.id] != PatchState.ORIGINAL:
         raise BuildError("DX8 stock payload failed original-state verification")
+    runner.apply([mod])
     if runner.check([mod])[mod.id] != PatchState.PATCHED:
         raise BuildError("DX8 vsync payload failed patched-state verification")
-
-    restored = work / "dx8-restored.dll"
+    vsync_hash = hashlib.sha256(images["sys/dx8.dll"]).hexdigest()
     runner.restore([mod])
-    restored.write_bytes(images["sys/dx8.dll"])
-    if restored.read_bytes() != source.read_bytes():
+    if images["sys/dx8.dll"] != pristine:
         raise BuildError("DX8 vsync patch did not restore to pristine bytes")
-
     return {
-        "stock": {"file": stock.name, "sha256": sha256(stock)},
-        "vsync": {"file": vsync.name, "sha256": sha256(vsync)},
+        "stock": {"sha256": hashlib.sha256(pristine).hexdigest()},
+        "vsync": {"sha256": vsync_hash},
     }
 
 
@@ -141,7 +126,7 @@ def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_d
         if path.is_file()
     }
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "components": components,
         "sources": {
             "game_dll": {
@@ -154,7 +139,6 @@ def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_d
             },
         },
         "game_variants": game_variants,
-        "legacy_game_sha256": list(release.legacy_game_sha256),
         "dx8": dx8,
         "data_components": data_components,
         "payloads": payloads,
@@ -169,8 +153,8 @@ def build_shell_manifest(release, payload, game_variants, dx8):
             raise BuildError(f"shell manifest path is not representable: {relative!r}")
         records.append("\t".join((kind, relative, expected)))
 
-    for variant in game_variants.values():
-        add("variant", variant["file"], variant["sha256"])
+    for name, variant in game_variants.items():
+        add("variant", f"game-{name}.dll", variant["sha256"])
     for legacy_hash in release.legacy_game_sha256:
         add("legacy-game", "-", legacy_hash)
     game_components = tuple(
@@ -178,14 +162,14 @@ def build_shell_manifest(release, payload, game_variants, dx8):
         if mod.kind == "binary" and mod.target == "game/sys/game.dll"
     )
     install_all = [
-        variant for variant in game_variants.values()
+        name for name, variant in game_variants.items()
         if tuple(variant["components"]) == game_components
     ]
     if len(install_all) != 1:
         raise BuildError("shell installer requires one curated all-game-components variant")
-    add("install-game", install_all[0]["file"], install_all[0]["sha256"])
-    add("install-dx8", dx8["vsync"]["file"], dx8["vsync"]["sha256"])
-    add("stock-dx8", dx8["stock"]["file"], dx8["stock"]["sha256"])
+    add("install-game", f"game-{install_all[0]}.dll", game_variants[install_all[0]]["sha256"])
+    add("install-dx8", "dx8-vsync.dll", dx8["vsync"]["sha256"])
+    add("stock-dx8", "dx8-stock.dll", dx8["stock"]["sha256"])
     for mod in release.mods.values():
         for record in mod.files:
             relative = record.destination.removeprefix("game/usr/")
@@ -203,9 +187,11 @@ def default_test_base_file(relative):
     return candidates[0]
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Build the Hard Truck Modern Windows payload")
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Build the Hard Truck Modern DLL-free payload")
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--patcher-exe", required=True, type=Path)
+    parser.add_argument("--migrations", type=Path, default=PROJECT_ROOT / "modpack/migrations.json")
     parser.add_argument(
         "--game-dll",
         type=Path,
@@ -216,7 +202,7 @@ def parse_args():
         type=Path,
         default=default_test_base_file(Path("sys/dx8.dll")),
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def build(args):
@@ -225,6 +211,8 @@ def build(args):
         raise BuildError(f"pristine game DLL not found: {args.game_dll}")
     if not args.dx8_dll.is_file():
         raise BuildError(f"pristine DX8 DLL not found: {args.dx8_dll}")
+    verify_pe64(args.patcher_exe)
+    load_catalog(args.migrations)
     for path, expected, label in (
         (args.game_dll, PRISTINE_GAME_SHA256, "game DLL"),
         (args.dx8_dll, PRISTINE_DX8_SHA256, "DX8 DLL"),
@@ -269,13 +257,16 @@ def build(args):
         with tempfile.TemporaryDirectory(prefix=".payload-build-", dir=installer) as temporary:
             temporary = Path(temporary)
             staging = temporary / "payload"
-            work = temporary / "work"
             staging.mkdir()
-            work.mkdir()
 
-            variants = build_game_variants(args.game_dll, staging, work)
-            dx8 = build_dx8_payloads(args.dx8_dll, staging, work)
+            variants = build_game_variants(args.game_dll)
+            dx8 = build_dx8_payloads(args.dx8_dll)
             copy_data(release, staging)
+            shutil.copyfile(args.patcher_exe, staging / "htmod.exe")
+            shutil.copyfile(args.migrations, staging / "migrations.json")
+            dll_payloads = [path for path in staging.rglob("*") if path.is_file() and path.suffix.lower() == ".dll"]
+            if dll_payloads:
+                raise BuildError(f"refusing DLL payload in DLL-free release: {dll_payloads[0]}")
             manifest = build_payload_manifest(
                 release,
                 staging,
@@ -337,7 +328,7 @@ def main():
     args = parse_args()
     try:
         build(args)
-    except (BuildError, PatchError, OSError) as error:
+    except (BuildError, PatcherBuildError, PatchError, OSError) as error:
         raise SystemExit(f"error: {error}") from error
 
 

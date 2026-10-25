@@ -685,11 +685,8 @@ def build_release(cls):
         if not cls.release.is_dir():
             raise RuntimeError(f"release ZIP has no HardTruckModern root: {archive}")
         return
-    build_windows_release.build(SimpleNamespace(
-        output=cls.release,
-        game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
-        dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
-    ))
+    from tests.release_fixtures import build_legacy_installer_fixture
+    build_legacy_installer_fixture(cls.release)
 
 
 for test_class in (

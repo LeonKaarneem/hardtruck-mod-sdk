@@ -45,11 +45,8 @@ class ShellInstallerTests(unittest.TestCase):
             script = cls.release / "INSTALL.sh"
             script.chmod(script.stat().st_mode | 0o111)
             return
-        build_windows_release.build(SimpleNamespace(
-            output=cls.release,
-            game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
-            dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
-        ))
+        from tests.release_fixtures import build_legacy_installer_fixture
+        build_legacy_installer_fixture(cls.release)
 
     @classmethod
     def tearDownClass(cls):
