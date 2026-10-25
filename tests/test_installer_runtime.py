@@ -10,6 +10,7 @@ import unittest
 import zipfile
 
 from tools import build_windows_release
+from tests.legacy_variants import CURRENT_ALL_COMPONENTS_SHA256, LEGACY_GAME_SHA256, write_legacy_variant
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -427,6 +428,54 @@ class InstallerSafetyTests(InstallerCase):
                     input_text="4\n",
                 )
                 self.assertEqual(menu.returncode, 2, menu.stdout + menu.stderr)
+
+
+class LegacyInstallerUpgradeTests(InstallerCase):
+    @classmethod
+    def setUpClass(cls):
+        build_release(cls)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temporary.cleanup()
+
+    def test_reported_legacy_all_components_dll_upgrades_with_verified_backup(self):
+        target = self.game / "game/sys/game.dll"
+        write_legacy_variant(self.package / "installer/payload", "1111", target)
+        original = target.read_bytes()
+        self.assertEqual(sha256(target), LEGACY_GAME_SHA256["1111"])
+
+        result = self.run_setup(self.package, self.game, action="InstallAll")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+        backups = self.backup_manifests(self.package)
+        self.assertEqual(len(backups), 1)
+        installation = json.loads(backups[0].read_text(encoding="utf-8"))
+        game_entry = next(entry for entry in installation["entries"] if entry["destination"] == "game/sys/game.dll")
+        self.assertEqual(game_entry["original_sha256"], LEGACY_GAME_SHA256["1111"])
+        backup = backups[0].parent / game_entry["backup_file"]
+        self.assertEqual(backup.read_bytes(), original)
+        self.assertEqual(sha256(backup), LEGACY_GAME_SHA256["1111"])
+
+    def test_every_released_legacy_game_hash_is_accepted(self):
+        for name, legacy_hash in LEGACY_GAME_SHA256.items():
+            with self.subTest(variant=name, legacy_hash=legacy_hash):
+                root = self.root / f"legacy-{name}"
+                root.mkdir()
+                package = self.make_package(root)
+                game = self.make_game(root)
+                target = game / "game/sys/game.dll"
+                write_legacy_variant(package / "installer/payload", name, target)
+
+                result = self.run_setup(package, game, action="InstallAll")
+
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                backups = [json.loads(path.read_text(encoding="utf-8")) for path in self.backup_manifests(package)]
+                self.assertEqual(len(backups), 1)
+                game_entry = next(entry for entry in backups[0]["entries"] if entry["destination"] == "game/sys/game.dll")
+                self.assertEqual(game_entry["original_sha256"], legacy_hash)
 
 
 class InstallerDetectionTests(InstallerCase):

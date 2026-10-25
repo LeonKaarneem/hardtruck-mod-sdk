@@ -577,7 +577,7 @@ function Install-Mods {
     $gameDestination = Join-Path $script:GamePath "game/sys/game.dll"
     $dx8Destination = Join-Path $script:GamePath "sys/dx8.dll"
     $gameHash = (Get-FileHash -LiteralPath $gameDestination -Algorithm SHA256).Hash
-    $validGameHashes = @($Manifest.game_variants.PSObject.Properties | ForEach-Object { $_.Value.sha256 })
+    $validGameHashes = @($Manifest.game_variants.PSObject.Properties | ForEach-Object { $_.Value.sha256 }) + @($Manifest.legacy_game_sha256)
     if ($validGameHashes -notcontains $gameHash) {
         throw "Unknown or unsupported game.dll. Use pristine v1.2 or a supported installed variant; no files were changed."
     }

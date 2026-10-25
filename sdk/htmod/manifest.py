@@ -56,6 +56,7 @@ class Release:
     root: Path
     mods: dict
     game_variants: dict
+    legacy_game_sha256: tuple
 
 
 class Selection:
@@ -244,7 +245,11 @@ def load_release(root):
     require_fields(value, ("schema_version", "mods", "game_variants"), "release")
     if value["schema_version"] != 1 or isinstance(value["schema_version"], bool):
         raise ManifestError("release has unsupported schema_version")
-    reject_unknown_keys(value, ("schema_version", "mods", "game_variants"), "release")
+    reject_unknown_keys(value, ("schema_version", "mods", "game_variants", "legacy_game_sha256"), "release")
+    legacy_game_sha256 = string_list(value.get("legacy_game_sha256", []), "legacy_game_sha256", "release")
+    for digest in legacy_game_sha256:
+        if not SHA256_PATTERN.fullmatch(digest):
+            raise ManifestError("release field 'legacy_game_sha256' must contain lowercase SHA-256 hashes")
     mod_ids = string_list(value["mods"], "mods", "release")
     for mod_id in mod_ids:
         if not ID_PATTERN.fullmatch(mod_id):
@@ -312,4 +317,4 @@ def load_release(root):
         if components != expected:
             raise ManifestError(f"game variant '{name}' does not match component bits")
         variants[name] = GameVariant(record["file"], components)
-    return Release(modpack, mods, variants)
+    return Release(modpack, mods, variants, legacy_game_sha256)

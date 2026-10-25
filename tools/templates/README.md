@@ -6,7 +6,7 @@ Close the game, run `Setup.bat`, and choose **Install all**. Setup automatically
 
 To install only some mods, choose **Choose components** and answer each prompt. Selecting handling, economy, or driver definitions also requires a new profile. **Uninstall** restores backed-up files when they have not been edited since installation.
 
-The installer supports pristine Hard Truck v1.2 and its own installed variants. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the payloads and backups.
+The installer supports pristine Hard Truck v1.2, current installed variants, and upgrades from previously released modpack variants. Upgrades install the selected current variant and retain a backup. Unknown `game.dll` files are still refused. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the payloads and backups.
 
 ## Play Modded and crash reports
 
@@ -18,7 +18,7 @@ Username, computer name, home/game/package paths, and IPv4/IPv6 addresses are re
 
 ## Linux / Wine
 
-Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, rejects symlink destinations and existing non-regular destinations before recording changes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
+Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, upgrades previously released `game.dll` variants to the current all-components payload with backups, and still refuses unknown DLLs. It rejects symlink destinations and existing non-regular destinations before recording changes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
 
 ## Controls and display
 

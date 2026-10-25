@@ -46,6 +46,10 @@ DATA_COUNT=0
 
 while IFS="$TAB" read -r kind relative expected; do
     [ -n "$kind" ] || continue
+    if [ "$kind" = "legacy-game" ]; then
+        if [ "$GAME_HASH" = "$expected" ]; then GAME_RECOGNIZED=1; fi
+        continue
+    fi
     source=$PAYLOAD/$relative
     if [ ! -f "$source" ]; then
         echo "error: payload missing: $source" >&2

@@ -10,6 +10,7 @@ import unittest
 import zipfile
 
 from tools import build_windows_release
+from tests.legacy_variants import CURRENT_ALL_COMPONENTS_SHA256, LEGACY_GAME_SHA256, write_legacy_variant
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -165,6 +166,28 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(len(backups), 1)
         self.assertIn("game/sys/game.dll", backups[0].read_text(encoding="utf-8"))
         self.assertEqual(manifest["game_variants"]["0000"]["sha256"], sha256(self.game / "game/sys/game.dll"))
+
+    def test_every_released_legacy_game_hash_upgrades_with_backup(self):
+        for name, legacy_hash in LEGACY_GAME_SHA256.items():
+            with self.subTest(variant=name, legacy_hash=legacy_hash), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = root / "package"
+                shutil.copytree(self.package, package)
+                game = root / "game"
+                shutil.copytree(self.game, game)
+                target = game / "game/sys/game.dll"
+                write_legacy_variant(package / "installer/payload", name, target)
+                original = target.read_bytes()
+
+                result = self.run_install(package=package, game=game)
+
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                backups = list((package / "installer/backups").glob("shell-*/installation.tsv"))
+                self.assertEqual(len(backups), 1)
+                backup = backups[0].parent / "files/game/sys/game.dll"
+                self.assertEqual(backup.read_bytes(), original)
+                self.assertEqual(sha256(backup), legacy_hash)
 
     def test_unknown_source_or_corrupt_payload_changes_nothing(self):
         for failure in ("unknown-source", "corrupt-payload"):

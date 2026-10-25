@@ -14,7 +14,7 @@ A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
 
 Keep the extracted `installer` folder so Setup can retain backups and uninstall later. To restore the pre-install state, run `Setup.bat` and choose **Uninstall**. Files changed after installation are reported and skipped rather than overwritten. Saves and unrelated files are preserved.
 
-Setup accepts pristine v1.2 and its own known binary variants. It refuses unknown `game.dll` or wrapped `sys/dx8.dll` files instead of overwriting them. Restore the stock DX8 DLL before setup if you use d3d8to9.
+Setup accepts pristine v1.2, current binary variants, and upgrades from previously released modpack variants. It installs the selected current variant and backs up the replaced DLL. It refuses unknown `game.dll` or wrapped `sys/dx8.dll` files instead of overwriting them. Restore the stock DX8 DLL before setup if you use d3d8to9.
 
 ## Play Modded and crash reports
 
@@ -70,7 +70,7 @@ Use a 32-bit Wine prefix and install the game normally. Extract `HardTruckModern
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
 ```
 
-The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, rejects symlinks and existing non-regular destinations before recording changes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
+The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, upgrades previously released `game.dll` variants to the current all-components payload with backups, rejects unknown DLLs, rejects symlinks and existing non-regular destinations before recording changes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
 
 For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 

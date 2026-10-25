@@ -154,6 +154,7 @@ def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_d
             },
         },
         "game_variants": game_variants,
+        "legacy_game_sha256": list(release.legacy_game_sha256),
         "dx8": dx8,
         "data_components": data_components,
         "payloads": payloads,
@@ -170,6 +171,8 @@ def build_shell_manifest(release, payload, game_variants, dx8):
 
     for variant in game_variants.values():
         add("variant", variant["file"], variant["sha256"])
+    for legacy_hash in release.legacy_game_sha256:
+        add("legacy-game", "-", legacy_hash)
     game_components = tuple(
         mod_id for mod_id, mod in release.mods.items()
         if mod.kind == "binary" and mod.target == "game/sys/game.dll"

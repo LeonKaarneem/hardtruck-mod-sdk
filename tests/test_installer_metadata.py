@@ -61,6 +61,7 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["data_components"], data_components)
         self.assertIn("data/ui/cosetup.sc", manifest["data_components"]["config"])
         self.assertEqual(manifest["game_variants"], {})
+        self.assertEqual(manifest["legacy_game_sha256"], list(release.legacy_game_sha256))
         self.assertEqual(manifest["dx8"], {})
 
     def test_generated_release_manifest_is_schema_two_with_all_curated_variants(self):
