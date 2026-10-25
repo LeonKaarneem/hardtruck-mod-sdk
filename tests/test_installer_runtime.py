@@ -342,6 +342,69 @@ class InstallerSafetyTests(InstallerCase):
                 self.assertFalse((package / "installer/backups").exists())
                 self.assertFalse((game / "game/usr/config.cfg").exists())
 
+    def test_patcher_and_staged_hash_failures_clean_only_generated_staging(self):
+        script = r'''
+$root = $env:HTMOD_STAGE_TEST_ROOT
+$source = Get-Content -LiteralPath (Join-Path $root "package/installer/Setup.ps1") -Raw
+foreach ($name in @("Convert-FrozenPath", "Get-ComponentRecords", "Invoke-StagedMods")) {
+    $match = [regex]::Match($source, "(?ms)^function $name \{.*?^\}")
+    if (-not $match.Success) { throw "Missing function $name" }
+    Invoke-Expression $match.Value
+}
+function Test-Hash {
+    param([string]$Path, [string]$ExpectedHash)
+    return $Path -notlike "*staging-*game/sys/game.dll"
+}
+function winepath {
+    param([switch]$w, [string]$Path)
+    $global:LASTEXITCODE = 0
+    return $Path
+}
+function wine {
+    $index = [Array]::IndexOf($args, "--output-dir")
+    $stage = $args[$index + 1]
+    $game = Join-Path $stage "game/sys/game.dll"
+    $dx8 = Join-Path $stage "sys/dx8.dll"
+    New-Item -ItemType Directory -Path (Split-Path -Parent $game) -Force | Out-Null
+    New-Item -ItemType Directory -Path (Split-Path -Parent $dx8) -Force | Out-Null
+    Set-Content -LiteralPath $game -Value "staged"
+    Set-Content -LiteralPath $dx8 -Value "staged"
+    $global:LASTEXITCODE = if ($env:HTMOD_STAGE_FAILURE -eq "patcher") { 1 } else { 0 }
+}
+$script:PayloadRoot = Join-Path $root "package/installer/payload"
+$script:InstallerRoot = Join-Path $root "package/installer"
+$script:GamePath = Join-Path $root "game"
+$manifest = @{ payloads = @{ "htmod.exe" = "a"; "migrations.json" = "b" }; components = @{} }
+$variant = @{ sha256 = "c" }
+$dx8 = @{ sha256 = "d" }
+$threw = $false
+try {
+    Invoke-StagedMods @{} $manifest $variant $dx8
+}
+catch {
+    $threw = $true
+}
+if (-not $threw) { throw "Expected staged failure" }
+$remaining = @(Get-ChildItem -LiteralPath $script:InstallerRoot -Directory -Filter "staging-*")
+if ($remaining.Count -ne 0) { throw "Generated staging was not cleaned: $($remaining.FullName)" }
+$sentinel = Join-Path $script:InstallerRoot "backups/existing/keep.txt"
+if ((Get-Content -LiteralPath $sentinel -Raw) -ne "preserve") { throw "Backup sentinel changed" }
+'''
+        for failure in ("patcher", "staged-hash"):
+            with self.subTest(failure=failure):
+                root = self.root / f"staging-cleanup-{failure}"
+                (root / "package/installer/backups/existing").mkdir(parents=True)
+                (root / "package/installer/backups/existing/keep.txt").write_text("preserve", encoding="utf-8")
+                (root / "package/installer/Setup.ps1").write_bytes((self.package / "installer/Setup.ps1").read_bytes())
+                result = subprocess.run(
+                    [PWSH, "-NoProfile", "-Command", script],
+                    env={**os.environ, "HTMOD_STAGE_TEST_ROOT": str(root), "HTMOD_STAGE_FAILURE": failure},
+                    text=True,
+                    capture_output=True,
+                    timeout=60,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_mid_install_failure_rolls_back_every_changed_file(self):
         (self.game / "game/usr/ui/mmain.sc").mkdir(parents=True)
         result = self.run_setup(self.package, self.game, action="Custom", components=["config"])

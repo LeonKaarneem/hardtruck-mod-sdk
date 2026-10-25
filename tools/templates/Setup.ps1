@@ -597,48 +597,56 @@ function Invoke-StagedMods {
         throw "Migration catalog is missing or corrupt: $catalog"
     }
     $stageRoot = Join-Path $script:InstallerRoot ("staging-" + [Guid]::NewGuid().ToString("N"))
-    $arguments = @(
-        "stage",
-        "--game-dir", (Convert-FrozenPath $script:GamePath),
-        "--output-dir", (Convert-FrozenPath $stageRoot),
-        "--migrations", (Convert-FrozenPath $catalog)
-    )
-    $stagingIds = @(
-        Get-ComponentRecords $Manifest |
-            Where-Object { $_.Value.kind -eq "binary" -and $Selection[$_.Name] } |
-            ForEach-Object { $_.Name }
-    )
-    for ($index = 0; $index -lt $stagingIds.Count; $index++) {
-        $id = $stagingIds[$index]
-        foreach ($required in @($Manifest.components.$id.requires)) {
-            if ($stagingIds -notcontains $required) {
-                $stagingIds += $required
+    try {
+        $arguments = @(
+            "stage",
+            "--game-dir", (Convert-FrozenPath $script:GamePath),
+            "--output-dir", (Convert-FrozenPath $stageRoot),
+            "--migrations", (Convert-FrozenPath $catalog)
+        )
+        $stagingIds = @(
+            Get-ComponentRecords $Manifest |
+                Where-Object { $_.Value.kind -eq "binary" -and $Selection[$_.Name] } |
+                ForEach-Object { $_.Name }
+        )
+        for ($index = 0; $index -lt $stagingIds.Count; $index++) {
+            $id = $stagingIds[$index]
+            foreach ($required in @($Manifest.components.$id.requires)) {
+                if ($stagingIds -notcontains $required) {
+                    $stagingIds += $required
+                }
             }
         }
-    }
-    foreach ($property in @(Get-ComponentRecords $Manifest)) {
-        if ($stagingIds -contains $property.Name) {
-            $arguments += @("--mod", $property.Name)
+        foreach ($property in @(Get-ComponentRecords $Manifest)) {
+            if ($stagingIds -contains $property.Name) {
+                $arguments += @("--mod", $property.Name)
+            }
         }
+        $arguments += @("--expect", "game/sys/game.dll=$($Variant.sha256)")
+        $arguments += @("--expect", "sys/dx8.dll=$($Dx8.sha256)")
+        Write-Host "Staging selected binary components locally; no original DLL payloads are shipped."
+        if ($env:OS -eq "Windows_NT") {
+            & $patcher @arguments | Write-Host
+        }
+        else {
+            & wine $patcher @arguments | Write-Host
+        }
+        if ($LASTEXITCODE -ne 0) {
+            throw "Frozen patcher staging failed; no files were changed."
+        }
+        $stagedGame = Join-Path $stageRoot "game/sys/game.dll"
+        $stagedDx8 = Join-Path $stageRoot "sys/dx8.dll"
+        if (-not (Test-Hash $stagedGame $Variant.sha256) -or -not (Test-Hash $stagedDx8 $Dx8.sha256)) {
+            throw "Staged DLL hash verification failed; no files were changed."
+        }
+        return $stageRoot
     }
-    $arguments += @("--expect", "game/sys/game.dll=$($Variant.sha256)")
-    $arguments += @("--expect", "sys/dx8.dll=$($Dx8.sha256)")
-    Write-Host "Staging selected binary components locally; no original DLL payloads are shipped."
-    if ($env:OS -eq "Windows_NT") {
-        & $patcher @arguments | Write-Host
+    catch {
+        if (Test-Path -LiteralPath $stageRoot) {
+            Remove-Item -LiteralPath $stageRoot -Recurse -Force
+        }
+        throw
     }
-    else {
-        & wine $patcher @arguments | Write-Host
-    }
-    if ($LASTEXITCODE -ne 0) {
-        throw "Frozen patcher staging failed; no files were changed."
-    }
-    $stagedGame = Join-Path $stageRoot "game/sys/game.dll"
-    $stagedDx8 = Join-Path $stageRoot "sys/dx8.dll"
-    if (-not (Test-Hash $stagedGame $Variant.sha256) -or -not (Test-Hash $stagedDx8 $Dx8.sha256)) {
-        throw "Staged DLL hash verification failed; no files were changed."
-    }
-    return $stageRoot
 }
 
 function Install-Mods {
