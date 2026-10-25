@@ -49,8 +49,8 @@ CAB_RESUME = 0x10033D9D
 CAB_ROTATE_IAT = 0x100AB218
 ORBIT_POS_RESUME = 0x1003370F
 ORIENT_POS_RESUME = 0x10033876
-CAB_PITCH_HI = 0x420C0000
-CAB_PITCH_LO = 0xC20C0000
+CAB_PITCH_HI = 0x42A00000
+CAB_PITCH_LO = 0xC2A00000
 ORB_PITCH_HI = 0x42200000
 ORB_PITCH_LO = 0xC1200000
 
@@ -103,25 +103,41 @@ def build_helpers(base_va):
     labels["htcam_cab"] = va
     labels["cab_rotate_relocs"] = []
     code = b""
-    code += b"\x50"
+    code += b"\x89\x84\x24\x1c\x00\x00\x00"
+    for eye_offset, saved_offset in ((0x88, 0x44), (0x8C, 0x48), (0x90, 0x4C)):
+        code += b"\x8b\x84\x24" + struct.pack("<I", eye_offset)
+        code += b"\x89\x84\x24" + struct.pack("<I", saved_offset)
+    for saved_offset, negative_offset in ((0x44, 0x10), (0x48, 0x14), (0x4C, 0x18)):
+        code += b"\x8b\x84\x24" + struct.pack("<I", saved_offset)
+        code += b"\x35\x00\x00\x00\x80"
+        code += b"\x89\x84\x24" + struct.pack("<I", negative_offset)
+    code += b"\x8d\x4c\x24\x58"
+    code += b"\x8d\x54\x24\x10"
+    code += b"\x52\xff\xd7"
+    clamp_call_offset = len(code)
     code += i_call(va + len(code), base_va)
-    code += b"\x59"
-    code += b"\x89\x84\x24\x10\x02\x00\x00"
-    code += b"\x89\x9c\x24\x14\x02\x00\x00"
-    code += b"\x89\x9c\x24\x18\x02\x00\x00"
-    code += b"\x51\x52"
-    code += b"\x8d\x4c\x24\x60"
-    labels["cab_rotate_relocs"].append(len(code) + 2)
-    code += b"\xff\x15" + struct.pack("<I", CAB_ROTATE_IAT)
-    code += b"\x59"
+    code += b"\x89\x84\x24\x20\x00\x00\x00"
+    code += b"\x8b\x84\x24\x1c\x00\x00\x00"
     code += b"\x89\x9c\x24\x10\x02\x00\x00"
-    code += b"\x89\x8c\x24\x14\x02\x00\x00"
+    code += b"\x89\x84\x24\x14\x02\x00\x00"
     code += b"\x89\x9c\x24\x18\x02\x00\x00"
     code += b"\x8d\x94\x24\x10\x02\x00\x00"
     code += b"\x52"
     code += b"\x8d\x4c\x24\x5c"
     labels["cab_rotate_relocs"].append(len(code) + 2)
     code += b"\xff\x15" + struct.pack("<I", CAB_ROTATE_IAT)
+    code += b"\x8b\x84\x24\x20\x00\x00\x00"
+    code += b"\x89\x84\x24\x10\x02\x00\x00"
+    code += b"\x89\x9c\x24\x14\x02\x00\x00"
+    code += b"\x89\x9c\x24\x18\x02\x00\x00"
+    code += b"\x8d\x94\x24\x10\x02\x00\x00"
+    code += b"\x52"
+    code += b"\x8d\x4c\x24\x5c"
+    labels["cab_rotate_relocs"].append(len(code) + 2)
+    code += b"\xff\x15" + struct.pack("<I", CAB_ROTATE_IAT)
+    code += b"\x8d\x4c\x24\x58"
+    code += b"\x8d\x54\x24\x44"
+    code += b"\x52\xff\xd7"
     code += i_jmp(va + len(code), CAB_RESUME)
     cab = code
 
@@ -143,13 +159,13 @@ def build_helpers(base_va):
     code += i_jmp(va + len(cab) + len(orbit) + len(code), ORIENT_POS_RESUME)
     orient = code
 
-    labels["htcam_clamp35"] = va + len(cab) + len(orbit) + len(orient)
-    c35 = cab_clamp_routine(labels["htcam_clamp35"], CAB_PITCH_LO, CAB_PITCH_HI)
-    labels["htcam_clamp40"] = labels["htcam_cab"] + len(cab) + len(orbit) + len(orient) + len(c35)
+    labels["htcam_clamp80"] = va + len(cab) + len(orbit) + len(orient)
+    c80 = cab_clamp_routine(labels["htcam_clamp80"], CAB_PITCH_LO, CAB_PITCH_HI)
+    labels["htcam_clamp40"] = labels["htcam_cab"] + len(cab) + len(orbit) + len(orient) + len(c80)
     c40 = clamp_routine(labels["htcam_clamp40"], ORB_PITCH_LO, ORB_PITCH_HI)
 
     labels["htcam_rst_cam2"] = base_va
-    pre_rst = cab + orbit + orient + c35 + c40
+    pre_rst = cab + orbit + orient + c80 + c40
     labels["htcam_rst_cam2"] = va + len(pre_rst)
     code = b""
     code += b"\xc7\x86\xd0\x03\x00\x00\x00\x00\x00\x00"
@@ -166,7 +182,7 @@ def build_helpers(base_va):
     def fix(at_off, target):
         struct.pack_into("<i", blob, at_off + 1, target - (base_va + at_off + 5))
 
-    fix(1, labels["htcam_clamp35"])
+    fix(clamp_call_offset, labels["htcam_clamp80"])
     fix(len(cab) + 1, labels["htcam_clamp40"])
     fix(len(cab) + len(orbit) + 1, labels["htcam_clamp40"])
     return bytes(blob), labels

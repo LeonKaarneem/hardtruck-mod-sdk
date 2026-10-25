@@ -1,6 +1,7 @@
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -55,34 +56,135 @@ def directory(image, index):
     return struct.unpack_from("<II", image.data, image.optional_offset + 96 + index * 8)
 
 
+def matmul(left, right):
+    return tuple(
+        tuple(sum(left[row][k] * right[k][column] for k in range(4)) for column in range(4))
+        for row in range(4)
+    )
+
+
+def translation(x, y, z):
+    return (
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0, 0.0),
+        (0.0, 0.0, 1.0, 0.0),
+        (x, y, z, 1.0),
+    )
+
+
+def rotation_x(degrees):
+    angle = degrees * 3.141592653589793 / 180.0
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return (
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, cosine, sine, 0.0),
+        (0.0, -sine, cosine, 0.0),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+
+
+def rotation_y(degrees):
+    angle = degrees * 3.141592653589793 / 180.0
+    cosine = math.cos(angle)
+    sine = math.sin(angle)
+    return (
+        (cosine, 0.0, -sine, 0.0),
+        (0.0, 1.0, 0.0, 0.0),
+        (sine, 0.0, cosine, 0.0),
+        (0.0, 0.0, 0.0, 1.0),
+    )
+
+
+class CabMatrixTests(unittest.TestCase):
+    def assertMatrixAlmostEqual(self, actual, expected):
+        for actual_row, expected_row in zip(actual, expected):
+            for actual_value, expected_value in zip(actual_row, expected_row):
+                self.assertAlmostEqual(actual_value, expected_value, places=9)
+
+    def test_fixed_eye_transform_preserves_position_and_combined_orientation(self):
+        base = matmul(
+            translation(1200.0, 40.0, -300.0),
+            matmul(rotation_y(13.0), rotation_x(-7.0)),
+        )
+        eye = base[3][:3]
+        pitch = rotation_x(80.0)
+        yaw = rotation_y(25.0)
+        current = matmul(matmul(base, pitch), yaw)
+        old_single_euler = matmul(base, matmul(pitch, yaw))
+        self.assertMatrixAlmostEqual(current, old_single_euler)
+        self.assertNotEqual(current[3][:3], eye)
+
+        fixed = matmul(
+            matmul(matmul(matmul(base, translation(*(-value for value in eye))), yaw), pitch),
+            translation(*eye),
+        )
+        self.assertEqual(fixed[3][:3], eye)
+        expected = matmul(matmul(base, yaw), pitch)
+        self.assertMatrixAlmostEqual(fixed[:3], expected[:3])
+
+
 class CameraStructureTests(unittest.TestCase):
-    def test_helper_preserves_rotation_clamps_resume_and_relocation_contract(self):
+    def test_cab_helper_saves_eye_and_rotates_about_it_with_yaw_then_pitch(self):
         module = camera_module()
         blob, labels = module.build_helpers(BASE_VA)
+        self.assertIn("htcam_clamp80", labels)
         cab = blob[:labels["htcam_orbit"] - BASE_VA]
+        edi_call = b"\xff\xd7"
+        self.assertEqual(cab.count(edi_call), 2)
         self.assertEqual(cab.count(IAT_CALL), 2)
-        first = cab.index(IAT_CALL)
-        second = cab.index(IAT_CALL, first + 1)
+        first_translate = cab.index(edi_call)
+        yaw_rotate = cab.index(IAT_CALL)
+        pitch_rotate = cab.index(IAT_CALL, yaw_rotate + 1)
+        second_translate = cab.index(edi_call, first_translate + 1)
+        self.assertLess(first_translate, yaw_rotate)
+        self.assertLess(yaw_rotate, pitch_rotate)
+        self.assertLess(pitch_rotate, second_translate)
+
+        for offset in (0x88, 0x8C, 0x90):
+            eye_load = b"\x8b\x84\x24" + struct.pack("<I", offset)
+            self.assertLess(cab.index(eye_load), first_translate)
+        self.assertEqual(cab.count(b"\x35\x00\x00\x00\x80"), 3)
+        self.assertLess(cab.index(bytes.fromhex("8d 54 24 10")), first_translate)
+        self.assertLess(cab.index(bytes.fromhex("8d 54 24 44")), second_translate)
+
+        clamp_call = cab.index(b"\xe8")
+        rel = struct.unpack_from("<i", cab, clamp_call + 1)[0]
+        self.assertEqual(BASE_VA + clamp_call + 5 + rel, labels["htcam_clamp80"])
+        self.assertLess(clamp_call, yaw_rotate)
+        saved_pitch = bytes.fromhex("89 84 24 20 00 00 00")
+        restored_pitch = bytes.fromhex("8b 84 24 20 00 00 00")
+        self.assertLess(cab.index(saved_pitch), yaw_rotate)
+        self.assertLess(yaw_rotate, cab.index(restored_pitch))
+        self.assertLess(cab.index(restored_pitch), pitch_rotate)
+        yaw = bytes.fromhex("89 84 24 14 02 00 00")
         pitch = bytes.fromhex("89 84 24 10 02 00 00")
-        yaw = bytes.fromhex("89 8c 24 14 02 00 00")
-        self.assertLess(cab.index(pitch), first)
-        self.assertLess(first, cab.index(yaw))
-        self.assertLess(cab.index(yaw), second)
-        rel = struct.unpack_from("<i", cab, 2)[0]
-        self.assertEqual(BASE_VA + 1 + 5 + rel, labels["htcam_clamp35"])
+        self.assertLess(cab.index(yaw), yaw_rotate)
+        self.assertLess(cab.index(restored_pitch), cab.index(pitch))
+        self.assertLess(cab.index(pitch), pitch_rotate)
+
         self.assertEqual(
             cab[-5:],
             b"\xe9" + struct.pack("<i", module.CAB_RESUME - (BASE_VA + len(cab) - 5 + 5)),
         )
         self.assertEqual(module.CAB_RESUME, 0x10033D9D)
         self.assertEqual(len(labels["cab_rotate_relocs"]), 2)
+        self.assertEqual(labels["cab_rotate_relocs"], sorted(labels["cab_rotate_relocs"]))
         for offset in labels["cab_rotate_relocs"]:
             self.assertEqual(cab[offset - 2:offset + 4], IAT_CALL)
 
-        c35 = blob[labels["htcam_clamp35"] - BASE_VA:labels["htcam_clamp40"] - BASE_VA]
+    def test_cab_clamp_is_sign_aware_80_degrees_and_orbit_clamp_is_unchanged(self):
+        module = camera_module()
+        blob, labels = module.build_helpers(BASE_VA)
+        self.assertEqual(struct.unpack("<f", struct.pack("<I", module.CAB_PITCH_HI))[0], 80.0)
+        self.assertEqual(struct.unpack("<f", struct.pack("<I", module.CAB_PITCH_LO))[0], -80.0)
+        c80 = blob[labels["htcam_clamp80"] - BASE_VA:labels["htcam_clamp40"] - BASE_VA]
         c40 = blob[labels["htcam_clamp40"] - BASE_VA:labels["htcam_rst_cam2"] - BASE_VA]
         negative_guard = b"\xb9" + struct.pack("<I", module.CAB_PITCH_LO) + b"\x39\xc8\x76\x02"
-        self.assertIn(negative_guard, c35)
+        positive_guard = b"\xb9" + struct.pack("<I", module.CAB_PITCH_HI) + b"\x39\xc8\x7e\x02"
+        self.assertIn(b"\x85\xc0\x79\x0c", c80)
+        self.assertIn(negative_guard, c80)
+        self.assertIn(positive_guard, c80)
         self.assertEqual(c40, bytes.fromhex(
             "8b86d0030000b90000204239c87e0389c8c3"
             "b9000020c139c87d0289c8c3"
@@ -199,8 +301,12 @@ class CameraRoundTripTests(unittest.TestCase):
         self.assertEqual(len(patched.data), section.raw_offset + section.raw_size)
         reloc_rva, reloc_size = directory(patched, 5)
         block = patched.rva_to_offset(reloc_rva + reloc_size - 12, 12)
+        _helpers, labels = camera_module().build_helpers(
+            patched.image_base + section.virtual_address
+        )
+        entries = tuple(0x3000 | offset for offset in labels["cab_rotate_relocs"])
         self.assertEqual(struct.unpack_from("<IIHH", patched.data, block),
-                         (section.virtual_address, 12, 0x3024, 0x304C))
+                         (section.virtual_address, 12, *entries))
 
         runner.restore([mod])
         restored = PEImage.parse(images["game/sys/game.dll"])
