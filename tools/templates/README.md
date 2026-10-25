@@ -26,7 +26,7 @@ Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. Thi
 
 With Configuration and Keyboard navigation installed, the main menu has larger text and targets. Options Graphics/Sound/Controls selectors have larger text, `>` keyboard-focus cues, and `[x]` selected-page cues without enlarged targets. The Set Up Company screen has a dark native **Quick Setup** panel identifying the unofficial mod, summarizing the improvements and installed-feature choices, plus a larger OK target. The stock company fields remain in place; dense option rows and HUD text are unchanged. The main menu shows **Hard Truck Modern v3** at lower right.
 
-Cabin yaw/pitch no longer bank the scene, and upward/downward look clamps correctly at ±35°, including negative/downward input.
+Key 1 cabin look rotates around the driver’s fixed eye point, avoiding the former combined-yaw/pitch scene banking and eye swing. Sustained upward/downward look clamps at ±80° without inversion; switching cameras resets the cabin view to level.
 
 **Cap FPS at 60 or lower** to avoid high-frame-rate physics bugs. Use either d3d8to9 or the native DX8 vsync patch, not both: they replace the same `sys/dx8.dll` and are incompatible.
 

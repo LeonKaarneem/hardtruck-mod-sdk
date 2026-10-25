@@ -39,7 +39,7 @@ Every entry is processed to replace username, computer name, home/game/package p
 | `handling_defs` | Quicker steering, stronger brakes, torque recovery across the fleet | Yes |
 | `economy_def` | Cargo pay +40%; damage penalty reduced to 60% | Yes |
 | `driver_def` | Lower AI-driver delay chance, salary, and share demand | Yes |
-| `camera` | Mouse-orbit chase camera (key 2); cabin vertical look clamped at ±35° | No |
+| `camera` | Mouse-orbit chase camera (key 2); fixed-eye cabin vertical look clamped at ±80° | No |
 | `physics` | Reduces shoulder/tunnel-edge dead stops, velocity snap, and trailer-mass error | No |
 | `ai` | Fixes menu/demo traffic despawn cleanup and its log spam/pool leak | No |
 | `ui_keyboard` | Tab/Shift+Tab focus navigation and Enter activation in native menus | No |

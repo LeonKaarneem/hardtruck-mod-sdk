@@ -163,7 +163,7 @@ class LiveHarnessTests(unittest.TestCase):
             with self.assertRaisesRegex(harness.LiveSmokeError, "o, i, k"):
                 harness.validate_camera_bindings(game)
 
-    def test_camera_battery_uses_sustained_pitch_and_visits_every_camera(self):
+    def test_camera_battery_covers_sustained_clamps_both_input_orders_and_every_camera(self):
         harness = load_harness()
 
         class FakeSession:
@@ -171,6 +171,7 @@ class LiveHarnessTests(unittest.TestCase):
                 self.keys = []
                 self.holds = []
                 self.screenshots = []
+                self.probe_started = False
                 self.finished = False
 
             def capture(self, name):
@@ -186,6 +187,9 @@ class LiveHarnessTests(unittest.TestCase):
             def close_console(self, settle):
                 pass
 
+            def start_truck_probe(self):
+                self.probe_started = True
+
             def key(self, key, repeat=1):
                 self.keys.append((key, repeat))
 
@@ -198,13 +202,43 @@ class LiveHarnessTests(unittest.TestCase):
         session = FakeSession()
         with mock.patch.object(harness.time, "sleep"):
             harness.run_camera(session, mock.Mock(boot_wait=0, map_wait=0))
-        self.assertIn(("k", 2), session.holds)
-        self.assertIn(("i", 2), session.holds)
+        self.assertEqual(session.holds, [
+            ("k", 8), ("i", 8),
+            ("y", 2), ("k", 8),
+            ("o", 2), ("i", 8),
+            ("k", 8), ("y", 2),
+            ("i", 8), ("o", 2),
+        ])
         self.assertEqual(
-            [name for name in session.screenshots if name.startswith("06-camera-")],
-            [f"06-camera-{camera}.png" for camera in range(1, 8)],
+            [name for name in session.screenshots if name.startswith("14-camera-")],
+            [f"14-camera-{camera}.png" for camera in range(1, 8)],
         )
+        for name in (
+            "01-truck-before.png",
+            "03-cab-straight-down-80.png",
+            "04-cab-straight-up-80.png",
+            "06-cab-yaw-left-down-80.png",
+            "09-cab-yaw-right-up-80.png",
+            "11-cab-down-80-then-yaw-left.png",
+            "12-cab-up-80-then-yaw-right.png",
+            "13-cab-level-reset.png",
+        ):
+            self.assertIn(name, session.screenshots)
+        self.assertTrue(session.probe_started)
         self.assertTrue(session.finished)
+
+    def test_truck_probe_requires_samples_and_an_unchanged_physical_transform(self):
+        harness = load_harness()
+        samples = [
+            {"label": "before", "physical_transform_hex": "00" * 64},
+            {"label": "after", "physical_transform_hex": "00" * 64},
+        ]
+        harness.validate_truck_samples(samples)
+        with self.assertRaisesRegex(harness.LiveSmokeError, "no truck memory samples"):
+            harness.validate_truck_samples([])
+        samples[1]["physical_transform_hex"] = "01" + "00" * 63
+        with self.assertRaisesRegex(harness.LiveSmokeError, "physical transform changed"):
+            harness.validate_truck_samples(samples)
 
     def test_accessibility_smoke_covers_keyboard_cues_and_never_activates_quick_ok(self):
         harness = load_harness()

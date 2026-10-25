@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -71,6 +73,66 @@ def validate_game_log(text, require_quick_setup=False, allow_headless_graphics=F
         raise LiveSmokeError("unexpected game errors: " + " | ".join(unexpected[-5:]))
 
 
+def validate_truck_samples(samples):
+    if not samples:
+        raise LiveSmokeError("no truck memory samples were captured")
+    transforms = {sample["physical_transform_hex"] for sample in samples}
+    if len(transforms) != 1:
+        raise LiveSmokeError("physical transform changed during the parked camera battery")
+
+
+def find_player_truck(pid):
+    libc = ctypes.CDLL(None, use_errno=True)
+    if libc.ptrace(16, pid, None, None) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    try:
+        os.waitpid(pid, 0)
+        maps = Path(f"/proc/{pid}/maps").read_text().splitlines()
+        with open(f"/proc/{pid}/mem", "rb", buffering=0) as mem:
+            regions = []
+            for line in maps:
+                fields = line.split()
+                lo, hi = (int(value, 16) for value in fields[0].split("-"))
+                regions.append((line, lo, hi, fields[1], fields[-1] if len(fields) >= 6 else ""))
+            game_base = next((
+                lo for line, lo, _hi, _perms, path in regions
+                if path.casefold().endswith(("\\game.dll", "/game.dll"))
+                and line.split()[2] == "00000000"
+            ), None)
+            if game_base is None:
+                raise LiveSmokeError("game.dll base mapping not found for truck probe")
+            target = struct.pack("<I", game_base + 0xB0300)
+            matches = []
+            for _line, lo, hi, perms, _path in regions:
+                if not perms.startswith("rw") or hi - lo > 1024 * 1024 * 1024:
+                    continue
+                try:
+                    mem.seek(lo)
+                    data = mem.read(hi - lo)
+                except OSError:
+                    continue
+                offset = data.find(target)
+                while offset >= 0:
+                    address = lo + offset
+                    offset = data.find(target, offset + 1)
+                    try:
+                        mem.seek(address)
+                        obj = mem.read(0x1000)
+                        speed = struct.unpack_from("<f", obj, 0x7A4)[0]
+                        mass = struct.unpack_from("<f", obj, 0x994)[0]
+                        weight = struct.unpack_from("<f", obj, 0x2D4)[0]
+                        if 0 <= speed < 100000 and abs(mass - 400.0) < 0.01 and abs(weight - 2000.0) < 0.01:
+                            matches.append(address)
+                    except (OSError, struct.error):
+                        pass
+            if len(matches) != 1:
+                raise LiveSmokeError(f"expected one player truck, found {len(matches)}")
+            return matches[0], game_base
+    finally:
+        libc.ptrace(17, pid, None, None)
+
+
 class WineSession:
     def __init__(self, game, prefix, output, display, resolution="1024x768", title="HTMODSDKSMOKE"):
         self.game = Path(game).resolve()
@@ -86,7 +148,37 @@ class WineSession:
         self.environment = os.environ.copy()
         self.environment.update(DISPLAY=self.display, WINEPREFIX=str(self.prefix))
         self.screenshots = []
+        self.truck_address = None
+        self.truck_game_base = None
+        self.truck_mem = None
+        self.truck_samples = []
         self.cleaned = False
+
+    def start_truck_probe(self):
+        if self.game_process is None or self.game_process.poll() is not None:
+            raise LiveSmokeError("Wine must be running before truck probing")
+        self.truck_address, self.truck_game_base = find_player_truck(self.game_process.pid)
+        self.truck_mem = open(f"/proc/{self.game_process.pid}/mem", "rb", buffering=0)
+        (self.output / "truck-memory").mkdir(exist_ok=True)
+
+    def capture_truck_sample(self, name):
+        self.truck_mem.seek(self.truck_address)
+        obj = self.truck_mem.read(0x1000)
+        if len(obj) != 0x1000:
+            raise LiveSmokeError("short truck memory read")
+        (self.output / "truck-memory" / (name + ".bin")).write_bytes(obj)
+        self.truck_samples.append({
+            "label": name,
+            "wall": time.time(),
+            "address": hex(self.truck_address),
+            "game_base": hex(self.truck_game_base),
+            "position": struct.unpack_from("<3f", obj, 0x124),
+            "velocity": struct.unpack_from("<3f", obj, 0x9D4),
+            "speed_raw": struct.unpack_from("<f", obj, 0x7A4)[0],
+            "look_y_pitch": struct.unpack_from("<f", obj, 0x3D0)[0],
+            "look_x_yaw": struct.unpack_from("<f", obj, 0x3D4)[0],
+            "physical_transform_hex": obj[0xF0:0x130].hex(),
+        })
 
     def __enter__(self):
         try:
@@ -250,6 +342,8 @@ class WineSession:
             raise LiveSmokeError(f"scrot did not create {temporary}")
         os.replace(temporary, destination)
         self.screenshots.append(name)
+        if self.truck_mem is not None:
+            self.capture_truck_sample(name)
         return destination
 
     def game_log(self):
@@ -264,6 +358,16 @@ class WineSession:
             require_quick_setup=require_quick_setup,
             allow_headless_graphics=allow_headless_graphics,
         )
+        truck_summary = None
+        if self.truck_address is not None:
+            validate_truck_samples(self.truck_samples)
+            (self.output / "truck-samples.json").write_text(
+                json.dumps(self.truck_samples, indent=2) + "\n", encoding="utf-8"
+            )
+            truck_summary = {
+                "samples": len(self.truck_samples),
+                "physical_transform_unchanged": True,
+            }
         summary = {
             "status": "process-and-log-checks-passed",
             "game": str(self.game),
@@ -274,6 +378,7 @@ class WineSession:
             "visual_review": "required; this harness does not judge image content",
             "quick_setup_ok_pressed": False,
             "headless_graphics_error_allowed": allow_headless_graphics,
+            "truck_probe": truck_summary,
         }
         (self.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(summary, indent=2))
@@ -282,6 +387,8 @@ class WineSession:
         if self.cleaned:
             return
         self.cleaned = True
+        if self.truck_mem is not None:
+            self.truck_mem.close()
         if self.prefix.exists():
             try:
                 subprocess.run(
@@ -321,24 +428,48 @@ def run_camera(session, args):
     session.enter_map(args.map_wait)
     session.console("ui t cosetup")
     session.close_console(settle=10)
+    session.start_truck_probe()
+
+    def reset():
+        session.key("3")
+        session.key("1")
+
     session.key("3")
+    session.capture("01-truck-before.png")
     session.key("1")
-    session.capture("01-cab-level.png")
-    session.hold("y", 1)
-    session.capture("02-cab-yaw-left.png")
-    session.hold("k", 2)
-    session.capture("03-cab-yaw-left-down.png")
+    session.capture("02-cab-level.png")
+    session.hold("k", 8)
+    session.capture("03-cab-straight-down-80.png")
+    reset()
+    session.hold("i", 8)
+    session.capture("04-cab-straight-up-80.png")
+    reset()
+    session.hold("y", 2)
+    session.capture("05-cab-yaw-left.png")
+    session.hold("k", 8)
+    session.capture("06-cab-yaw-left-down-80.png")
     session.key("3")
+    session.capture("07-truck-after-yaw-left-down.png")
     session.key("1")
-    session.hold("o", 1)
-    session.capture("04-cab-yaw-right.png")
-    session.hold("i", 2)
-    session.capture("05-cab-yaw-right-up.png")
+    session.hold("o", 2)
+    session.capture("08-cab-yaw-right.png")
+    session.hold("i", 8)
+    session.capture("09-cab-yaw-right-up-80.png")
     session.key("3")
+    session.capture("10-truck-after-yaw-right-up.png")
     session.key("1")
+    session.hold("k", 8)
+    session.hold("y", 2)
+    session.capture("11-cab-down-80-then-yaw-left.png")
+    reset()
+    session.hold("i", 8)
+    session.hold("o", 2)
+    session.capture("12-cab-up-80-then-yaw-right.png")
+    reset()
+    session.capture("13-cab-level-reset.png")
     for camera in range(1, 8):
         session.key(str(camera))
-        session.capture(f"06-camera-{camera}.png")
+        session.capture(f"14-camera-{camera}.png")
     session.finish(require_quick_setup=True)
 
 
