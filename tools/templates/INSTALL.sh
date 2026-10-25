@@ -34,22 +34,31 @@ hash_file() {
     printf '%s\n' "$1"
 }
 
-GAME_HASH=$(hash_file "$GAME/game/sys/game.dll")
-DX8_HASH=$(hash_file "$GAME/sys/dx8.dll")
-GAME_RECOGNIZED=0
-DX8_RECOGNIZED=0
 INSTALL_GAME=
 INSTALL_GAME_HASH=
 INSTALL_DX8=
 INSTALL_DX8_HASH=
+PATCHER=
+CATALOG=
 DATA_COUNT=0
 
 while IFS="$TAB" read -r kind relative expected; do
     [ -n "$kind" ] || continue
-    if [ "$kind" = "legacy-game" ]; then
-        if [ "$GAME_HASH" = "$expected" ]; then GAME_RECOGNIZED=1; fi
-        continue
-    fi
+    case $kind in
+        variant|legacy-game|stock-dx8)
+            continue
+            ;;
+        install-game)
+            INSTALL_GAME=$relative
+            INSTALL_GAME_HASH=$expected
+            continue
+            ;;
+        install-dx8)
+            INSTALL_DX8=$relative
+            INSTALL_DX8_HASH=$expected
+            continue
+            ;;
+    esac
     source=$PAYLOAD/$relative
     if [ ! -f "$source" ]; then
         echo "error: payload missing: $source" >&2
@@ -61,20 +70,11 @@ while IFS="$TAB" read -r kind relative expected; do
         exit 1
     fi
     case $kind in
-        variant)
-            if [ "$GAME_HASH" = "$expected" ]; then GAME_RECOGNIZED=1; fi
+        patcher)
+            PATCHER=$source
             ;;
-        install-game)
-            INSTALL_GAME=$relative
-            INSTALL_GAME_HASH=$expected
-            ;;
-        install-dx8)
-            INSTALL_DX8=$relative
-            INSTALL_DX8_HASH=$expected
-            if [ "$DX8_HASH" = "$expected" ]; then DX8_RECOGNIZED=1; fi
-            ;;
-        stock-dx8)
-            if [ "$DX8_HASH" = "$expected" ]; then DX8_RECOGNIZED=1; fi
+        migrations)
+            CATALOG=$source
             ;;
         data)
             DATA_COUNT=$((DATA_COUNT + 1))
@@ -86,16 +86,12 @@ while IFS="$TAB" read -r kind relative expected; do
     esac
 done < "$MANIFEST"
 
-if [ "$GAME_RECOGNIZED" -ne 1 ]; then
-    echo "error: unknown or unsupported game.dll; restore pristine v1.2 or a recognized installed variant." >&2
-    exit 1
-fi
-if [ "$DX8_RECOGNIZED" -ne 1 ]; then
-    echo "error: unknown, wrapped, or unsupported dx8.dll; restore the stock v1.2 DLL." >&2
-    exit 1
-fi
-if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ "$DATA_COUNT" -eq 0 ]; then
+if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ -z "$PATCHER" ] || [ -z "$CATALOG" ] || [ "$DATA_COUNT" -eq 0 ]; then
     echo "error: incomplete generated install manifest." >&2
+    exit 1
+fi
+if ! command -v wine >/dev/null 2>&1 || ! command -v winepath >/dev/null 2>&1; then
+    echo "error: wine and winepath are required for local DLL staging." >&2
     exit 1
 fi
 
@@ -123,6 +119,31 @@ if [ "$ASSUME_YES" -ne 1 ]; then
         y|Y|yes|YES) ;;
         *) echo "Aborted."; exit 1 ;;
     esac
+fi
+
+STAGING=$PACKAGE/installer/.staging-$$
+if [ -e "$STAGING" ]; then
+    echo "error: staging path already exists: $STAGING" >&2
+    exit 1
+fi
+printf 'Staging selected binary components locally; no original DLL payloads are shipped.\n'
+if ! wine "$PATCHER" stage \
+    --game-dir "$(winepath -w "$GAME")" \
+    --output-dir "$(winepath -w "$STAGING")" \
+    --migrations "$(winepath -w "$CATALOG")" \
+    --mod config --mod handling_defs --mod economy_def --mod driver_def \
+    --mod camera --mod physics --mod ai --mod ui_keyboard --mod dx8_vsync \
+    --expect "game/sys/game.dll=$INSTALL_GAME_HASH" \
+    --expect "sys/dx8.dll=$INSTALL_DX8_HASH"; then
+    rm -rf "$STAGING"
+    echo "error: frozen patcher staging failed; no files were changed." >&2
+    exit 1
+fi
+if [ "$(hash_file "$STAGING/game/sys/game.dll")" != "$INSTALL_GAME_HASH" ] || \
+        [ "$(hash_file "$STAGING/sys/dx8.dll")" != "$INSTALL_DX8_HASH" ]; then
+    rm -rf "$STAGING"
+    echo "error: staged DLL hash verification failed; no files were changed." >&2
+    exit 1
 fi
 
 BACKUP=$PACKAGE/installer/backups/shell-$(date +%Y%m%d-%H%M%S)-$$
@@ -201,6 +222,7 @@ on_exit() {
             exit_status=1
         fi
     fi
+    rm -rf "$STAGING"
     exit "$exit_status"
 }
 
@@ -242,10 +264,10 @@ install_file() {
 while IFS="$TAB" read -r kind relative expected; do
     case $kind in
         install-game)
-            install_file "$PAYLOAD/$relative" "$GAME/game/sys/game.dll" "game/sys/game.dll" "$expected"
+            install_file "$STAGING/game/sys/game.dll" "$GAME/game/sys/game.dll" "game/sys/game.dll" "$expected"
             ;;
         install-dx8)
-            install_file "$PAYLOAD/$relative" "$GAME/sys/dx8.dll" "sys/dx8.dll" "$expected"
+            install_file "$STAGING/sys/dx8.dll" "$GAME/sys/dx8.dll" "sys/dx8.dll" "$expected"
             ;;
         data)
             data_relative=${relative#data/}

@@ -26,6 +26,10 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+@unittest.skipUnless(
+    os.environ.get("HTMOD_RELEASE_ZIP") or os.environ.get("HTMOD_TEST_PATCHER_EXE"),
+    "a real frozen patcher is required for shell installer tests",
+)
 class ShellInstallerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -45,8 +49,8 @@ class ShellInstallerTests(unittest.TestCase):
             script = cls.release / "INSTALL.sh"
             script.chmod(script.stat().st_mode | 0o111)
             return
-        from tests.release_fixtures import build_legacy_installer_fixture
-        build_legacy_installer_fixture(cls.release)
+        from tests.release_fixtures import build_installer_fixture
+        build_installer_fixture(cls.release)
 
     @classmethod
     def tearDownClass(cls):
@@ -70,7 +74,7 @@ class ShellInstallerTests(unittest.TestCase):
             ["/bin/sh", str(package / "INSTALL.sh"), "--yes", str(game or self.game)],
             text=True,
             capture_output=True,
-            timeout=30,
+            timeout=120,
         )
 
     def manifest(self):
@@ -87,7 +91,7 @@ class ShellInstallerTests(unittest.TestCase):
         records = [line.split("\t") for line in payload_manifest.read_text(encoding="utf-8").splitlines()]
         self.assertEqual(len([r for r in records if r[0] == "variant"]), 16)
         self.assertEqual(len([r for r in records if r[0] == "data"]), 20)
-        self.assertIn(["install-game", "game-1111.dll", self.manifest()["game_variants"]["1111"]["sha256"]], records)
+        self.assertIn(["install-game", "game/sys/game.dll", self.manifest()["game_variants"]["1111"]["sha256"]], records)
 
     def test_install_all_validates_payloads_and_backs_up_every_replaced_or_created_file(self):
         original_game = (self.game / "game/sys/game.dll").read_bytes()
@@ -212,6 +216,58 @@ class ShellInstallerTests(unittest.TestCase):
                 self.assertEqual(len(backups), 1)
                 self.assertEqual((backups[0].parent / "files/game/sys/game.dll").read_bytes(), original)
 
+    def test_every_current_game_variant_reinstalls_with_incoming_backup(self):
+        from tests.release_fixtures import current_binary_images
+
+        for name, source in current_binary_images()[0].items():
+            with self.subTest(variant=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = root / "package"
+                shutil.copytree(self.package, package)
+                game = root / "game"
+                shutil.copytree(self.game, game)
+                target = game / "game/sys/game.dll"
+                target.write_bytes(source)
+                result = self.run_install(package=package, game=game)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                backups = list((package / "installer/backups").glob("shell-*/installation.tsv"))
+                self.assertEqual(len(backups), 1)
+                backup = backups[0].parent / "files/game/sys/game.dll"
+                if name == "1111":
+                    self.assertFalse(backup.exists())
+                else:
+                    self.assertEqual(backup.read_bytes(), source)
+
+    def test_corrupt_patcher_catalog_and_wrong_staged_hash_fail_before_backup(self):
+        for failure in ("patcher", "catalog", "wrong-hash"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = root / "package"
+                shutil.copytree(self.package, package)
+                game = root / "game"
+                shutil.copytree(self.game, game)
+                if failure == "patcher":
+                    (package / "installer/payload/htmod.exe").write_bytes(b"not an executable")
+                elif failure == "catalog":
+                    (package / "installer/payload/migrations.json").write_text("{", encoding="utf-8")
+                else:
+                    manifest = package / "installer/payload/install-manifest.tsv"
+                    lines = manifest.read_text(encoding="utf-8").splitlines()
+                    lines = [
+                        f"install-game\tgame/sys/game.dll\t{'0' * 64}" if line.startswith("install-game\t") else line
+                        for line in lines
+                    ]
+                    manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                before_game = (game / "game/sys/game.dll").read_bytes()
+                before_dx8 = (game / "sys/dx8.dll").read_bytes()
+                result = self.run_install(package=package, game=game)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual((game / "game/sys/game.dll").read_bytes(), before_game)
+                self.assertEqual((game / "sys/dx8.dll").read_bytes(), before_dx8)
+                self.assertFalse((package / "installer/backups").exists())
+                self.assertFalse((game / "game/usr/config.cfg").exists())
+
     def test_unknown_source_or_corrupt_payload_changes_nothing(self):
         for failure in ("unknown-source", "corrupt-payload"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
@@ -230,7 +286,7 @@ class ShellInstallerTests(unittest.TestCase):
                     before = sha256(game / "game/sys/game.dll")
                 result = self.run_install(package=package, game=game)
                 self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertRegex(result.stdout + result.stderr, "unsupported|corrupt|SHA-256")
+                self.assertRegex(result.stdout + result.stderr, "unknown|unsupported|corrupt|SHA-256")
                 self.assertEqual(sha256(game / "game/sys/game.dll"), before)
                 self.assertFalse((game / "game/usr/config.cfg").exists())
                 self.assertFalse((package / "installer/backups").exists())

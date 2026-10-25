@@ -44,15 +44,23 @@ def apply_fixture(image, filename, replacement_field):
         image[offset:offset + len(current)] = bytes.fromhex(change[replacement_field])
 
 
+def current_image(payload, name):
+    path = Path(payload) / f"game-{name}.dll"
+    if path.is_file():
+        return path.read_bytes()
+    from tests.release_fixtures import current_binary_images
+    return current_binary_images()[0][name]
+
+
 def write_fixed_eye_variant(payload, name, destination):
-    image = bytearray((Path(payload) / f"game-{name}.dll").read_bytes())
+    image = bytearray(current_image(payload, name))
     apply_fixture(image, "fixed_eye_camera_delta.json", "fixed_eye_hex")
     assert hashlib.sha256(image).hexdigest() == FIXED_EYE_GAME_SHA256[name]
     Path(destination).write_bytes(image)
 
 
 def write_legacy_variant(payload, name, destination):
-    image = bytearray((Path(payload) / f"game-{name}.dll").read_bytes())
+    image = bytearray(current_image(payload, name))
     if int(name, 2) & 1:
         apply_fixture(image, "fixed_eye_camera_delta.json", "fixed_eye_hex")
         apply_fixture(image, "legacy_camera_delta.json", "legacy_hex")

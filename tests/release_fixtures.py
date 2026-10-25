@@ -1,5 +1,7 @@
+import functools
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -19,6 +21,7 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
+@functools.lru_cache(maxsize=1)
 def current_binary_images():
     release = load_release(ROOT)
     game_source = build_windows_release.default_test_base_file(Path("game/sys/game.dll")).read_bytes()
@@ -73,35 +76,16 @@ def fake_pe64(path):
     Path(path).write_bytes(data)
 
 
-def build_legacy_installer_fixture(output):
+def build_installer_fixture(output):
     from tools import build_windows_release as builder
 
-    output = Path(output)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    fake_patcher = output.parent / f"{output.name}-fixture-htmod.exe"
-    fake_pe64(fake_patcher)
+    patcher = os.environ.get("HTMOD_TEST_PATCHER_EXE")
+    if not patcher:
+        raise RuntimeError("HTMOD_TEST_PATCHER_EXE is required for real installer tests")
     builder.build(SimpleNamespace(
-        output=output,
+        output=Path(output),
         game_dll=builder.default_test_base_file(Path("game/sys/game.dll")),
         dx8_dll=builder.default_test_base_file(Path("sys/dx8.dll")),
-        patcher_exe=fake_patcher,
+        patcher_exe=Path(patcher),
         migrations=ROOT / "modpack/migrations.json",
     ))
-    payload = output / "installer/payload"
-    variants, dx8 = write_current_payload(payload)
-    release = load_release(ROOT)
-    manifest_path = payload / "manifest.json"
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["schema_version"] = 2
-    manifest["game_variants"] = variants
-    manifest["dx8"] = dx8
-    manifest["legacy_game_sha256"] = list(release.legacy_game_sha256)
-    for name in ("htmod.exe", "migrations.json"):
-        (payload / name).unlink()
-    manifest["payloads"] = {
-        path.relative_to(payload).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(payload.rglob("*"))
-        if path.is_file() and path.name not in {"manifest.json", "install-manifest.tsv"}
-    }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    fake_patcher.unlink()

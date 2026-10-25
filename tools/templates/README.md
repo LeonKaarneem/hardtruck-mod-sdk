@@ -1,12 +1,12 @@
 # Extract ZIP -> run Setup.bat -> Install all
 
-Close the game, run `Setup.bat`, and choose **Install all**. Setup automatically checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm the detected folder or choose from the numbered list. If no installation is found, enter the folder containing `prism3d.exe` manually. No Python installation is needed.
+Close the game, run `Setup.bat`, and choose **Install all**. Setup automatically checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm the detected folder or choose from the numbered list. If no installation is found, enter the folder containing `prism3d.exe` manually. No Python installation is needed. The package ships no original game/DX8 DLLs: the included frozen `htmod.exe` patches recognized local inputs before Setup backs up and installs them.
 
 **Start a new profile after Install all.** Its definition changes make existing saves incompatible. Setup preserves save files but cannot make old saves load.
 
 To install only some mods, choose **Choose components** and answer each prompt. Selecting handling, economy, or driver definitions also requires a new profile. **Uninstall** restores backed-up files when they have not been edited since installation.
 
-The installer supports pristine Hard Truck v1.2, current installed variants, and upgrades from previously released modpack variants. Upgrades install the selected current variant and retain a backup. Unknown `game.dll` files are still refused. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the payloads and backups.
+The installer supports pristine Hard Truck v1.2, current installed variants, and upgrades from previously released modpack variants. The frozen patcher stages the selected current variant locally, then Setup retains an exact backup of the incoming files. Unknown `game.dll` files are refused before backup. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the patcher, migration catalog, data payloads, and backups. Native Windows no-Python staging and PowerShell 5.1 behavior require native Windows verification.
 
 ## Play Modded and crash reports
 
@@ -20,7 +20,7 @@ Username, computer name, home/game/package paths, and IPv4/IPv6 addresses are re
 
 ## Linux / Wine
 
-Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, upgrades previously released `game.dll` variants to the current all-components payload with backups, and still refuses unknown DLLs. It rejects symlink destinations and existing non-regular destinations before recording changes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
+Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using POSIX shell utilities, `sha256sum`, and Wine with `winepath`; Python and PowerShell are not required. The script invokes the same frozen patcher as Windows to normalize recognized inputs and stage the all-components variant locally, validates data payloads and staged hashes before recording changes, and refuses unknown DLLs. It rejects symlink destinations and existing non-regular destinations, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
 
 ## Controls and display
 

@@ -88,7 +88,10 @@ class CrashReportTemplateTests(unittest.TestCase):
         self.assertLess(text.index(guard), text.index("        Invoke-Play $manifest $script:GamePath"))
 
 
-@unittest.skipIf(PWSH is None, "PowerShell 7 is required for crash reporting runtime tests")
+@unittest.skipIf(
+    PWSH is None or not (os.environ.get("HTMOD_RELEASE_ZIP") or os.environ.get("HTMOD_TEST_PATCHER_EXE")),
+    "PowerShell 7 and a real frozen patcher are required for crash reporting runtime tests",
+)
 class CrashReportingRuntimeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -103,8 +106,8 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             if not cls.release.is_dir():
                 raise RuntimeError(f"release ZIP has no HardTruckModern root: {archive}")
             return
-        from tests.release_fixtures import build_legacy_installer_fixture
-        build_legacy_installer_fixture(cls.release)
+        from tests.release_fixtures import build_installer_fixture
+        build_installer_fixture(cls.release)
 
     @classmethod
     def tearDownClass(cls):
@@ -301,7 +304,7 @@ class CrashReportingRuntimeTests(unittest.TestCase):
 
         self.assertEqual(report["schema_version"], 1)
         self.assertIsNone(report["exit_code"])
-        self.assertEqual(report["payload_manifest_schema"], 2)
+        self.assertEqual(report["payload_manifest_schema"], 3)
         self.assertEqual({item["id"] for item in report["components"]}, COMPONENT_IDS)
         self.assertTrue(all(item["status"] == "installed" and item["version"] for item in report["components"]))
         self.assertEqual(report["game_hashes"], {

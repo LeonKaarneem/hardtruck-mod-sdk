@@ -187,9 +187,11 @@ def build_shell_manifest(release, payload, game_variants, dx8):
     ]
     if len(install_all) != 1:
         raise BuildError("shell installer requires one curated all-game-components variant")
-    add("install-game", f"game-{install_all[0]}.dll", game_variants[install_all[0]]["sha256"])
-    add("install-dx8", "dx8-vsync.dll", dx8["vsync"]["sha256"])
-    add("stock-dx8", "dx8-stock.dll", dx8["stock"]["sha256"])
+    add("install-game", "game/sys/game.dll", game_variants[install_all[0]]["sha256"])
+    add("install-dx8", "sys/dx8.dll", dx8["vsync"]["sha256"])
+    add("stock-dx8", "sys/dx8.dll", dx8["stock"]["sha256"])
+    add("patcher", "htmod.exe", sha256(payload / "htmod.exe"))
+    add("migrations", "migrations.json", sha256(payload / "migrations.json"))
     for mod in release.mods.values():
         for record in mod.files:
             relative = record.destination.removeprefix("game/usr/")

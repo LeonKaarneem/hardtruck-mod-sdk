@@ -1,10 +1,12 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import sys
 import tempfile
 import unittest
+import zipfile
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,6 +157,29 @@ class DLLFreeReleaseTests(unittest.TestCase):
                     for target in catalog["targets"].values():
                         target["sources"].pop(source_hash, None)
                 self.assert_catalog_rejected(mutate, "source coverage|missing.*source")
+
+    @unittest.skipUnless(os.environ.get("HTMOD_RELEASE_ZIP"), "release ZIP not supplied")
+    def test_zip_has_no_dll_payloads_or_known_complete_dll_binaries(self):
+        from tests.release_fixtures import current_binary_images
+
+        release = build_windows_release.load_release(ROOT)
+        game, dx8 = current_binary_images()
+        known_hashes = {hashlib.sha256(data).hexdigest() for data in game.values()}
+        known_hashes.update(hashlib.sha256(data).hexdigest() for data in dx8.values())
+        known_hashes.update(release.legacy_game_sha256)
+        with zipfile.ZipFile(os.environ["HTMOD_RELEASE_ZIP"]) as archive:
+            self.assertIsNone(archive.testzip())
+            names = archive.namelist()
+            self.assertFalse([name for name in names if name.lower().endswith(".dll")])
+            self.assertFalse([
+                name for name in names
+                if any(part in {"tests", "research", "test-base", "__pycache__"} for part in Path(name).parts)
+            ])
+            for info in archive.infolist():
+                if info.is_dir():
+                    continue
+                data = archive.read(info)
+                self.assertNotIn(hashlib.sha256(data).hexdigest(), known_hashes, info.filename)
 
     def test_builder_rejects_non_64bit_patcher(self):
         with tempfile.TemporaryDirectory() as temporary:

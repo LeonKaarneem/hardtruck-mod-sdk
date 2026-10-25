@@ -432,7 +432,7 @@ function Read-PayloadManifest {
         throw "Installer payload manifest is missing: $path"
     }
     $manifest = Get-Content -LiteralPath $path -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($manifest.schema_version -ne 2) {
+    if ($manifest.schema_version -ne 3) {
         throw "Unsupported installer payload manifest version."
     }
     if ($null -eq $manifest.components -or @(Get-ComponentRecords $manifest).Count -eq 0) {
@@ -569,6 +569,78 @@ function Rollback-Install {
     return $errors
 }
 
+function Convert-FrozenPath {
+    param([string]$Path)
+    if ($env:OS -eq "Windows_NT") {
+        return $Path
+    }
+    $converted = & winepath -w $Path
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($converted)) {
+        throw "Could not convert staging path with winepath: $Path"
+    }
+    return $converted.Trim()
+}
+
+function Invoke-StagedMods {
+    param(
+        [hashtable]$Selection,
+        $Manifest,
+        $Variant,
+        $Dx8
+    )
+    $patcher = Join-Path $script:PayloadRoot "htmod.exe"
+    $catalog = Join-Path $script:PayloadRoot "migrations.json"
+    if (-not (Test-Hash $patcher $Manifest.payloads."htmod.exe")) {
+        throw "Frozen patcher is missing or corrupt: $patcher"
+    }
+    if (-not (Test-Hash $catalog $Manifest.payloads."migrations.json")) {
+        throw "Migration catalog is missing or corrupt: $catalog"
+    }
+    $stageRoot = Join-Path $script:InstallerRoot ("staging-" + [Guid]::NewGuid().ToString("N"))
+    $arguments = @(
+        "stage",
+        "--game-dir", (Convert-FrozenPath $script:GamePath),
+        "--output-dir", (Convert-FrozenPath $stageRoot),
+        "--migrations", (Convert-FrozenPath $catalog)
+    )
+    $stagingIds = @(
+        Get-ComponentRecords $Manifest |
+            Where-Object { $_.Value.kind -eq "binary" -and $Selection[$_.Name] } |
+            ForEach-Object { $_.Name }
+    )
+    for ($index = 0; $index -lt $stagingIds.Count; $index++) {
+        $id = $stagingIds[$index]
+        foreach ($required in @($Manifest.components.$id.requires)) {
+            if ($stagingIds -notcontains $required) {
+                $stagingIds += $required
+            }
+        }
+    }
+    foreach ($property in @(Get-ComponentRecords $Manifest)) {
+        if ($stagingIds -contains $property.Name) {
+            $arguments += @("--mod", $property.Name)
+        }
+    }
+    $arguments += @("--expect", "game/sys/game.dll=$($Variant.sha256)")
+    $arguments += @("--expect", "sys/dx8.dll=$($Dx8.sha256)")
+    Write-Host "Staging selected binary components locally; no original DLL payloads are shipped."
+    if ($env:OS -eq "Windows_NT") {
+        & $patcher @arguments | Write-Host
+    }
+    else {
+        & wine $patcher @arguments | Write-Host
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frozen patcher staging failed; no files were changed."
+    }
+    $stagedGame = Join-Path $stageRoot "game/sys/game.dll"
+    $stagedDx8 = Join-Path $stageRoot "sys/dx8.dll"
+    if (-not (Test-Hash $stagedGame $Variant.sha256) -or -not (Test-Hash $stagedDx8 $Dx8.sha256)) {
+        throw "Staged DLL hash verification failed; no files were changed."
+    }
+    return $stageRoot
+}
+
 function Install-Mods {
     param(
         [hashtable]$Selection,
@@ -576,17 +648,6 @@ function Install-Mods {
     )
     $gameDestination = Join-Path $script:GamePath "game/sys/game.dll"
     $dx8Destination = Join-Path $script:GamePath "sys/dx8.dll"
-    $gameHash = (Get-FileHash -LiteralPath $gameDestination -Algorithm SHA256).Hash
-    $validGameHashes = @($Manifest.game_variants.PSObject.Properties | ForEach-Object { $_.Value.sha256 }) + @($Manifest.legacy_game_sha256)
-    if ($validGameHashes -notcontains $gameHash) {
-        throw "Unknown or unsupported game.dll. Use pristine v1.2 or a supported installed variant; no files were changed."
-    }
-    $dx8Hash = (Get-FileHash -LiteralPath $dx8Destination -Algorithm SHA256).Hash
-    $validDx8Hashes = @($Manifest.dx8.stock.sha256, $Manifest.dx8.vsync.sha256)
-    if ($validDx8Hashes -notcontains $dx8Hash) {
-        throw "Unknown, wrapped, or unsupported dx8.dll. Restore the stock v1.2 DX8 DLL; no files were changed."
-    }
-
     $selectedGameComponents = @(
         Get-ComponentRecords $Manifest |
             Where-Object { $_.Value.target -eq "game/sys/game.dll" -and $Selection[$_.Name] } |
@@ -605,13 +666,13 @@ function Install-Mods {
     $dx8 = $Manifest.dx8.$dx8Choice
     $jobs = @()
     $jobs += @{
-        source = Join-Path $script:PayloadRoot $variant.file
+        source = $null
         destination = $gameDestination
         relative = "game/sys/game.dll"
         hash = $variant.sha256
     }
     $jobs += @{
-        source = Join-Path $script:PayloadRoot $dx8.file
+        source = $null
         destination = $dx8Destination
         relative = "sys/dx8.dll"
         hash = $dx8.sha256
@@ -632,15 +693,20 @@ function Install-Mods {
         }
     }
     foreach ($job in $jobs) {
-        if (-not (Test-Hash $job.source $job.hash)) {
+        if ($null -ne $job.source -and -not (Test-Hash $job.source $job.hash)) {
             throw "Installer payload is missing or corrupt: $($job.source)"
         }
     }
 
-    $script:CurrentBackup = New-BackupDirectory
+    $stageRoot = $null
+    $script:CurrentBackup = $null
     $changes = @()
     $entries = @()
     try {
+        $stageRoot = Invoke-StagedMods $Selection $Manifest $variant $dx8
+        $jobs[0].source = Join-Path $stageRoot "game/sys/game.dll"
+        $jobs[1].source = Join-Path $stageRoot "sys/dx8.dll"
+        $script:CurrentBackup = New-BackupDirectory
         foreach ($job in $jobs) {
             if ((Test-Path -LiteralPath $job.destination) -and
                 -not (Test-Path -LiteralPath $job.destination -PathType Leaf)) {
@@ -706,6 +772,11 @@ function Install-Mods {
             throw "Installation failed and rollback was incomplete: $originalError; $($rollbackErrors -join '; ')"
         }
         throw "Installation failed; all files changed by this run were restored. $originalError"
+    }
+    finally {
+        if ($null -ne $stageRoot -and (Test-Path -LiteralPath $stageRoot)) {
+            Remove-Item -LiteralPath $stageRoot -Recurse -Force
+        }
     }
 }
 

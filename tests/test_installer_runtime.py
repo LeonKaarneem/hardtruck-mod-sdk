@@ -38,7 +38,10 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-@unittest.skipIf(PWSH is None, "PowerShell 7 is required for installer runtime tests")
+@unittest.skipIf(
+    PWSH is None or not (os.environ.get("HTMOD_RELEASE_ZIP") or os.environ.get("HTMOD_TEST_PATCHER_EXE")),
+    "PowerShell 7 and a real frozen patcher are required for installer runtime tests",
+)
 class InstallerCase(unittest.TestCase):
     def make_game(self, parent, name="game"):
         game = Path(parent) / name
@@ -74,7 +77,7 @@ class InstallerCase(unittest.TestCase):
             text=True,
             capture_output=True,
             env=environment,
-            timeout=45,
+            timeout=120,
         )
 
     def manifest(self, package):
@@ -163,7 +166,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
                     manifest["game_variants"][name]["sha256"],
                 )
 
-    def test_synthetic_fourth_game_component_selects_its_metadata_payload(self):
+    def test_synthetic_unknown_binary_component_is_refused_before_backup(self):
         manifest = self.manifest(self.package)
         manifest["components"]["fourth"] = {
             "label": "Fourth",
@@ -179,20 +182,16 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         variants = {}
         for name, record in manifest["game_variants"].items():
             variants[name + "0"] = dict(record)
-        fourth_payload = self.package / "installer/payload/game-10000.dll"
-        fourth_payload.write_bytes((self.package / "installer/payload/game-0001.dll").read_bytes())
-        variants["10000"] = {
-            "file": fourth_payload.name,
-            "components": ["fourth"],
-            "sha256": sha256(fourth_payload),
-        }
+        variants["10000"] = {"components": ["fourth"], "sha256": "0" * 64}
         manifest["game_variants"] = variants
-        manifest["payloads"][fourth_payload.name] = sha256(fourth_payload)
         self.write_manifest(self.package, manifest)
 
         result = self.run_setup(self.package, self.game, action="Custom", components=["fourth"])
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(sha256(self.game / "game/sys/game.dll"), sha256(fourth_payload))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("unknown mod", result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["00000"]["sha256"])
+        self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
+        self.assertFalse(self.backup_manifests(self.package))
 
     def test_interactive_prompts_use_generated_labels_descriptions_and_defaults(self):
         manifest = self.manifest(self.package)
@@ -305,7 +304,7 @@ class InstallerSafetyTests(InstallerCase):
                 before = sha256(target)
                 result = self.run_setup(package, game, action="Custom", components=["config"])
                 self.assertEqual(result.returncode, 1)
-                self.assertIn("unsupported", (result.stdout + result.stderr).lower())
+                self.assertRegex((result.stdout + result.stderr).lower(), "unknown|unsupported")
                 self.assertEqual(sha256(target), before)
                 self.assertFalse((package / "installer/backups").exists())
 
@@ -318,6 +317,30 @@ class InstallerSafetyTests(InstallerCase):
         self.assert_stock(self.game)
         self.assertFalse((self.game / "game/usr/config.cfg").exists())
         self.assertFalse((self.package / "installer/backups").exists())
+
+    def test_corrupt_patcher_catalog_and_wrong_staged_hash_fail_before_backup(self):
+        for failure in ("patcher", "catalog", "wrong-hash"):
+            with self.subTest(failure=failure):
+                root = self.root / f"stage-failure-{failure}"
+                root.mkdir()
+                package = self.make_package(root)
+                game = self.make_game(root)
+                if failure == "patcher":
+                    (package / "installer/payload/htmod.exe").write_bytes(b"not an executable")
+                elif failure == "catalog":
+                    (package / "installer/payload/migrations.json").write_text("{", encoding="utf-8")
+                else:
+                    manifest = self.manifest(package)
+                    manifest["game_variants"]["1111"]["sha256"] = "0" * 64
+                    self.write_manifest(package, manifest)
+                before_game = (game / "game/sys/game.dll").read_bytes()
+                before_dx8 = (game / "sys/dx8.dll").read_bytes()
+                result = self.run_setup(package, game)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertEqual((game / "game/sys/game.dll").read_bytes(), before_game)
+                self.assertEqual((game / "sys/dx8.dll").read_bytes(), before_dx8)
+                self.assertFalse((package / "installer/backups").exists())
+                self.assertFalse((game / "game/usr/config.cfg").exists())
 
     def test_mid_install_failure_rolls_back_every_changed_file(self):
         (self.game / "game/usr/ui/mmain.sc").mkdir(parents=True)
@@ -505,6 +528,42 @@ class LegacyInstallerUpgradeTests(InstallerCase):
                 game_entry = next(entry for entry in backups[0]["entries"] if entry["destination"] == "game/sys/game.dll")
                 self.assertEqual(game_entry["original_sha256"], legacy_hash)
 
+    def test_every_current_game_variant_reinstalls_with_incoming_backup(self):
+        from tests.release_fixtures import current_binary_images
+
+        for name, source in current_binary_images()[0].items():
+            with self.subTest(variant=name):
+                root = self.root / f"current-{name}"
+                root.mkdir()
+                package = self.make_package(root)
+                game = self.make_game(root)
+                target = game / "game/sys/game.dll"
+                target.write_bytes(source)
+                result = self.run_setup(package, game, action="InstallAll")
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                backups = [json.loads(path.read_text(encoding="utf-8")) for path in self.backup_manifests(package)]
+                self.assertEqual(len(backups), 1)
+                entries = [entry for entry in backups[0]["entries"] if entry["destination"] == "game/sys/game.dll"]
+                if name == "1111":
+                    self.assertEqual(entries, [])
+                else:
+                    self.assertEqual(len(entries), 1)
+                    self.assertEqual((self.backup_manifests(package)[0].parent / entries[0]["backup_file"]).read_bytes(), source)
+
+    def test_data_only_selection_removes_old_camera_and_preserves_incoming_backup(self):
+        target = self.game / "game/sys/game.dll"
+        write_legacy_variant(self.package / "installer/payload", "0001", target)
+        original = target.read_bytes()
+        result = self.run_setup(self.package, self.game, action="Custom", components=["config"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(target), self.manifest(self.package)["game_variants"]["0000"]["sha256"])
+        self.assertEqual(sha256(self.game / "sys/dx8.dll"), self.manifest(self.package)["dx8"]["stock"]["sha256"])
+        installation = json.loads(self.backup_manifests(self.package)[0].read_text(encoding="utf-8"))
+        entry = next(entry for entry in installation["entries"] if entry["destination"] == "game/sys/game.dll")
+        self.assertEqual((self.backup_manifests(self.package)[0].parent / entry["backup_file"]).read_bytes(), original)
+        self.assertTrue((self.game / "game/usr/ui/cosetup.sc").is_file())
+
 
 class InstallerDetectionTests(InstallerCase):
     def install_detected(self, inputs, env, game=None, package=None):
@@ -685,8 +744,8 @@ def build_release(cls):
         if not cls.release.is_dir():
             raise RuntimeError(f"release ZIP has no HardTruckModern root: {archive}")
         return
-    from tests.release_fixtures import build_legacy_installer_fixture
-    build_legacy_installer_fixture(cls.release)
+    from tests.release_fixtures import build_installer_fixture
+    build_installer_fixture(cls.release)
 
 
 for test_class in (

@@ -1,6 +1,6 @@
 # Hard Truck: 18 Wheels of Steel - Modern v3
 
-A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-v3.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python.
+A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-v3.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python. **No original game or DX8 DLL is shipped.** The included frozen `htmod.exe` normalizes a recognized installed DLL and builds the selected current variant locally; only the user's actual incoming files are backed up.
 
 > **Start a new profile after installing definition changes.** Existing saves are version-checked against those definitions and will not load. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
@@ -14,7 +14,7 @@ A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
 
 Keep the extracted `installer` folder so Setup can retain backups and uninstall later. To restore the pre-install state, run `Setup.bat` and choose **Uninstall**. Files changed after installation are reported and skipped rather than overwritten. Saves and unrelated files are preserved.
 
-Setup accepts pristine v1.2, current binary variants, and upgrades from previously released modpack variants. It installs the selected current variant and backs up the replaced DLL. It refuses unknown `game.dll` or wrapped `sys/dx8.dll` files instead of overwriting them. Restore the stock DX8 DLL before setup if you use d3d8to9.
+Setup accepts pristine v1.2, current binary variants, and upgrades from previously released modpack variants. Its frozen patcher normalizes the recognized input and stages the selected current variant locally before Setup backs up the actual incoming DLL. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused before backup. Restore the stock DX8 DLL before setup if you use d3d8to9. Native Windows no-Python staging and PowerShell 5.1 behavior still require native Windows verification.
 
 ## Play Modded and crash reports
 
@@ -66,13 +66,13 @@ Widescreen is Vert- (cropped vertically). For the original field of view, use a 
 
 ## Linux / Wine
 
-Use a 32-bit Wine prefix and install the game normally. Extract `HardTruckModern-v3.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
+Use a 64-bit Wine prefix (required for the 64-bit patcher; it still runs the 32-bit game) and install the game normally. Extract `HardTruckModern-v3.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
 
 ```sh
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
 ```
 
-The POSIX-shell path needs `sha256sum` and standard shell utilities, not Python or PowerShell. It validates every prebuilt payload and the current game/DX8 hashes, upgrades previously released `game.dll` variants to the current all-components payload with backups, rejects unknown DLLs, rejects symlinks and existing non-regular destinations before recording changes, installs all components, verifies the results, and writes originals plus `installation.tsv` to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
+The POSIX-shell path needs `sha256sum`, standard shell utilities, and Wine with `winepath`, not Python or PowerShell. It invokes the same frozen `htmod.exe` as Windows to normalize recognized game/DX8 inputs and stage the all-components variant locally, then validates data payloads and staged hashes before recording changes. Unknown DLLs, symlinks, and existing non-regular destinations are refused. Originals plus `installation.tsv` go to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
 
 For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 
@@ -94,7 +94,7 @@ The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works thro
 
 ## Authors and advanced recovery
 
-All active additions use manifests and the static SDK registry. The retired raw-copy source-tree `INSTALL.bat`/`INSTALL.sh` helpers and standalone camera/physics/AI/DX8 patchers have been removed; the generated release `INSTALL.sh` instead consumes the same prebuilt manifest-owned payloads as Windows Setup.
+All active additions use manifests and the static SDK registry. The retired raw-copy source-tree `INSTALL.bat`/`INSTALL.sh` helpers and standalone camera/physics/AI/DX8 patchers have been removed; Windows Setup and the generated release `INSTALL.sh` instead share the same frozen local staging engine and schema-3 manifest-owned data.
 
 See **`sdk/README.md`** for data mods, operand patches, code hooks, dependencies/conflicts, tests, live smokes, and release packaging. Registered binary components can be inspected or reversed on a backed-up test game:
 
