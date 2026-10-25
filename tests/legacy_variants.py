@@ -22,18 +22,31 @@ LEGACY_GAME_SHA256 = {
     "1110": "0c44694c264b0074f963753413b6f52b2c328c273c36355b5f88175173bcbd79",
     "1111": "ba2bcb61f28751b464bf2c8a675c5fd5dfe92e10bcbc605ea4b0fb7205e8a374",
 }
-CURRENT_ALL_COMPONENTS_SHA256 = "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18"
+FIXED_EYE_ALL_COMPONENTS_SHA256 = "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18"
+CURRENT_ALL_COMPONENTS_SHA256 = "42fd32de8059823bc13361948cbc7edfb7da561b67e1968889bf5739434a81d2"
+
+
+def apply_fixture(image, filename, replacement_field):
+    fixture = json.loads((ROOT / "tests/fixtures" / filename).read_text(encoding="utf-8"))
+    for change in fixture["changes"]:
+        offset = change["offset"]
+        current = bytes.fromhex(change["current_hex"])
+        assert image[offset:offset + len(current)] == current
+        image[offset:offset + len(current)] = bytes.fromhex(change[replacement_field])
+
+
+def write_fixed_eye_all_components(payload, destination):
+    image = bytearray((Path(payload) / "game-1111.dll").read_bytes())
+    apply_fixture(image, "fixed_eye_camera_delta.json", "fixed_eye_hex")
+    assert hashlib.sha256(image).hexdigest() == FIXED_EYE_ALL_COMPONENTS_SHA256
+    Path(destination).write_bytes(image)
 
 
 def write_legacy_variant(payload, name, destination):
     image = bytearray((Path(payload) / f"game-{name}.dll").read_bytes())
     if int(name, 2) & 1:
-        fixture = json.loads((ROOT / "tests/fixtures/legacy_camera_delta.json").read_text(encoding="utf-8"))
-        for change in fixture["changes"]:
-            offset = change["offset"]
-            current = bytes.fromhex(change["current_hex"])
-            assert image[offset:offset + len(current)] == current
-            image[offset:offset + len(current)] = bytes.fromhex(change["legacy_hex"])
+        apply_fixture(image, "fixed_eye_camera_delta.json", "fixed_eye_hex")
+        apply_fixture(image, "legacy_camera_delta.json", "legacy_hex")
     digest = hashlib.sha256(image).hexdigest()
     assert digest == LEGACY_GAME_SHA256[name]
     Path(destination).write_bytes(image)

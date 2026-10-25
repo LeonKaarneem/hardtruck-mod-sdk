@@ -126,6 +126,7 @@ class ManifestTests(unittest.TestCase):
             "93d627ff4d05e7bd5eb12ce6725fd16321fa47a601e973340cf7b2f4dc680450",
             "0c44694c264b0074f963753413b6f52b2c328c273c36355b5f88175173bcbd79",
             "ba2bcb61f28751b464bf2c8a675c5fd5dfe92e10bcbc605ea4b0fb7205e8a374",
+            "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18",
         ))
         self.assertEqual(release.root, ROOT / "modpack")
 

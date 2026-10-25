@@ -163,7 +163,7 @@ class LiveHarnessTests(unittest.TestCase):
             with self.assertRaisesRegex(harness.LiveSmokeError, "o, i, k"):
                 harness.validate_camera_bindings(game)
 
-    def test_camera_battery_covers_sustained_clamps_both_input_orders_and_every_camera(self):
+    def test_camera_battery_covers_stock_cab_working_orbit_and_every_camera(self):
         harness = load_harness()
 
         class FakeSession:
@@ -206,22 +206,24 @@ class LiveHarnessTests(unittest.TestCase):
             ("k", 8), ("i", 8),
             ("y", 2), ("k", 8),
             ("o", 2), ("i", 8),
-            ("k", 8), ("y", 2),
-            ("i", 8), ("o", 2),
+            ("k", 8), ("i", 8),
         ])
         self.assertEqual(
-            [name for name in session.screenshots if name.startswith("14-camera-")],
-            [f"14-camera-{camera}.png" for camera in range(1, 8)],
+            [name for name in session.screenshots if name.startswith("15-camera-")],
+            [f"15-camera-{camera}.png" for camera in range(1, 8)],
         )
         for name in (
             "01-truck-before.png",
-            "03-cab-straight-down-80.png",
-            "04-cab-straight-up-80.png",
-            "06-cab-yaw-left-down-80.png",
-            "09-cab-yaw-right-up-80.png",
-            "11-cab-down-80-then-yaw-left.png",
-            "12-cab-up-80-then-yaw-right.png",
-            "13-cab-level-reset.png",
+            "03-cab-stock-down-ignored.png",
+            "04-cab-stock-up-ignored.png",
+            "05-cab-stock-left.png",
+            "06-cab-stock-left-down-ignored.png",
+            "08-cab-stock-right.png",
+            "09-cab-stock-right-up-ignored.png",
+            "11-orbit-level.png",
+            "12-orbit-down.png",
+            "13-orbit-up.png",
+            "14-orbit-level-reset.png",
         ):
             self.assertIn(name, session.screenshots)
         self.assertTrue(session.probe_started)

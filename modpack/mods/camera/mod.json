@@ -3,7 +3,7 @@
   "id": "camera",
   "version": "3.0.0",
   "kind": "binary",
-  "setup": {"label": "Camera", "description": "Chase orbit and cabin vertical look", "default": true},
+  "setup": {"label": "Camera", "description": "Chase orbit; stock cabin camera", "default": true},
   "requires": [],
   "conflicts": [],
   "new_profile": false,
