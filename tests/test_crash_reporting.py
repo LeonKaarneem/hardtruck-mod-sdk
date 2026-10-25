@@ -49,6 +49,15 @@ class CrashReportingRuntimeTests(unittest.TestCase):
     def setUpClass(cls):
         cls.release_temporary = tempfile.TemporaryDirectory(prefix="htmod-crash-release-")
         cls.release = Path(cls.release_temporary.name) / "HardTruckModern"
+        archive = os.environ.get("HTMOD_RELEASE_ZIP")
+        if archive:
+            with zipfile.ZipFile(archive) as source:
+                if source.testzip() is not None:
+                    raise RuntimeError(f"corrupt release ZIP: {archive}")
+                source.extractall(cls.release_temporary.name)
+            if not cls.release.is_dir():
+                raise RuntimeError(f"release ZIP has no HardTruckModern root: {archive}")
+            return
         build_windows_release.build(SimpleNamespace(
             output=cls.release,
             game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
@@ -191,16 +200,22 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         self.assertIn("Create a crash report? [Y/n]", result.stdout)
         self.assertEqual(self.reports(), [])
 
-    def test_manual_report_contains_sanitized_logs_metadata_and_only_allowed_entries(self):
+    def test_paths_with_spaces_metadata_log_bound_and_all_entry_privacy(self):
         installed = self.run_setup("InstallAll")
         self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
         sensitive = [
             str(self.game),
             str(self.package),
             str(self.home),
+            str(self.game).replace("/", "\\"),
+            str(self.package).replace("/", "\\"),
+            str(self.home).replace("/", "\\"),
             "sensitive_user",
             "sensitive_computer",
             platform.node(),
+            "192.0.2.10",
+            "2001:db8::1",
+            "::1",
         ]
         crash_text = "fake crash\n" + "\n".join(sensitive) + "\n"
         (self.game / "prism3d.crash").write_text(crash_text, encoding="utf-8")
@@ -226,7 +241,8 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             })
             log = archive.read("prism3d.log").decode("utf-8").splitlines()
             self.assertEqual(len(log), 4000)
-            self.assertEqual(log[0], "log-line-12")
+            self.assertEqual(log[0], f"log-line-{6 + len(sensitive)}")
+            self.assertEqual(log[-1], "<IP>")
             self.assertIn("log-line-4005", log)
             report = json.loads(archive.read("report.json"))
             for name in archive.namelist():
@@ -234,19 +250,63 @@ class CrashReportingRuntimeTests(unittest.TestCase):
                 for value in sensitive:
                     self.assertNotIn(value, text, f"{value!r} leaked in {name}")
 
+        self.assertEqual(report["schema_version"], 1)
         self.assertIsNone(report["exit_code"])
         self.assertEqual(report["payload_manifest_schema"], 2)
         self.assertEqual({item["id"] for item in report["components"]}, COMPONENT_IDS)
-        self.assertTrue(all(item["version"] for item in report["components"]))
+        self.assertTrue(all(item["status"] == "installed" and item["version"] for item in report["components"]))
         self.assertEqual(report["game_hashes"], {
             "prism3d.exe": sha256(self.game / "prism3d.exe"),
             "game/sys/game.dll": sha256(self.game / "game/sys/game.dll"),
             "sys/dx8.dll": sha256(self.game / "sys/dx8.dll"),
         })
         self.assertEqual(report["logs"], {"prism3d.crash": True, "prism3d.log": True})
-        self.assertIn("os", report)
-        self.assertIn("gpu", report)
+        self.assertEqual(set(report["os"]), {"platform", "version"})
+        self.assertIsInstance(report["gpu"], list)
         self.assertTrue(report["created_utc"].endswith("Z"))
+
+    def test_missing_logs_create_metadata_only_report(self):
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            self.assertEqual(set(archive.namelist()), {"report.json", "README.txt"})
+            report = json.loads(archive.read("report.json"))
+        self.assertEqual(report["logs"], {"prism3d.crash": False, "prism3d.log": False})
+
+    def test_corrupt_logs_still_create_valid_sanitized_zip(self):
+        sensitive = b"sensitive_user\nsensitive_computer\n192.0.2.10\n2001:db8::1\n"
+        (self.game / "prism3d.crash").write_bytes(b"\xffinvalid\x80\n" + sensitive)
+        (self.game / "prism3d.log").write_bytes(b"\x81invalid\xfe\n" + sensitive)
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            self.assertIsNone(archive.testzip())
+            report = json.loads(archive.read("report.json"))
+            self.assertEqual(report["logs"], {"prism3d.crash": True, "prism3d.log": True})
+            for name in archive.namelist():
+                text = archive.read(name).decode("utf-8")
+                for value in sensitive.decode("ascii").splitlines():
+                    self.assertNotIn(value, text, f"{value!r} leaked in {name}")
+
+    def test_unpatched_game_reports_no_components(self):
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            report = json.loads(archive.read("report.json"))
+        self.assertEqual(report["components"], [])
+        self.assertEqual(report["game_hashes"]["game/sys/game.dll"], sha256(self.game / "game/sys/game.dll"))
+
+    def test_desktop_write_failure_falls_back_to_package_folder(self):
+        self.desktop.rmdir()
+        self.desktop.write_text("not a directory", encoding="utf-8")
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fallback = list(self.package.glob("HardTruckCrashReport-*.zip"))
+        self.assertEqual(self.reports(), [])
+        self.assertEqual(len(fallback), 1)
+        with zipfile.ZipFile(fallback[0]) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertIn("report.json", archive.namelist())
 
     def test_full_custom_and_reinstalled_components_keep_exact_versions(self):
         for _ in range(2):
@@ -349,6 +409,19 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         self.assertIn("Create crash report", menu.stdout)
         self.assertNotIn("game is closed", menu.stdout + menu.stderr)
         self.assertEqual(len(self.reports()), 2)
+
+    def test_menu_keeps_quit_at_four_and_play_at_five(self):
+        quit_result = self.run_setup("Menu", interactive=True, input_text="4\n")
+        self.assertEqual(quit_result.returncode, 2, quit_result.stdout + quit_result.stderr)
+        self.assertIn("4. Quit", quit_result.stdout)
+        self.assertIn("5. Play modded", quit_result.stdout)
+        self.assertIn("6. Create crash report", quit_result.stdout)
+
+        play_result = self.run_setup("Menu", interactive=True, input_text="5\n")
+        self.assertEqual(play_result.returncode, 2, play_result.stdout + play_result.stderr)
+        self.assertNotIn("game is closed", play_result.stdout + play_result.stderr)
+        self.assertEqual(self.reports(), [])
+        self.assertEqual(self.marker.read_text(encoding="utf-8").splitlines()[0], str(self.game))
 
 
 if __name__ == "__main__":

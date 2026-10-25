@@ -192,6 +192,14 @@ Each script writes screenshots, Wine/Xvfb/openbox logs, and `summary.json`. Proc
 
 The accessibility smoke does not test generic Space activation, screen readers, reduced motion, runtime scaling, generated binding rows, device-dependent joystick controls, native pointer/edge activation, or native Windows. Those remain limitations rather than implied passes. Wine/Xvfb mouse activation and post-console deadlocks can still prevent a run; report those as limitations, not passes. Reusing a caller prefix can shut down its other Wine processes during cleanup, so a dedicated prefix is mandatory.
 
+## Crash-report contract
+
+`Play Modded.bat` and `CrashReport.bat` forward all arguments to `Setup.ps1 -Action Play` and `-Action CrashReport`; the same actions are Setup menu options 5 and 6, while option 4 remains Quit. Play uses the game directory as its working directory, passes `-game game -icon game.ico -title "Hard Truck Modern"`, and waits for exit. Normal exit creates no report; a nonzero exit or newer crash file offers a default-Yes report. Manual reporting asks for confirmation. Neither action intentionally crashes the game.
+
+Reports go to Desktop with package-folder fallback and contain only sanitized engine crash text, at most the last 4000 engine log lines, `report.json`, and `README.txt`. Required metadata covers schema/UTC time, available launch/exit details, executable/DLL hashes, payload schema, SDK-manifest/backup-derived component state, basic OS/GPU data, and log presence. Every entry redacts username, computer name, home/game/package paths, and IP addresses. Saves, profiles, backup payloads, memory dumps, registry exports, dxdiag/MSInfo, and arbitrary documents are excluded; there is no automatic upload.
+
+`tests/test_crash_reporting.py` inspects real ZIPs for paths with spaces, missing/corrupt logs, unpatched games, Desktop fallback, required metadata, the 4000-line bound, all-entry privacy (including IPv4/IPv6), and batch/menu compatibility. When `HTMOD_RELEASE_ZIP` is set, these tests extract and exercise that exact release instead of an in-tree build. Use fake executables for these tests; never intentionally crash a real game for a demonstration.
+
 ## Release rules
 
 Keep the Python-free end-user experience unchanged. `tools/templates/Setup.ps1` consumes generated component metadata; do not duplicate labels, dependencies, conflicts, data ownership, component IDs, or variant-selection rules in PowerShell. Preserve schema-1 backup compatibility, known-hash gates, backups, rollback, uninstall history, save/unrelated-file guards, and automatic detection. `tools/templates/INSTALL.sh` consumes generated `install-manifest.tsv` for a simple Linux/Wine install-all path with payload validation, per-run backups, and reverse-order rollback on ordinary mid-install failure; retain manual recovery instructions for catastrophic interruption and do not add a second payload mapping. Windows `Setup.bat` remains unchanged.

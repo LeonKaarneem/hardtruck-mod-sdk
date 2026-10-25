@@ -16,6 +16,21 @@ Keep the extracted `installer` folder so Setup can retain backups and uninstall 
 
 Setup accepts pristine v1.2 and its own known binary variants. It refuses unknown `game.dll` or wrapped `sys/dx8.dll` files instead of overwriting them. Restore the stock DX8 DLL before setup if you use d3d8to9.
 
+## Play Modded and crash reports
+
+After installation, run **`Play Modded.bat`** to start the game directly with the mod launch arguments. The launcher waits for the game to exit. A normal exit does not create a report; a nonzero exit or a newly updated `prism3d.crash` prompts you to create one, with **Yes** as the default. You can decline without creating anything. Setup's menu also offers **Play modded** as option 5.
+
+Run **`CrashReport.bat`**, or Setup menu option 6 **Create crash report**, to create a report manually after a failure. Confirm the prompt; no game crash is triggered. Reports are named `HardTruckCrashReport-<timestamp>.zip` and written to your Desktop, or to the extracted package folder if the Desktop is unavailable.
+
+A report ZIP contains only:
+
+- sanitized `prism3d.crash`, when present;
+- sanitized `prism3d.log`, limited to its last 4000 lines, when present;
+- `report.json`, with the report schema and UTC creation time, launch/exit information when launched through Play Modded, SHA-256 hashes for `prism3d.exe`, `game/sys/game.dll`, and `sys/dx8.dll`, payload manifest schema, installed component IDs/statuses/exact versions where current payloads match, basic OS and GPU information, and log-presence flags;
+- `README.txt`, explaining the contents and how to share the report.
+
+Every entry is processed to replace username, computer name, home/game/package paths, and IPv4/IPv6 addresses with placeholders. Reports do **not** collect saves, profiles, backup payloads, memory dumps, registry exports, dxdiag/MSInfo output, or arbitrary documents. **Nothing is uploaded automatically.** Review the ZIP and choose yourself whether and where to share it.
+
 ## Components
 
 | Stable ID | Effect | New profile? |

@@ -8,6 +8,14 @@ To install only some mods, choose **Choose components** and answer each prompt. 
 
 The installer supports pristine Hard Truck v1.2 and its own installed variants. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the payloads and backups.
 
+## Play Modded and crash reports
+
+Run **`Play Modded.bat`** (or Setup menu option 5) to launch the game and wait for it to exit. Normal exit creates nothing and does not prompt. A nonzero exit or newly updated `prism3d.crash` offers a default-Yes crash report; answering No creates no archive. For a manual report, run **`CrashReport.bat`** or choose Setup menu option 6 and confirm. These actions do not intentionally crash the game.
+
+The timestamped `HardTruckCrashReport-*.zip` is saved on your Desktop, falling back to the extracted package folder if needed. It contains only sanitized `prism3d.crash` and the last 4000 lines of sanitized `prism3d.log` when those files exist, plus `report.json` and `README.txt`. Metadata records the report schema/UTC time, Play launch and exit details when available, hashes of the game executable and game/DX8 DLLs, payload schema, installed component IDs/statuses/versions, basic OS/GPU details, and log-presence flags.
+
+Username, computer name, home/game/package paths, and IPv4/IPv6 addresses are replaced with placeholders in every ZIP entry. No saves, profiles, backup payloads, memory dumps, registry exports, dxdiag/MSInfo output, or arbitrary documents are included. **Reports are never uploaded automatically**: review the archive and decide yourself whether and where to share it.
+
 ## Linux / Wine
 
 Run `./INSTALL.sh "/path/to/game"` with the folder containing `prism3d.exe`. This installs **all** components using only POSIX shell utilities and `sha256sum`; Python and PowerShell are not required. The script validates all prebuilt payloads and current game/DX8 hashes, rejects symlink destinations and existing non-regular destinations before recording changes, verifies installed files, and saves originals plus `installation.tsv` under `installer/backups/shell-*`. Use `--yes` before the game path for unattended installation. Ordinary mid-install failures roll back earlier files from those backups. After a crash, power loss, or `kill -9`, manual recovery may be necessary: use the retained `installation.tsv` and `files/` copies. There is no component selection or automatic shell uninstaller. Start a new profile after installation.
