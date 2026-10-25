@@ -795,6 +795,36 @@ function Uninstall-Mods {
     }
 }
 
+function Protect-ReportAddresses {
+    param([string]$Text)
+    $ipv6Candidate = '(?<![0-9A-Fa-f:.])[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*(?![0-9A-Fa-f:])'
+    $result = [regex]::Replace($Text, $ipv6Candidate, {
+        param($match)
+        $value = $match.Value
+        $suffix = ""
+        while ($value.EndsWith(".")) {
+            $value = $value.Substring(0, $value.Length - 1)
+            $suffix += "."
+        }
+        $address = $null
+        if ([System.Net.IPAddress]::TryParse($value, [ref]$address) -and
+            $address.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetworkV6) {
+            return "<IP>" + $suffix
+        }
+        return $match.Value
+    })
+    $octet = '(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)'
+    $versionOrIPv4 = '(?i)(?<version>\b(?:version|ver|v)\s*[:=]?\s*\d+(?:\.\d+){1,3})|(?<![0-9.])(?<ipv4>' +
+        $octet + '(?:\.' + $octet + '){3})(?![0-9.])'
+    return [regex]::Replace($result, $versionOrIPv4, {
+        param($match)
+        if ($match.Groups["ipv4"].Success) {
+            return "<IP>"
+        }
+        return $match.Value
+    })
+}
+
 function Protect-ReportText {
     param(
         [AllowNull()]
@@ -830,10 +860,10 @@ function Protect-ReportText {
                 [Text.RegularExpressions.RegexOptions]::IgnoreCase)
         }
     }
-    return $result
+    return Protect-ReportAddresses $result
 }
 
-function Get-InstalledReportComponents {
+function Get-ReportComponents {
     param(
         $Manifest,
         [string]$GamePath
@@ -851,11 +881,11 @@ function Get-InstalledReportComponents {
                 continue
             }
             foreach ($entry in @($installation.entries)) {
-                $relative = Test-SafeDestination ([string]$entry.destination) $Manifest
-                $destination = Join-Path $GamePath $relative
-                if (-not (Test-Hash $destination ([string]$entry.installed_sha256))) {
+                if ($installation.status -eq "UninstallPartial" -and
+                    @($installation.skipped) -notcontains [string]$entry.destination) {
                     continue
                 }
+                $relative = Test-SafeDestination ([string]$entry.destination) $Manifest
                 if ($relative -eq "game/sys/game.dll") {
                     foreach ($variant in @($Manifest.game_variants.PSObject.Properties)) {
                         if ($variant.Value.sha256 -ieq $entry.installed_sha256) {
@@ -885,13 +915,43 @@ function Get-InstalledReportComponents {
             continue
         }
     }
+
+    $currentGameHash = (Get-FileHash -LiteralPath (Join-Path $GamePath "game/sys/game.dll") -Algorithm SHA256).Hash
+    $currentGameVariant = $null
+    foreach ($variant in @($Manifest.game_variants.PSObject.Properties)) {
+        if ($variant.Value.sha256 -ieq $currentGameHash) {
+            $currentGameVariant = $variant.Value
+            break
+        }
+    }
     $components = @()
     foreach ($id in @($ids.Keys | Sort-Object)) {
-        if ($null -ne $Manifest.components.PSObject.Properties[$id]) {
-            $components += [ordered]@{
-                id = $id
-                version = [string]$Manifest.components.$id.version
+        if ($null -eq $Manifest.components.PSObject.Properties[$id]) {
+            continue
+        }
+        $metadata = $Manifest.components.$id
+        $installed = $false
+        if ($metadata.kind -eq "data") {
+            $payloads = @($Manifest.data_components.$id)
+            $installed = $payloads.Count -gt 0
+            foreach ($payload in $payloads) {
+                $relative = "game/usr/" + $payload.Substring("data/".Length)
+                if (-not (Test-Hash (Join-Path $GamePath $relative) ([string]$Manifest.payloads.$payload))) {
+                    $installed = $false
+                    break
+                }
             }
+        }
+        elseif ($metadata.target -eq "game/sys/game.dll") {
+            $installed = $null -ne $currentGameVariant -and @($currentGameVariant.components) -contains $id
+        }
+        elseif ($id -eq "dx8_vsync") {
+            $installed = Test-Hash (Join-Path $GamePath "sys/dx8.dll") ([string]$Manifest.dx8.vsync.sha256)
+        }
+        $components += [ordered]@{
+            id = $id
+            status = if ($installed) { "installed" } else { "partial" }
+            version = if ($installed) { [string]$metadata.version } else { $null }
         }
     }
     return $components
@@ -977,7 +1037,7 @@ function New-CrashReport {
             "sys/dx8.dll" = (Get-FileHash -LiteralPath (Join-Path $GamePath "sys/dx8.dll") -Algorithm SHA256).Hash.ToLowerInvariant()
         }
         payload_manifest_schema = $Manifest.schema_version
-        components = @(Get-InstalledReportComponents $Manifest $GamePath)
+        components = @(Get-ReportComponents $Manifest $GamePath)
         os = [ordered]@{
             platform = [string][Environment]::OSVersion.Platform
             version = [string][Environment]::OSVersion.VersionString

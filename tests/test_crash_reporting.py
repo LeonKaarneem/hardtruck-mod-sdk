@@ -92,7 +92,7 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         executable.write_text(script, encoding="utf-8")
         executable.chmod(0o755)
 
-    def run_setup(self, action, interactive=False, input_text=None, package=None):
+    def run_setup(self, action, interactive=False, input_text=None, package=None, components=None):
         package = package or self.package
         command = [
             PWSH,
@@ -104,6 +104,8 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             "-Action",
             action,
         ]
+        if components is not None:
+            command += ["-Components", ",".join(components)]
         if not interactive:
             command.append("-NonInteractive")
         environment = os.environ.copy()
@@ -128,6 +130,14 @@ class CrashReportingRuntimeTests(unittest.TestCase):
 
     def reports(self):
         return list(self.desktop.glob("HardTruckCrashReport-*.zip"))
+
+    def report_components(self):
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        latest = max(self.reports(), key=lambda path: path.stat().st_mtime_ns)
+        with zipfile.ZipFile(latest) as archive:
+            report = json.loads(archive.read("report.json"))
+        return {item["id"]: item for item in report["components"]}
 
     def test_builder_copies_batch_entry_points(self):
         for name in ("Play Modded.bat", "CrashReport.bat"):
@@ -237,6 +247,96 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         self.assertIn("os", report)
         self.assertIn("gpu", report)
         self.assertTrue(report["created_utc"].endswith("Z"))
+
+    def test_full_custom_and_reinstalled_components_keep_exact_versions(self):
+        for _ in range(2):
+            result = self.run_setup("Custom", components=["config", "camera"])
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = json.loads((self.package / "installer/payload/manifest.json").read_text(encoding="utf-8"))
+
+        components = self.report_components()
+        self.assertEqual(set(components), {"config", "camera"})
+        for component_id, component in components.items():
+            self.assertEqual(component, {
+                "id": component_id,
+                "status": "installed",
+                "version": manifest["components"][component_id]["version"],
+            })
+
+    def test_missing_or_corrupt_payload_marks_component_partial_with_null_version(self):
+        installed = self.run_setup("InstallAll")
+        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+        manifest = json.loads((self.package / "installer/payload/manifest.json").read_text(encoding="utf-8"))
+        handling_files = manifest["data_components"]["handling_defs"]
+        self.assertGreater(len(handling_files), 1)
+        corrupt = self.game / "game/usr" / handling_files[0].removeprefix("data/")
+        corrupt.write_bytes(corrupt.read_bytes() + b"corrupt")
+
+        components = self.report_components()
+        self.assertEqual(components["handling_defs"], {
+            "id": "handling_defs",
+            "status": "partial",
+            "version": None,
+        })
+        for component_id in COMPONENT_IDS - {"handling_defs"}:
+            self.assertEqual(components[component_id]["status"], "installed")
+            self.assertEqual(
+                components[component_id]["version"],
+                manifest["components"][component_id]["version"],
+            )
+
+        missing = self.game / "game/usr" / manifest["data_components"]["config"][0].removeprefix("data/")
+        missing.unlink()
+        components = self.report_components()
+        self.assertEqual(components["config"]["status"], "partial")
+        self.assertIsNone(components["config"]["version"])
+        self.assertEqual(components["handling_defs"]["status"], "partial")
+
+    def test_uninstall_partial_reports_only_skipped_component_as_partial(self):
+        installed = self.run_setup("InstallAll")
+        self.assertEqual(installed.returncode, 0, installed.stdout + installed.stderr)
+        manifest = json.loads((self.package / "installer/payload/manifest.json").read_text(encoding="utf-8"))
+        modified = self.game / "game/usr" / manifest["data_components"]["config"][0].removeprefix("data/")
+        modified.write_bytes(modified.read_bytes() + b"user edit")
+        uninstalled = self.run_setup("Uninstall")
+        self.assertEqual(uninstalled.returncode, 0, uninstalled.stdout + uninstalled.stderr)
+        backup = next((self.package / "installer/backups").glob("*/installation.json"))
+        self.assertEqual(json.loads(backup.read_text(encoding="utf-8"))["status"], "UninstallPartial")
+
+        self.assertEqual(self.report_components(), {
+            "config": {"id": "config", "status": "partial", "version": None},
+        })
+
+    def test_zip_logs_redact_ipv4_and_ipv6_but_preserve_timestamps_and_versions(self):
+        addresses = [
+            "192.0.2.10",
+            "10.0.0.1",
+            "2001:db8::1",
+            "::1",
+            "2001:db8:0:1:1:1:1:1",
+        ]
+        ordinary_text = [
+            "2026-10-25T12:34:56Z",
+            "12:34:56",
+            "version 1.2.3.4",
+            "v2.3.4",
+            "release 1.2.3",
+            "build 999.1.1.1",
+        ]
+        text = "\n".join(addresses + ordinary_text) + "\n"
+        (self.game / "prism3d.crash").write_text(text, encoding="utf-8")
+        (self.game / "prism3d.log").write_text(text, encoding="utf-8")
+
+        result = self.run_setup("CrashReport")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        with zipfile.ZipFile(self.reports()[0]) as archive:
+            for name in ("prism3d.crash", "prism3d.log"):
+                sanitized = archive.read(name).decode("utf-8")
+                for address in addresses:
+                    self.assertNotIn(address, sanitized, f"{address} leaked in {name}")
+                self.assertGreaterEqual(sanitized.count("<IP>"), len(addresses))
+                for value in ordinary_text:
+                    self.assertIn(value, sanitized)
 
     def test_manual_and_menu_report_actions_skip_game_closed_confirmation(self):
         manual = self.run_setup("CrashReport", interactive=True, input_text="\n")
