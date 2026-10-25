@@ -47,6 +47,46 @@ class CrashReportTemplateTests(unittest.TestCase):
                 self.assertIn(f"-Action {action}", text)
                 self.assertIn("%*", text)
 
+    def test_direct_play_dialog_is_fixed_centered_dpi_scaled_with_native_copy(self):
+        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
+        self.assertIn("Add-Type -AssemblyName System.Windows.Forms", text)
+        self.assertIn("Add-Type -AssemblyName System.Drawing", text)
+        for copy in (
+            "Hard Truck Modern v3",
+            "Better physics, cameras and handling",
+            "Improved economy and AI cleanup",
+            "MOD SDK: Sonny",
+            "Play",
+            "Cancel",
+        ):
+            self.assertIn(copy, text)
+        self.assertIn("$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog", text)
+        self.assertIn("$form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen", text)
+        self.assertIn("$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi", text)
+        self.assertIn("$form.MaximizeBox = $false", text)
+        self.assertIn("$form.MinimizeBox = $false", text)
+
+    def test_play_enter_escape_and_window_close_have_explicit_semantics(self):
+        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
+        self.assertIn("$play.DialogResult = [System.Windows.Forms.DialogResult]::OK", text)
+        self.assertIn("$cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel", text)
+        self.assertIn("$form.AcceptButton = $play", text)
+        self.assertIn("$form.CancelButton = $cancel", text)
+        self.assertIn("$result = $form.ShowDialog()", text)
+        self.assertIn("return $result -eq [System.Windows.Forms.DialogResult]::OK", text)
+
+    def test_direct_play_cancel_exits_before_game_or_report_flow(self):
+        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
+        guard = '''        if ($Action -eq "Play" -and -not $NonInteractive -and
+            [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+            if (-not (Show-PlayConfirmation)) {
+                exit 0
+            }
+        }
+'''
+        self.assertIn(guard, text)
+        self.assertLess(text.index(guard), text.index("        Invoke-Play $manifest $script:GamePath"))
+
 
 @unittest.skipIf(PWSH is None, "PowerShell 7 is required for crash reporting runtime tests")
 class CrashReportingRuntimeTests(unittest.TestCase):
@@ -174,6 +214,13 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             "-title",
             "Hard Truck Modern",
         ])
+
+    def test_noninteractive_play_bypasses_dialog_and_preserves_normal_launch(self):
+        result = self.run_setup("Play")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.reports(), [])
+        self.assertNotIn("Create a crash report?", result.stdout)
+        self.assertTrue(self.marker.is_file())
 
     def test_play_nonzero_exit_offers_default_yes_and_records_exit_code(self):
         self.write_fake_game(exit_code=7)

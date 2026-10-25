@@ -77,6 +77,7 @@ CONFIG_UI_DESTINATIONS = [
     "data/ui/moptions.sc",
     "data/ui/options/mgraphics.sc",
     "data/ui/options/mcontrols.sc",
+    "data/ui/mcredits.sc",
 ]
 NATIVE_FILES = {
     **{relative: UI_ROOT / relative for relative in EXPECTED_TABS},

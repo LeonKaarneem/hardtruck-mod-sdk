@@ -1119,6 +1119,66 @@ Nothing was uploaded. Review the archive and share it only with someone you trus
     throw "Could not create the crash report: $($lastError.Exception.Message)"
 }
 
+function Show-PlayConfirmation {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Hard Truck Modern v3"
+    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+    $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+    $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
+    $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
+    $form.ClientSize = New-Object System.Drawing.Size(420, 220)
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+
+    $title = New-Object System.Windows.Forms.Label
+    $title.Text = "Hard Truck Modern v3"
+    $title.AutoSize = $true
+    $title.Location = New-Object System.Drawing.Point(20, 18)
+
+    $physics = New-Object System.Windows.Forms.Label
+    $physics.Text = "Better physics, cameras and handling"
+    $physics.AutoSize = $true
+    $physics.Location = New-Object System.Drawing.Point(20, 58)
+
+    $economy = New-Object System.Windows.Forms.Label
+    $economy.Text = "Improved economy and AI cleanup"
+    $economy.AutoSize = $true
+    $economy.Location = New-Object System.Drawing.Point(20, 82)
+
+    $sdk = New-Object System.Windows.Forms.Label
+    $sdk.Text = "MOD SDK: Sonny"
+    $sdk.AutoSize = $true
+    $sdk.Location = New-Object System.Drawing.Point(20, 116)
+
+    $play = New-Object System.Windows.Forms.Button
+    $play.Text = "Play"
+    $play.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    $play.Location = New-Object System.Drawing.Point(230, 164)
+    $play.Size = New-Object System.Drawing.Size(80, 28)
+    $play.TabIndex = 0
+
+    $cancel = New-Object System.Windows.Forms.Button
+    $cancel.Text = "Cancel"
+    $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $cancel.Location = New-Object System.Drawing.Point(320, 164)
+    $cancel.Size = New-Object System.Drawing.Size(80, 28)
+    $cancel.TabIndex = 1
+
+    $form.Controls.AddRange(@($title, $physics, $economy, $sdk, $play, $cancel))
+    $form.AcceptButton = $play
+    $form.CancelButton = $cancel
+    try {
+        $result = $form.ShowDialog()
+        return $result -eq [System.Windows.Forms.DialogResult]::OK
+    }
+    finally {
+        $form.Dispose()
+    }
+}
+
 function Invoke-Play {
     param(
         $Manifest,
@@ -1173,6 +1233,12 @@ try {
     $selection = Get-Selection $effectiveAction $Components -NonInteractive:$NonInteractive -Manifest $manifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
     if ($effectiveAction -eq "Play") {
+        if ($Action -eq "Play" -and -not $NonInteractive -and
+            [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+            if (-not (Show-PlayConfirmation)) {
+                exit 0
+            }
+        }
         Invoke-Play $manifest $script:GamePath -NonInteractive:$NonInteractive
         if ($Action -eq "Menu") { exit 2 } else { exit 0 }
     }

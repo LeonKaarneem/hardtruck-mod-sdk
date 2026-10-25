@@ -28,7 +28,7 @@
     "vsync": "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519"
   },
   "data_components": {
-    "config": ["data/config.cfg", "data/defs/ui/btn.def", "data/defs/ui/txt.def", "data/ui/mmain.sc", "data/ui/cosetup.sc", "data/ui/moptions.sc", "data/ui/options/mgraphics.sc", "data/ui/options/mcontrols.sc"],
+    "config": ["data/config.cfg", "data/defs/ui/btn.def", "data/defs/ui/txt.def", "data/ui/mmain.sc", "data/ui/cosetup.sc", "data/ui/moptions.sc", "data/ui/options/mgraphics.sc", "data/ui/options/mcontrols.sc", "data/ui/mcredits.sc"],
     "handling_defs": ["data/defs/truck_base.def", "data/defs/truck1.def", "data/defs/truck2.def", "data/defs/truck3.def", "data/defs/truck4.def", "data/defs/truck5.def", "data/defs/truck6.def", "data/defs/truck7.def", "data/defs/truck8.def"],
     "economy_def": ["data/defs/management/base.def"],
     "driver_def": ["data/defs/driver_base.def"]
@@ -52,7 +52,8 @@
     "data/ui/mmain.sc": "a09b0237bf029a3a5997f1daffc40dc8822591aaa4c6fdd520cb9d89e21dde7b",
     "data/ui/moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "data/ui/options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
-    "data/ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3"
+    "data/ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
+    "data/ui/mcredits.sc": "8b8258820e7b8dc944bd5e9cddb83a5356aadb64eb21ff685d94f69c107d263e"
   },
   "source_data": {
     "config.cfg": "caf347f04196927013afaafcd4ea1fc15c5d2fe546d9a59e2e7f9bdddd142d08",
@@ -73,7 +74,8 @@
     "ui/mmain.sc": "a09b0237bf029a3a5997f1daffc40dc8822591aaa4c6fdd520cb9d89e21dde7b",
     "ui/moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "ui/options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
-    "ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3"
+    "ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
+    "ui/mcredits.sc": "8b8258820e7b8dc944bd5e9cddb83a5356aadb64eb21ff685d94f69c107d263e"
   },
   "source_line_endings": "crlf",
   "sanitized_config_line_endings": "lf",

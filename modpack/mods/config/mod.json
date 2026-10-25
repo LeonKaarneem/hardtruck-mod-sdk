@@ -44,6 +44,10 @@
     {
       "source": "ui/options/mcontrols.sc",
       "destination": "game/usr/ui/options/mcontrols.sc"
+    },
+    {
+      "source": "ui/mcredits.sc",
+      "destination": "game/usr/ui/mcredits.sc"
     }
   ]
 }
