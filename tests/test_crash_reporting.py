@@ -33,6 +33,11 @@ def sha256(path):
 
 
 class CrashReportTemplateTests(unittest.TestCase):
+    def test_setup_uses_bounded_tail_retrieval_for_engine_logs(self):
+        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
+        self.assertNotIn("[System.IO.File]::ReadAllLines($logPath)", text)
+        self.assertIn("Get-Content -LiteralPath $logPath -Tail 4000 -Encoding UTF8", text)
+
     def test_batch_templates_forward_arguments_to_their_actions(self):
         for name, action in (("Play Modded.bat", "Play"), ("CrashReport.bat", "CrashReport")):
             with self.subTest(template=name):

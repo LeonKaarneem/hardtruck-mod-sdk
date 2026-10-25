@@ -1023,8 +1023,7 @@ function New-CrashReport {
         $crashText = [System.IO.File]::ReadAllText($crashPath)
     }
     if ($logPresent) {
-        $lines = [System.IO.File]::ReadAllLines($logPath)
-        $logText = (@($lines | Select-Object -Last 4000) -join [Environment]::NewLine)
+        $logText = (@(Get-Content -LiteralPath $logPath -Tail 4000 -Encoding UTF8) -join [Environment]::NewLine)
     }
 
     $report = [ordered]@{
