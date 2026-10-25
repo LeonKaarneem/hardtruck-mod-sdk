@@ -12,9 +12,9 @@ import zipfile
 from tools import build_windows_release
 from tests.legacy_variants import (
     CURRENT_ALL_COMPONENTS_SHA256,
-    FIXED_EYE_ALL_COMPONENTS_SHA256,
+    FIXED_EYE_GAME_SHA256,
     LEGACY_GAME_SHA256,
-    write_fixed_eye_all_components,
+    write_fixed_eye_variant,
     write_legacy_variant,
 )
 
@@ -464,21 +464,27 @@ class LegacyInstallerUpgradeTests(InstallerCase):
         self.assertEqual(backup.read_bytes(), original)
         self.assertEqual(sha256(backup), LEGACY_GAME_SHA256["1111"])
 
-    def test_broken_fixed_eye_release_upgrades_with_backup(self):
-        target = self.game / "game/sys/game.dll"
-        write_fixed_eye_all_components(self.package / "installer/payload", target)
-        original = target.read_bytes()
-        result = self.run_setup(self.package, self.game, action="InstallAll")
+    def test_every_broken_fixed_eye_variant_upgrades_with_backup(self):
+        for name, fixed_eye_hash in FIXED_EYE_GAME_SHA256.items():
+            with self.subTest(variant=name, fixed_eye_hash=fixed_eye_hash):
+                root = self.root / f"fixed-eye-{name}"
+                root.mkdir()
+                package = self.make_package(root)
+                game = self.make_game(root)
+                target = game / "game/sys/game.dll"
+                write_fixed_eye_variant(package / "installer/payload", name, target)
+                original = target.read_bytes()
+                result = self.run_setup(package, game, action="InstallAll")
 
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
-        self.assertNotEqual(sha256(target), FIXED_EYE_ALL_COMPONENTS_SHA256)
-        backups = self.backup_manifests(self.package)
-        self.assertEqual(len(backups), 1)
-        installation = json.loads(backups[0].read_text(encoding="utf-8"))
-        game_entry = next(entry for entry in installation["entries"] if entry["destination"] == "game/sys/game.dll")
-        self.assertEqual(game_entry["original_sha256"], FIXED_EYE_ALL_COMPONENTS_SHA256)
-        self.assertEqual((backups[0].parent / game_entry["backup_file"]).read_bytes(), original)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                self.assertNotEqual(sha256(target), fixed_eye_hash)
+                backups = self.backup_manifests(package)
+                self.assertEqual(len(backups), 1)
+                installation = json.loads(backups[0].read_text(encoding="utf-8"))
+                game_entry = next(entry for entry in installation["entries"] if entry["destination"] == "game/sys/game.dll")
+                self.assertEqual(game_entry["original_sha256"], fixed_eye_hash)
+                self.assertEqual((backups[0].parent / game_entry["backup_file"]).read_bytes(), original)
 
     def test_every_released_legacy_game_hash_is_accepted(self):
         for name, legacy_hash in LEGACY_GAME_SHA256.items():

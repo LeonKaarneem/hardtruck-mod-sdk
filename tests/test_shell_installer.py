@@ -12,9 +12,9 @@ import zipfile
 from tools import build_windows_release
 from tests.legacy_variants import (
     CURRENT_ALL_COMPONENTS_SHA256,
-    FIXED_EYE_ALL_COMPONENTS_SHA256,
+    FIXED_EYE_GAME_SHA256,
     LEGACY_GAME_SHA256,
-    write_fixed_eye_all_components,
+    write_fixed_eye_variant,
     write_legacy_variant,
 )
 
@@ -195,18 +195,25 @@ class ShellInstallerTests(unittest.TestCase):
                 self.assertEqual(backup.read_bytes(), original)
                 self.assertEqual(sha256(backup), legacy_hash)
 
-    def test_broken_fixed_eye_release_upgrades_with_backup(self):
-        target = self.game / "game/sys/game.dll"
-        write_fixed_eye_all_components(self.package / "installer/payload", target)
-        original = target.read_bytes()
-        result = self.run_install()
+    def test_every_broken_fixed_eye_variant_upgrades_with_backup(self):
+        for name, fixed_eye_hash in FIXED_EYE_GAME_SHA256.items():
+            with self.subTest(variant=name, fixed_eye_hash=fixed_eye_hash), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = root / "package"
+                shutil.copytree(self.package, package)
+                game = root / "game"
+                shutil.copytree(self.game, game)
+                target = game / "game/sys/game.dll"
+                write_fixed_eye_variant(package / "installer/payload", name, target)
+                original = target.read_bytes()
+                result = self.run_install(package=package, game=game)
 
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
-        self.assertNotEqual(sha256(target), FIXED_EYE_ALL_COMPONENTS_SHA256)
-        backups = list((self.package / "installer/backups").glob("shell-*/installation.tsv"))
-        self.assertEqual(len(backups), 1)
-        self.assertEqual((backups[0].parent / "files/game/sys/game.dll").read_bytes(), original)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(sha256(target), CURRENT_ALL_COMPONENTS_SHA256)
+                self.assertNotEqual(sha256(target), fixed_eye_hash)
+                backups = list((package / "installer/backups").glob("shell-*/installation.tsv"))
+                self.assertEqual(len(backups), 1)
+                self.assertEqual((backups[0].parent / "files/game/sys/game.dll").read_bytes(), original)
 
     def test_unknown_source_or_corrupt_payload_changes_nothing(self):
         for failure in ("unknown-source", "corrupt-payload"):

@@ -22,7 +22,16 @@ LEGACY_GAME_SHA256 = {
     "1110": "0c44694c264b0074f963753413b6f52b2c328c273c36355b5f88175173bcbd79",
     "1111": "ba2bcb61f28751b464bf2c8a675c5fd5dfe92e10bcbc605ea4b0fb7205e8a374",
 }
-FIXED_EYE_ALL_COMPONENTS_SHA256 = "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18"
+FIXED_EYE_GAME_SHA256 = {
+    "0001": "b160648068fc3c6894dde0c097f3c8778f848edd529d0dc5f0248a623172d36e",
+    "0011": "d6a570c2506b28c9a9adbcfd6a90141816e02ddda84dcdfac38e5b8912e4883e",
+    "0101": "f621a87583c48c4f64484634c3a0a3e8c4dab99ffdbbddb604e980701824af6a",
+    "0111": "e3ed2d3f7759acb9f0575fc9f28cdfb9aeea74fd29245e7e1992e1ba7b6e44f3",
+    "1001": "3606b520e0958acced418909bd16fa307fe81e0dea8ac81227280c09b4f4c413",
+    "1011": "ddd77b97e419488b4acb96f2c464abae1aeaa1ba3a3ca13fe400515a795f4c77",
+    "1101": "6bd78d97e9bbf112581125d32bd1a93016b0359d127f670d8d89ab2cee230184",
+    "1111": "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18",
+}
 CURRENT_ALL_COMPONENTS_SHA256 = "42fd32de8059823bc13361948cbc7edfb7da561b67e1968889bf5739434a81d2"
 
 
@@ -35,10 +44,10 @@ def apply_fixture(image, filename, replacement_field):
         image[offset:offset + len(current)] = bytes.fromhex(change[replacement_field])
 
 
-def write_fixed_eye_all_components(payload, destination):
-    image = bytearray((Path(payload) / "game-1111.dll").read_bytes())
+def write_fixed_eye_variant(payload, name, destination):
+    image = bytearray((Path(payload) / f"game-{name}.dll").read_bytes())
     apply_fixture(image, "fixed_eye_camera_delta.json", "fixed_eye_hex")
-    assert hashlib.sha256(image).hexdigest() == FIXED_EYE_ALL_COMPONENTS_SHA256
+    assert hashlib.sha256(image).hexdigest() == FIXED_EYE_GAME_SHA256[name]
     Path(destination).write_bytes(image)
 
 
