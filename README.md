@@ -73,3 +73,7 @@ For Wine, the OpenGL renderer with `uset r_device "gl"` and `uset gl_sync "1"` i
 **MOD SDK: LeonKaarneem**
 
 The in-game Credits retain the original SCS Software credits and include the Hard Truck Modern and MOD SDK attribution. See `modpack/README.md` for component details and `sdk/README.md` for authoring and release documentation.
+
+## Contact
+
+If you want help reviving your own game or building a mod, contact **LeonKaarneem** on [GitHub](https://github.com/LeonKaarneem) or email **LeonKaarneem@gmail.com**.
