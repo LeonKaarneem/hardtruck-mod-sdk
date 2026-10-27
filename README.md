@@ -76,4 +76,4 @@ The in-game Credits retain the original SCS Software credits and include the Har
 
 ## Contact
 
-If you want help reviving your own game or building a mod, contact **LeonKaarneem** on [GitHub](https://github.com/LeonKaarneem) or email **LeonKaarneem@gmail.com**.
+For inquiries about modding, remastering, or reviving your own game, contact **LeonKaarneem** on [GitHub](https://github.com/LeonKaarneem) or email **LeonKaarneem@gmail.com**.
