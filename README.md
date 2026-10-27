@@ -1,6 +1,8 @@
-# Hard Truck Modern v3
+# Hard Truck Mod SDK and Modern Modpack
 
-Hard Truck Modern is an unofficial quality-of-life modpack for **18 Wheels of Steel: Hard Truck v1.2** by SCS Software. It improves handling, physics, cameras, economy, AI cleanup, controls, and keyboard accessibility while preserving the original game.
+**Hard Truck Mod SDK** is an unofficial modding toolkit and quality-of-life modpack for **18 Wheels of Steel: Hard Truck v1.2** by SCS Software. It provides reusable mod-development tools and modern gameplay improvements, including truck physics and handling fixes, an ETS-style chase camera, traffic AI cleanup, economy improvements, keyboard-accessible menus, and privacy-conscious crash reports.
+
+Players can install the finished Hard Truck mod without Python. Mod authors can use the SDK's manifests, PE patching, migration support, deterministic builds, and test harnesses to create their own Hard Truck mods.
 
 You must own a legal copy of the game. The modpack does not include the game, and the original game remains the property of its respective owners.
 
