@@ -38,54 +38,25 @@ class CrashReportTemplateTests(unittest.TestCase):
         self.assertNotIn("[System.IO.File]::ReadAllLines($logPath)", text)
         self.assertIn("Get-Content -LiteralPath $logPath -Tail 4000 -Encoding UTF8", text)
 
-    def test_batch_templates_forward_arguments_to_their_actions(self):
-        for name, action in (("Play Modded.bat", "Play"), ("CrashReport.bat", "CrashReport")):
-            with self.subTest(template=name):
-                text = (ROOT / "tools/templates" / name).read_text(encoding="utf-8")
-                self.assertIn("powershell.exe", text)
-                self.assertIn("installer\\Setup.ps1", text)
-                self.assertIn(f"-Action {action}", text)
-                self.assertIn("%*", text)
+    def test_crash_report_batch_template_forwards_arguments_to_its_action(self):
+        text = (ROOT / "tools/templates/CrashReport.bat").read_text(encoding="utf-8")
+        self.assertIn("powershell.exe", text)
+        self.assertIn("installer\\Setup.ps1", text)
+        self.assertIn("-Action CrashReport", text)
+        self.assertIn("%*", text)
 
-    def test_direct_play_dialog_is_fixed_centered_dpi_scaled_with_native_copy(self):
+    def test_setup_has_no_play_launcher(self):
         text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
-        self.assertIn("Add-Type -AssemblyName System.Windows.Forms", text)
-        self.assertIn("Add-Type -AssemblyName System.Drawing", text)
-        for copy in (
-            "Hard Truck Modern v3",
-            "Better physics, cameras and handling",
-            "Improved economy and AI cleanup",
-            "MOD SDK: LeonKaarneem",
-            "Play",
-            "Cancel",
+        self.assertFalse((ROOT / "tools/templates/Play Modded.bat").exists())
+        for source in (
+            '"Play"',
+            "Show-PlayConfirmation",
+            "Invoke-Play",
+            "System.Windows.Forms",
+            "System.Drawing",
+            "Play modded",
         ):
-            self.assertIn(copy, text)
-        self.assertIn("$form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog", text)
-        self.assertIn("$form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen", text)
-        self.assertIn("$form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi", text)
-        self.assertIn("$form.MaximizeBox = $false", text)
-        self.assertIn("$form.MinimizeBox = $false", text)
-
-    def test_play_enter_escape_and_window_close_have_explicit_semantics(self):
-        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
-        self.assertIn("$play.DialogResult = [System.Windows.Forms.DialogResult]::OK", text)
-        self.assertIn("$cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel", text)
-        self.assertIn("$form.AcceptButton = $play", text)
-        self.assertIn("$form.CancelButton = $cancel", text)
-        self.assertIn("$result = $form.ShowDialog()", text)
-        self.assertIn("return $result -eq [System.Windows.Forms.DialogResult]::OK", text)
-
-    def test_direct_play_cancel_exits_before_game_or_report_flow(self):
-        text = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
-        guard = '''        if ($Action -eq "Play" -and -not $NonInteractive -and
-            [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-            if (-not (Show-PlayConfirmation)) {
-                exit 0
-            }
-        }
-'''
-        self.assertIn(guard, text)
-        self.assertLess(text.index(guard), text.index("        Invoke-Play $manifest $script:GamePath"))
+            self.assertNotIn(source, text)
 
 
 @unittest.skipIf(
@@ -193,64 +164,18 @@ class CrashReportingRuntimeTests(unittest.TestCase):
             report = json.loads(archive.read("report.json"))
         return {item["id"]: item for item in report["components"]}
 
-    def test_builder_copies_batch_entry_points(self):
-        for name in ("Play Modded.bat", "CrashReport.bat"):
-            self.assertEqual(
-                (self.package / name).read_bytes(),
-                (ROOT / "tools/templates" / name).read_bytes(),
-            )
+    def test_builder_copies_only_crash_report_batch_entry_point(self):
+        self.assertEqual(
+            (self.package / "CrashReport.bat").read_bytes(),
+            (ROOT / "tools/templates/CrashReport.bat").read_bytes(),
+        )
+        self.assertFalse((self.package / "Play Modded.bat").exists())
 
-    def test_play_normal_exit_uses_game_working_directory_and_does_not_prompt(self):
-        result = self.run_setup("Play", interactive=True, input_text="")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.reports(), [])
-        self.assertNotIn("Create a crash report?", result.stdout)
-        self.assertEqual(self.marker.read_text(encoding="utf-8").splitlines(), [
-            str(self.game),
-            "-game",
-            "game",
-            "-icon",
-            "game.ico",
-            "-title",
-            "Hard Truck Modern",
-        ])
-
-    def test_noninteractive_play_bypasses_dialog_and_preserves_normal_launch(self):
+    def test_play_action_is_rejected_without_launching_the_game(self):
         result = self.run_setup("Play")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.reports(), [])
-        self.assertNotIn("Create a crash report?", result.stdout)
-        self.assertTrue(self.marker.is_file())
-
-    def test_play_nonzero_exit_offers_default_yes_and_records_exit_code(self):
-        self.write_fake_game(exit_code=7)
-        result = self.run_setup("Play", interactive=True, input_text="\n")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Create a crash report? [Y/n]", result.stdout)
-        self.assertEqual(len(self.reports()), 1)
-        with zipfile.ZipFile(self.reports()[0]) as archive:
-            report = json.loads(archive.read("report.json"))
-        self.assertEqual(report["exit_code"], 7)
-        self.assertEqual(report["working_directory"], "<GAME>")
-        self.assertIn("started_utc", report)
-
-    def test_play_newer_crash_offers_report_even_after_zero_exit(self):
-        self.write_fake_game(newer_crash=True)
-        result = self.run_setup("Play", interactive=True, input_text="\n")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Create a crash report? [Y/n]", result.stdout)
-        self.assertEqual(len(self.reports()), 1)
-        with zipfile.ZipFile(self.reports()[0]) as archive:
-            report = json.loads(archive.read("report.json"))
-            self.assertEqual(report["exit_code"], 0)
-            self.assertIn("new crash from fake executable", archive.read("prism3d.crash").decode("utf-8"))
-
-    def test_play_report_decline_creates_no_archive(self):
-        self.write_fake_game(exit_code=9)
-        result = self.run_setup("Play", interactive=True, input_text="n\n")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("Create a crash report? [Y/n]", result.stdout)
-        self.assertEqual(self.reports(), [])
+        self.assertFalse(self.marker.exists())
 
     def test_paths_with_spaces_metadata_log_bound_and_all_entry_privacy(self):
         installed = self.run_setup("InstallAll")
@@ -524,24 +449,26 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         self.assertNotIn("game is closed", manual.stdout + manual.stderr)
         self.assertEqual(len(self.reports()), 1)
 
-        menu = self.run_setup("Menu", interactive=True, input_text="6\n\n")
+        menu = self.run_setup("Menu", interactive=True, input_text="4\n\n")
         self.assertEqual(menu.returncode, 2, menu.stdout + menu.stderr)
-        self.assertIn("Create crash report", menu.stdout)
+        self.assertIn("4. Create crash report", menu.stdout)
         self.assertNotIn("game is closed", menu.stdout + menu.stderr)
         self.assertEqual(len(self.reports()), 2)
 
-    def test_menu_keeps_quit_at_four_and_play_at_five(self):
-        quit_result = self.run_setup("Menu", interactive=True, input_text="4\n")
+    def test_menu_is_sequential_without_play(self):
+        quit_result = self.run_setup("Menu", interactive=True, input_text="5\n")
         self.assertEqual(quit_result.returncode, 2, quit_result.stdout + quit_result.stderr)
-        self.assertIn("4. Quit", quit_result.stdout)
-        self.assertIn("5. Play modded", quit_result.stdout)
-        self.assertIn("6. Create crash report", quit_result.stdout)
-
-        play_result = self.run_setup("Menu", interactive=True, input_text="5\n")
-        self.assertEqual(play_result.returncode, 2, play_result.stdout + play_result.stderr)
-        self.assertNotIn("game is closed", play_result.stdout + play_result.stderr)
-        self.assertEqual(self.reports(), [])
-        self.assertEqual(self.marker.read_text(encoding="utf-8").splitlines()[0], str(self.game))
+        for entry in (
+            "1. Install all",
+            "2. Choose components",
+            "3. Uninstall",
+            "4. Create crash report",
+            "5. Quit",
+        ):
+            self.assertIn(entry, quit_result.stdout)
+        self.assertNotIn("Play", quit_result.stdout)
+        self.assertNotIn("6.", quit_result.stdout)
+        self.assertIn("Select 1-5", quit_result.stdout)
 
 
 if __name__ == "__main__":

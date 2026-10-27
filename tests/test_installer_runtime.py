@@ -517,7 +517,7 @@ if ((Get-Content -LiteralPath $sentinel -Raw) -ne "preserve") { throw "Backup se
                     package,
                     action="Menu",
                     interactive=True,
-                    input_text="4\n",
+                    input_text="5\n",
                 )
                 self.assertEqual(menu.returncode, 2, menu.stdout + menu.stderr)
 

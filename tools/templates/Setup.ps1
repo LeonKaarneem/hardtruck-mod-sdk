@@ -2,7 +2,7 @@
 param(
     [Parameter(Position = 0)]
     [string]$GamePath,
-    [ValidateSet("Menu", "InstallAll", "Custom", "Uninstall", "Play", "CrashReport", "Quit")]
+    [ValidateSet("Menu", "InstallAll", "Custom", "Uninstall", "CrashReport", "Quit")]
     [string]$Action = "Menu",
     [string[]]$Components = @(),
     [switch]$NonInteractive
@@ -106,24 +106,22 @@ function Resolve-SetupAction {
         return $Action
     }
     if ($NonInteractive) {
-        throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, Play, CrashReport, or Quit."
+        throw "Noninteractive setup requires -Action InstallAll, Custom, Uninstall, CrashReport, or Quit."
     }
     Write-Host ""
     Write-Host "Hard Truck Modern setup"
     Write-Host "1. Install all"
     Write-Host "2. Choose components"
     Write-Host "3. Uninstall"
-    Write-Host "4. Quit"
-    Write-Host "5. Play modded"
-    Write-Host "6. Create crash report"
-    $choice = Read-Host "Select 1-6"
+    Write-Host "4. Create crash report"
+    Write-Host "5. Quit"
+    $choice = Read-Host "Select 1-5"
     switch ($choice) {
         "1" { return "InstallAll" }
         "2" { return "Custom" }
         "3" { return "Uninstall" }
-        "4" { return "Quit" }
-        "5" { return "Play" }
-        "6" { return "CrashReport" }
+        "4" { return "CrashReport" }
+        "5" { return "Quit" }
         default { throw "Invalid menu selection; setup cancelled." }
     }
 }
@@ -137,7 +135,7 @@ function Get-Selection {
     )
     $effectiveAction = $Action
     $script:SelectedAction = $effectiveAction
-    if ($effectiveAction -in @("Quit", "Uninstall", "Play", "CrashReport")) {
+    if ($effectiveAction -in @("Quit", "Uninstall", "CrashReport")) {
         return $null
     }
 
@@ -1198,110 +1196,6 @@ Nothing was uploaded. Review the archive and share it only with someone you trus
     throw "Could not create the crash report: $($lastError.Exception.Message)"
 }
 
-function Show-PlayConfirmation {
-    Add-Type -AssemblyName System.Windows.Forms
-    Add-Type -AssemblyName System.Drawing
-
-    $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Hard Truck Modern v3"
-    $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
-    $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-    $form.AutoScaleMode = [System.Windows.Forms.AutoScaleMode]::Dpi
-    $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96, 96)
-    $form.ClientSize = New-Object System.Drawing.Size(420, 220)
-    $form.MaximizeBox = $false
-    $form.MinimizeBox = $false
-
-    $title = New-Object System.Windows.Forms.Label
-    $title.Text = "Hard Truck Modern v3"
-    $title.AutoSize = $true
-    $title.Location = New-Object System.Drawing.Point(20, 18)
-
-    $physics = New-Object System.Windows.Forms.Label
-    $physics.Text = "Better physics, cameras and handling"
-    $physics.AutoSize = $true
-    $physics.Location = New-Object System.Drawing.Point(20, 58)
-
-    $economy = New-Object System.Windows.Forms.Label
-    $economy.Text = "Improved economy and AI cleanup"
-    $economy.AutoSize = $true
-    $economy.Location = New-Object System.Drawing.Point(20, 82)
-
-    $sdk = New-Object System.Windows.Forms.Label
-    $sdk.Text = "MOD SDK: LeonKaarneem"
-    $sdk.AutoSize = $true
-    $sdk.Location = New-Object System.Drawing.Point(20, 116)
-
-    $play = New-Object System.Windows.Forms.Button
-    $play.Text = "Play"
-    $play.DialogResult = [System.Windows.Forms.DialogResult]::OK
-    $play.Location = New-Object System.Drawing.Point(230, 164)
-    $play.Size = New-Object System.Drawing.Size(80, 28)
-    $play.TabIndex = 0
-
-    $cancel = New-Object System.Windows.Forms.Button
-    $cancel.Text = "Cancel"
-    $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-    $cancel.Location = New-Object System.Drawing.Point(320, 164)
-    $cancel.Size = New-Object System.Drawing.Size(80, 28)
-    $cancel.TabIndex = 1
-
-    $form.Controls.AddRange(@($title, $physics, $economy, $sdk, $play, $cancel))
-    $form.AcceptButton = $play
-    $form.CancelButton = $cancel
-    try {
-        $result = $form.ShowDialog()
-        return $result -eq [System.Windows.Forms.DialogResult]::OK
-    }
-    finally {
-        $form.Dispose()
-    }
-}
-
-function Invoke-Play {
-    param(
-        $Manifest,
-        [string]$GamePath,
-        [switch]$NonInteractive
-    )
-    $crashPath = Join-Path $GamePath "prism3d.crash"
-    $previousCrashTimestamp = $null
-    if (Test-Path -LiteralPath $crashPath -PathType Leaf) {
-        $previousCrashTimestamp = (Get-Item -LiteralPath $crashPath).LastWriteTimeUtc
-    }
-    $started = [DateTime]::UtcNow
-    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $startInfo.FileName = Join-Path $GamePath "prism3d.exe"
-    $startInfo.Arguments = '-game game -icon game.ico -title "Hard Truck Modern"'
-    $startInfo.WorkingDirectory = $GamePath
-    $startInfo.UseShellExecute = $false
-    $process = [System.Diagnostics.Process]::Start($startInfo)
-    try {
-        $process.WaitForExit()
-        $exitCode = $process.ExitCode
-    }
-    finally {
-        $process.Dispose()
-    }
-    $currentCrashTimestamp = $null
-    if (Test-Path -LiteralPath $crashPath -PathType Leaf) {
-        $currentCrashTimestamp = (Get-Item -LiteralPath $crashPath).LastWriteTimeUtc
-    }
-    $newerCrash = $null -ne $currentCrashTimestamp -and
-        ($null -eq $previousCrashTimestamp -or $currentCrashTimestamp -gt $previousCrashTimestamp)
-    $launch = @{
-        started_utc = $started.ToString("o")
-        working_directory = "<GAME>"
-        crash_timestamp_before_utc = if ($null -eq $previousCrashTimestamp) { $null } else { $previousCrashTimestamp.ToString("o") }
-        crash_timestamp_utc = if ($null -eq $currentCrashTimestamp) { $null } else { $currentCrashTimestamp.ToString("o") }
-    }
-    if ($exitCode -ne 0 -or $newerCrash) {
-        if (Read-YesNo "Create a crash report?" -DefaultYes $true -NonInteractive:$NonInteractive) {
-            New-CrashReport $Manifest $GamePath $exitCode $launch
-        }
-    }
-}
-
 try {
     $effectiveAction = Resolve-SetupAction $Action -NonInteractive:$NonInteractive
     $script:SelectedAction = $effectiveAction
@@ -1311,16 +1205,6 @@ try {
     $manifest = Read-PayloadManifest
     $selection = Get-Selection $effectiveAction $Components -NonInteractive:$NonInteractive -Manifest $manifest
     $script:GamePath = Get-GamePath $GamePath -NonInteractive:$NonInteractive
-    if ($effectiveAction -eq "Play") {
-        if ($Action -eq "Play" -and -not $NonInteractive -and
-            [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-            if (-not (Show-PlayConfirmation)) {
-                exit 0
-            }
-        }
-        Invoke-Play $manifest $script:GamePath -NonInteractive:$NonInteractive
-        if ($Action -eq "Menu") { exit 2 } else { exit 0 }
-    }
     if ($effectiveAction -eq "CrashReport") {
         if ((Read-YesNo "Create crash report from engine logs?" -DefaultYes $true -NonInteractive:$NonInteractive)) {
             New-CrashReport $manifest $script:GamePath

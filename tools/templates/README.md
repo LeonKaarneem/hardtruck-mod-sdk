@@ -8,13 +8,11 @@ To install only some mods, choose **Choose components** and answer each prompt. 
 
 The installer supports pristine Hard Truck v1.2, current installed variants, and upgrades from previously released modpack variants. The frozen patcher stages the selected current variant locally, then Setup retains an exact backup of the incoming files. Unknown `game.dll` files are refused before backup. Restore the stock `sys/dx8.dll` before setup if you use d3d8to9 or another wrapper. Keep the extracted `installer` folder: it contains the patcher, migration catalog, data payloads, and backups. Native Windows no-Python staging and PowerShell 5.1 behavior require native Windows verification.
 
-## Play Modded and crash reports
+## Manual crash reports
 
-Run **`Play Modded.bat`** to review the **Hard Truck Modern v3** dialog and **MOD SDK: LeonKaarneem** credit. **Play**/Enter launches the game; **Cancel**, Escape, or closing the window starts no game and creates no report. Setup menu option 5 and noninteractive automation retain their direct launch behavior.
+Run **`CrashReport.bat`** or choose Setup menu option 4 **Create crash report** and confirm. This does not intentionally crash the game.
 
-After launch, normal exit creates nothing and does not prompt. A nonzero exit or newly updated `prism3d.crash` offers a default-Yes crash report; answering No creates no archive. For a manual report, run **`CrashReport.bat`** or choose Setup menu option 6 and confirm. These actions do not intentionally crash the game. Native Windows dialog appearance and DPI rendering remain unverified from Linux.
-
-The timestamped `HardTruckCrashReport-*.zip` is saved on your Desktop, falling back to the extracted package folder if needed. It contains only sanitized `prism3d.crash` and the last 4000 lines of sanitized `prism3d.log` when those files exist, plus `report.json` and `README.txt`. Metadata records the report schema/UTC time, Play launch and exit details when available, hashes of the game executable and game/DX8 DLLs, payload schema, installed component IDs/statuses/versions, basic OS/GPU details, and log-presence flags.
+The timestamped `HardTruckCrashReport-*.zip` is saved on your Desktop, falling back to the extracted package folder if needed. It contains only sanitized `prism3d.crash` and the last 4000 lines of sanitized `prism3d.log` when those files exist, plus `report.json` and `README.txt`. Metadata records the report schema/UTC time, hashes of the game executable and game/DX8 DLLs, payload schema, installed component IDs/statuses/versions, basic OS/GPU details, and log-presence flags.
 
 Username, computer name, home/game/package paths, and IPv4/IPv6 addresses are replaced with placeholders in every ZIP entry. No saves, profiles, backup payloads, memory dumps, registry exports, dxdiag/MSInfo output, or arbitrary documents are included. **Reports are never uploaded automatically**: review the archive and decide yourself whether and where to share it.
 

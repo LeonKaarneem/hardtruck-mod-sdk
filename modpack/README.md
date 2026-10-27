@@ -16,19 +16,15 @@ Keep the extracted `installer` folder so Setup can retain backups and uninstall 
 
 Setup accepts pristine v1.2, current binary variants, and upgrades from previously released modpack variants. Its frozen patcher normalizes the recognized input and stages the selected current variant locally before Setup backs up the actual incoming DLL. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused before backup. Restore the stock DX8 DLL before setup if you use d3d8to9. Native Windows no-Python staging and PowerShell 5.1 behavior still require native Windows verification.
 
-## Play Modded and crash reports
+## Manual crash reports
 
-After installation, run **`Play Modded.bat`** to review the **Hard Truck Modern v3** dialog, including the improvement summary and **MOD SDK: LeonKaarneem**. Choose **Play** or press Enter to start the game directly with the mod launch arguments. **Cancel**, Escape, or closing the window starts no game and creates no report. Setup menu option 5 **Play modded** and noninteractive automation retain their direct launch behavior.
-
-The launcher waits for the game to exit. A normal exit does not create a report; a nonzero exit or a newly updated `prism3d.crash` prompts you to create one, with **Yes** as the default. You can decline without creating anything. The dialog's native Windows appearance and DPI rendering have not been verified from the Linux test environment.
-
-Run **`CrashReport.bat`**, or Setup menu option 6 **Create crash report**, to create a report manually after a failure. Confirm the prompt; no game crash is triggered. Reports are named `HardTruckCrashReport-<timestamp>.zip` and written to your Desktop, or to the extracted package folder if the Desktop is unavailable.
+Run **`CrashReport.bat`**, or Setup menu option 4 **Create crash report**, to create a report manually after a failure. Confirm the prompt; no game crash is triggered. Reports are named `HardTruckCrashReport-<timestamp>.zip` and written to your Desktop, or to the extracted package folder if the Desktop is unavailable.
 
 A report ZIP contains only:
 
 - sanitized `prism3d.crash`, when present;
 - sanitized `prism3d.log`, limited to its last 4000 lines, when present;
-- `report.json`, with the report schema and UTC creation time, launch/exit information when launched through Play Modded, SHA-256 hashes for `prism3d.exe`, `game/sys/game.dll`, and `sys/dx8.dll`, payload manifest schema, installed component IDs/statuses/exact versions where current payloads match, basic OS and GPU information, and log-presence flags;
+- `report.json`, with the report schema and UTC creation time, SHA-256 hashes for `prism3d.exe`, `game/sys/game.dll`, and `sys/dx8.dll`, payload manifest schema, installed component IDs/statuses/exact versions where current payloads match, basic OS and GPU information, and log-presence flags;
 - `README.txt`, explaining the contents and how to share the report.
 
 Every entry is processed to replace username, computer name, home/game/package paths, and IPv4/IPv6 addresses with placeholders. Reports do **not** collect saves, profiles, backup payloads, memory dumps, registry exports, dxdiag/MSInfo output, or arbitrary documents. **Nothing is uploaded automatically.** Review the ZIP and choose yourself whether and where to share it.
@@ -89,7 +85,7 @@ The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works thro
 - AI cleanup does not fix every traffic stop: junction-counter gridlock and some stopped-car freezes remain.
 - Definition changes require a new profile. There is no save migration path.
 - Space is not generic menu activation. There is no generic screen-reader interface, reduced-motion mode, or runtime text-scale setting; the larger text is a fixed, scoped preset. Dynamically generated binding rows are not verified keyboard-navigable, and device-dependent joystick controls need real-hardware verification. Accessibility interactions were live-tested under Wine/Xvfb, not native Windows; native pointer behavior and pointer-edge activation remain unverified.
-- The Hor+ FOV attempt remains excluded experimental research. Renderer integrity checks and the engine's software-transformed vertex path prevented a safe patch. See `research/fov-notes.md`; do not install `patch_fov_horplus.py` or the reference `src/htd8/` proxy as release mods.
+- Hor+ FOV is not available. Renderer integrity checks and the engine's software-transformed vertex path prevent a safe patch.
 - If startup or a mod fails, inspect `prism3d.log` and confirm Setup selected the folder containing `prism3d.exe`.
 
 ## Authors and advanced recovery
@@ -114,11 +110,8 @@ modpack/
   mods/<id>/mod.json    component metadata and ownership
   mods/<id>/files/      manifest-owned data sources
   mods/<id>/patch.py    registered binary implementations
-  patches/              excluded experimental FOV research only
-  src/htd8/             excluded reference proxy from that research
 sdk/                    SDK library and author guide
 tests/                  unit, golden, installer, and live-smoke harnesses
 tools/htmod.py          author CLI
 tools/build_windows_release.py
-research/               historical RE notes and evidence
 ```

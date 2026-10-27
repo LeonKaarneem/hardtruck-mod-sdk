@@ -378,7 +378,7 @@ class LiveHarnessTests(unittest.TestCase):
         ):
             with self.subTest(script=name):
                 self.assertFalse((ROOT / "modpack/patches" / name).exists())
-        self.assertTrue((ROOT / "modpack/patches/patch_fov_horplus.py").is_file())
+        self.assertFalse((ROOT / "modpack/patches/patch_fov_horplus.py").exists())
 
 
 if __name__ == "__main__":
