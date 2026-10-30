@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "physics",
-  "version": "3.0.0",
+  "version": "0.0.1",
   "kind": "binary",
   "setup": {"label": "Physics", "description": "Surface governor, stopping, and trailer-mass fixes", "default": true},
   "requires": [],

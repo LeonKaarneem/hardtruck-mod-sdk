@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "files": {
-    "mmain.sc": "a09b0237bf029a3a5997f1daffc40dc8822591aaa4c6fdd520cb9d89e21dde7b",
-    "cosetup.sc": "795b83c07d7c7d45d5dc100383b1543d66a2f9c3a72f3b11b811045e5629a18c",
+    "mmain.sc": "5db1d662c3837280c62bd94a31056e596bd145485dafe22f85984dc78bd613b6",
+    "cosetup.sc": "3a1de180704f242d729bfbd90b4404f8376458ba4fb6f6817d56da6b9dc04ea6",
     "moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
     "options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",

@@ -40,7 +40,7 @@ Do not add a payload copy map, standalone patcher, or release-only special case.
    The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll` only for verification; override their locations with `--game-dll` and `--dx8-dll` when necessary. Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no game/DX8 DLL payloads. A custom `--migrations` catalog must contain exactly both canonical targets, pristine lengths/hashes matching those build inputs, and every required current, released legacy, and DX8 source state.
 7. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the **complete** suite against it before publishing. With `HTMOD_RELEASE_ZIP` set, both the PowerShell installer tests and `tests/test_shell_installer.py` extract and exercise that ZIP:
    ```sh
-   PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-v3.zip \
+   PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.0.1.zip \
      PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
    ```
    Check ZIP integrity and forbidden files (`__pycache__`, Python bytecode, research, test prefixes, logs, saves, backups, and other non-release content). Never publish merely because an in-tree build or only the PowerShell suite passed.

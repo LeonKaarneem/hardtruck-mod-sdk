@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "dx8_vsync",
-  "version": "3.0.0",
+  "version": "0.0.1",
   "kind": "binary",
   "setup": {"label": "DX8 vsync", "description": "Native Direct3D 8 vertical sync", "default": true},
   "requires": [],

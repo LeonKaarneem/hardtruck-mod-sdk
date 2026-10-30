@@ -8,7 +8,7 @@ You must own a legal copy of the game. The modpack does not include the game, an
 
 ## Windows installation
 
-1. Extract `HardTruckModern-v3.zip` completely and close the game.
+1. Extract `HardTruckModern-0.0.1.zip` completely and close the game.
 2. Run `Setup.bat` in the extracted folder.
 3. Choose **Install all** for the complete modpack, or **Choose components** to answer a prompt for each component.
 4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, select one from the numbered list, or manually enter the folder containing `prism3d.exe`.

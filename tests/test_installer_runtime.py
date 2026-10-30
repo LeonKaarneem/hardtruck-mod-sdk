@@ -771,7 +771,7 @@ class InstallerDetectionTests(InstallerCase):
 @unittest.skipIf(PWSH is None, "PowerShell 7 is required for installer runtime tests")
 class FreshExtractedDeliverableTests(InstallerCase):
     def test_zip_extracted_setup_installs_and_uninstalls_with_batch_entry_point(self):
-        archive = self.root / "HardTruckModern-v3.zip"
+        archive = self.root / "HardTruckModern-0.0.1.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for path in sorted(self.release.rglob("*")):
                 if path.is_file():
