@@ -140,7 +140,9 @@ class DLLFreeReleaseTests(unittest.TestCase):
                             record["sources"][record[field]] = record["sources"].pop(old_hash)
                     self.assert_catalog_rejected(mutate, "pristine.*match|match.*pristine")
 
-    def test_custom_catalog_requires_every_current_historical_and_dx8_lineage(self):
+    def test_custom_catalog_requires_every_supported_source_lineage(self):
+        from tests.estonian_variants import ESTONIAN_DX8_SHA256, ESTONIAN_GAME_SHA256
+
         release = build_windows_release.load_release(ROOT)
         variants = build_windows_release.build_game_variants(
             build_windows_release.default_test_base_file(Path("game/sys/game.dll"))
@@ -148,8 +150,10 @@ class DLLFreeReleaseTests(unittest.TestCase):
         cases = (
             ("current", variants["1111"]["sha256"]),
             ("historical", release.legacy_game_sha256[1]),
+            ("estonian-game", ESTONIAN_GAME_SHA256),
             ("dx8-stock", build_windows_release.PRISTINE_DX8_SHA256),
             ("dx8-vsync", json.loads((ROOT / "tests/golden/v3.json").read_text())["dx8"]["vsync"]),
+            ("estonian-dx8", ESTONIAN_DX8_SHA256),
         )
         for lineage, source_hash in cases:
             with self.subTest(lineage=lineage):
@@ -160,6 +164,7 @@ class DLLFreeReleaseTests(unittest.TestCase):
 
     @unittest.skipUnless(os.environ.get("HTMOD_RELEASE_ZIP"), "release ZIP not supplied")
     def test_zip_has_no_dll_payloads_or_known_complete_dll_binaries(self):
+        from tests.estonian_variants import ESTONIAN_DX8_SHA256, ESTONIAN_GAME_SHA256
         from tests.release_fixtures import current_binary_images
 
         release = build_windows_release.load_release(ROOT)
@@ -167,6 +172,7 @@ class DLLFreeReleaseTests(unittest.TestCase):
         known_hashes = {hashlib.sha256(data).hexdigest() for data in game.values()}
         known_hashes.update(hashlib.sha256(data).hexdigest() for data in dx8.values())
         known_hashes.update(release.legacy_game_sha256)
+        known_hashes.update((ESTONIAN_GAME_SHA256, ESTONIAN_DX8_SHA256))
         with zipfile.ZipFile(os.environ["HTMOD_RELEASE_ZIP"]) as archive:
             self.assertIsNone(archive.testzip())
             names = archive.namelist()

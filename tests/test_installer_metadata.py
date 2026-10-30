@@ -14,7 +14,7 @@ from tools import build_windows_release
 
 QUICK_SETUP = ROOT / "modpack/mods/config/files/ui/cosetup.sc"
 QUICK_SETUP_VALUE = (
-    "UNOFFICIAL MOD - Hard Truck Modern 0.0.1<br>"
+    "UNOFFICIAL MOD - Hard Truck Modern 0.1.0<br>"
     "Better physics, cameras and handling<br>"
     "Improved economy and AI cleanup<br>"
     "Features depend on Setup choices"

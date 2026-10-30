@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "release": "0.0.1",
+  "release": "0.1.0",
   "pristine": {
     "game_dll": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
     "dx8_dll": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
@@ -48,8 +48,8 @@
     "data/defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
     "data/defs/ui/btn.def": "1d2128e614890db9ac80ee3385fb5c2ca5650b73dd284edd0296a153b5453ad6",
     "data/defs/ui/txt.def": "c183801602bcd623b97f7e191268ab71bc9fe863f7ff9d9edd8dee442a0df26d",
-    "data/ui/cosetup.sc": "3a1de180704f242d729bfbd90b4404f8376458ba4fb6f6817d56da6b9dc04ea6",
-    "data/ui/mmain.sc": "5db1d662c3837280c62bd94a31056e596bd145485dafe22f85984dc78bd613b6",
+    "data/ui/cosetup.sc": "3f81d6717b64a732bf8c6036debaa83be69c556157f1043cd5c1b7dc6a2637d5",
+    "data/ui/mmain.sc": "d88ced2e7ea74f3b09bc770c940e3143511ec8b12e60bf8211b4c2aee443f9fc",
     "data/ui/moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "data/ui/options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
     "data/ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
@@ -70,8 +70,8 @@
     "defs/truck_base.def": "76c6df28a98888632eb9aa3eb93be19ae1d4d6f3b1adfd99eb5dc1f3c2df514c",
     "defs/ui/btn.def": "1d2128e614890db9ac80ee3385fb5c2ca5650b73dd284edd0296a153b5453ad6",
     "defs/ui/txt.def": "c183801602bcd623b97f7e191268ab71bc9fe863f7ff9d9edd8dee442a0df26d",
-    "ui/cosetup.sc": "3a1de180704f242d729bfbd90b4404f8376458ba4fb6f6817d56da6b9dc04ea6",
-    "ui/mmain.sc": "5db1d662c3837280c62bd94a31056e596bd145485dafe22f85984dc78bd613b6",
+    "ui/cosetup.sc": "3f81d6717b64a732bf8c6036debaa83be69c556157f1043cd5c1b7dc6a2637d5",
+    "ui/mmain.sc": "d88ced2e7ea74f3b09bc770c940e3143511ec8b12e60bf8211b4c2aee443f9fc",
     "ui/moptions.sc": "558a472d70a47eeffb91a48360652678d59c048cd09791399a7ced4c4c285da6",
     "ui/options/mgraphics.sc": "4235c81493251adc4ff8d7ceedc4b150cdb87db9159c133b4bda7869c4c60bc2",
     "ui/options/mcontrols.sc": "c9b6c95ed5a1146968ba4ea87471d22b51576d394e8d074d3952e80abe63dce3",
@@ -81,6 +81,6 @@
   "sanitized_config_line_endings": "lf",
   "marker": {
     "file": "data/ui/mmain.sc",
-    "block_crlf": "\tspawn txt_common {\r\n\t\tvalue:\"Hard Truck Modern 0.0.1\"\r\n\t\tlook:\"1\"\r\n\t\tcoords:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t\tarea:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t}\r\n"
+    "block_crlf": "\tspawn txt_common {\r\n\t\tvalue:\"Hard Truck Modern 0.1.0\"\r\n\t\tlook:\"1\"\r\n\t\tcoords:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t\tarea:\"704.000000 716.000000 1008.000000 740.000000\"\r\n\t}\r\n"
   }
 }

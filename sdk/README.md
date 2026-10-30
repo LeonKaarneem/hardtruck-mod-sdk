@@ -37,10 +37,10 @@ Do not add a payload copy map, standalone patcher, or release-only special case.
      --output /tmp/htmod-build-b
    diff -r /tmp/htmod-build-a /tmp/htmod-build-b
    ```
-   The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll` only for verification; override their locations with `--game-dll` and `--dx8-dll` when necessary. Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no game/DX8 DLL payloads. A custom `--migrations` catalog must contain exactly both canonical targets, pristine lengths/hashes matching those build inputs, and every required current, released legacy, and DX8 source state.
+   The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll` only for verification; override their locations with `--game-dll` and `--dx8-dll` when necessary. Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no original or localized game/DX8 DLL payloads. Installers accept canonical v1.2 and official Estonian v1.2 sources. Estonian binaries normalize locally to canonical v1.2 before selected mods; current and historical upgrades still work, and unknown DLLs are refused. A custom `--migrations` catalog must contain exactly both canonical targets, pristine lengths/hashes matching those build inputs, and every required current, released legacy, official Estonian, and DX8 source state.
 7. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the **complete** suite against it before publishing. With `HTMOD_RELEASE_ZIP` set, both the PowerShell installer tests and `tests/test_shell_installer.py` extract and exercise that ZIP:
    ```sh
-   PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.0.1.zip \
+   PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.1.0.zip \
      PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
    ```
    Check ZIP integrity and forbidden files (`__pycache__`, Python bytecode, research, test prefixes, logs, saves, backups, and other non-release content). Never publish merely because an in-tree build or only the PowerShell suite passed.
@@ -159,7 +159,7 @@ python3 tools/htmod.py check --game-dir "/path/to/test game" --mod dx8_vsync
 
 These commands validate the actual requested selection, including data-component requirements, and then load only registered binary handlers. Before any action, each target must either match the manifest's pinned pristine `source_sha256` or match an **exact recognized whole-file state**. For a non-pristine target, the SDK restores the selected mods in memory and requires the pinned pristine hash, then applies every selected-mod subset (bounded at four target mods) to that verified pristine image and compares complete bytes. Local PATCHED anchors or appended unknown data are not sufficient. To add a mod to an already patched target, select both existing and new mods; selecting only the new one does not recognize the existing state.
 
-Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. Before commit, every selected mod must be PATCHED after apply or ORIGINAL after restore; FOREIGN or the opposite valid state fails with a nonzero CLI result and no commit. Builder input pins remain global and unchanged.
+Apply and restore skip mods already in the requested state, so valid composed installs and reruns are idempotent. Before commit, every selected mod must be PATCHED after apply or ORIGINAL after restore; FOREIGN or the opposite valid state fails with a nonzero CLI result and no commit. Builder input pins remain global and unchanged. Direct `check`, `apply`, and `restore` remain canonical-only and do not consult migration catalogs. Official Estonian source normalization is available through `stage` and installer migration support.
 
 Data is materialized into the release by manifests. End users install both data and binary components through Windows `Setup.bat` or the generated install-all `INSTALL.sh` on Linux/Wine.
 

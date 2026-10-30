@@ -20,6 +20,8 @@ from tools.build_windows_patcher import BuildError as PatcherBuildError, verify_
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
+ESTONIAN_GAME_SHA256 = "d943600154c27be3f6ea8162e375c69bc27c477ab5bfc29c7ceebc8221c17653"
+ESTONIAN_DX8_SHA256 = "7452e60974df84e533709fd80187931fa5a201073916e79fa1a22fb512665070"
 
 
 class BuildError(Exception):
@@ -107,8 +109,12 @@ def validate_migration_catalog(catalog, release, game_dll, dx8_dll, game_variant
         if record["pristine_sha256"] != sha256(source):
             raise BuildError(f"migration target '{target}' pristine SHA-256 does not match build input")
     required = {
-        "game/sys/game.dll": {record["sha256"] for record in game_variants.values()} | set(release.legacy_game_sha256),
-        "sys/dx8.dll": {record["sha256"] for record in dx8.values()},
+        "game/sys/game.dll": (
+            {record["sha256"] for record in game_variants.values()}
+            | set(release.legacy_game_sha256)
+            | {ESTONIAN_GAME_SHA256}
+        ),
+        "sys/dx8.dll": {record["sha256"] for record in dx8.values()} | {ESTONIAN_DX8_SHA256},
     }
     for target, hashes in required.items():
         missing = hashes - set(catalog["targets"][target]["sources"])

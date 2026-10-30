@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "camera",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "kind": "binary",
   "setup": {"label": "Camera", "description": "Chase orbit; stock cabin camera", "default": true},
   "requires": [],

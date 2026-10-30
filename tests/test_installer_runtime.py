@@ -550,6 +550,46 @@ class LegacyInstallerUpgradeTests(InstallerCase):
         self.assertEqual(backup.read_bytes(), original)
         self.assertEqual(sha256(backup), LEGACY_GAME_SHA256["1111"])
 
+    def test_estonian_install_all_and_uninstall_restore_exact_sources(self):
+        from tests.estonian_variants import (
+            ESTONIAN_DX8_SHA256,
+            ESTONIAN_GAME_SHA256,
+            estonian_binary_images,
+        )
+        from tests.release_fixtures import write_current_payload
+
+        payload = self.root / "current-payload"
+        write_current_payload(payload)
+        game_source, dx8_source = estonian_binary_images(payload)
+        (self.game / "game/sys/game.dll").write_bytes(game_source)
+        (self.game / "sys/dx8.dll").write_bytes(dx8_source)
+
+        result = self.run_setup(self.package, self.game, action="InstallAll")
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), CURRENT_ALL_COMPONENTS_SHA256)
+        self.assertEqual(
+            sha256(self.game / "sys/dx8.dll"),
+            "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
+        )
+        backups = self.backup_manifests(self.package)
+        self.assertEqual(len(backups), 1)
+        installation = json.loads(backups[0].read_text(encoding="utf-8"))
+        for relative, source, source_hash in (
+            ("game/sys/game.dll", game_source, ESTONIAN_GAME_SHA256),
+            ("sys/dx8.dll", dx8_source, ESTONIAN_DX8_SHA256),
+        ):
+            with self.subTest(path=relative):
+                entry = next(item for item in installation["entries"] if item["destination"] == relative)
+                self.assertEqual(entry["original_sha256"], source_hash)
+                self.assertEqual((backups[0].parent / entry["backup_file"]).read_bytes(), source)
+
+        uninstall = self.run_setup(self.package, self.game, action="Uninstall")
+
+        self.assertEqual(uninstall.returncode, 0, uninstall.stdout + uninstall.stderr)
+        self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), game_source)
+        self.assertEqual((self.game / "sys/dx8.dll").read_bytes(), dx8_source)
+
     def test_every_broken_fixed_eye_variant_upgrades_with_backup(self):
         for name, fixed_eye_hash in FIXED_EYE_GAME_SHA256.items():
             with self.subTest(variant=name, fixed_eye_hash=fixed_eye_hash):
@@ -771,7 +811,7 @@ class InstallerDetectionTests(InstallerCase):
 @unittest.skipIf(PWSH is None, "PowerShell 7 is required for installer runtime tests")
 class FreshExtractedDeliverableTests(InstallerCase):
     def test_zip_extracted_setup_installs_and_uninstalls_with_batch_entry_point(self):
-        archive = self.root / "HardTruckModern-0.0.1.zip"
+        archive = self.root / "HardTruckModern-0.1.0.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for path in sorted(self.release.rglob("*")):
                 if path.is_file():

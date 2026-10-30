@@ -117,6 +117,50 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(len(entries), 22)
         self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 20)
 
+    def test_estonian_install_all_preserves_sources_and_installs_all_data(self):
+        from tests.estonian_variants import (
+            ESTONIAN_DX8_SHA256,
+            ESTONIAN_GAME_SHA256,
+            estonian_binary_images,
+        )
+        from tests.release_fixtures import write_current_payload
+
+        payload = self.root / "current-payload"
+        write_current_payload(payload)
+        game_source, dx8_source = estonian_binary_images(payload)
+        (self.game / "game/sys/game.dll").write_bytes(game_source)
+        (self.game / "sys/dx8.dll").write_bytes(dx8_source)
+
+        result = self.run_install()
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), CURRENT_ALL_COMPONENTS_SHA256)
+        self.assertEqual(
+            sha256(self.game / "sys/dx8.dll"),
+            "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
+        )
+        manifest = self.manifest()
+        for files in manifest["data_components"].values():
+            for data in files:
+                relative = data.removeprefix("data/")
+                self.assertEqual(sha256(self.game / "game/usr" / relative), manifest["payloads"][data])
+        backups = list((self.package / "installer/backups").glob("shell-*/installation.tsv"))
+        self.assertEqual(len(backups), 1)
+        backup = backups[0].parent
+        entries = [line.split("\t") for line in backups[0].read_text(encoding="utf-8").splitlines()]
+        for relative, source, source_hash, output_hash in (
+            ("game/sys/game.dll", game_source, ESTONIAN_GAME_SHA256, CURRENT_ALL_COMPONENTS_SHA256),
+            (
+                "sys/dx8.dll",
+                dx8_source,
+                ESTONIAN_DX8_SHA256,
+                "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
+            ),
+        ):
+            with self.subTest(path=relative):
+                self.assertIn(["replaced", relative, source_hash, output_hash, f"files/{relative}"], entries)
+                self.assertEqual((backup / "files" / relative).read_bytes(), source)
+
     def test_directory_and_symlink_destinations_are_rejected_before_any_change(self):
         for kind in ("directory", "symlink"):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:

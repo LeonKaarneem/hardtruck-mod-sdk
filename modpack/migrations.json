@@ -2223,6 +2223,26 @@
               "replacement_hex": "0000000000000000000000"
             }
           ]
+        },
+        "d943600154c27be3f6ea8162e375c69bc27c477ab5bfc29c7ceebc8221c17653": {
+          "length": 1007616,
+          "changes": [
+            {
+              "offset": 63945,
+              "original_hex": "75",
+              "replacement_hex": "eb"
+            },
+            {
+              "offset": 466256,
+              "original_hex": "7e",
+              "replacement_hex": "eb"
+            },
+            {
+              "offset": 466328,
+              "original_hex": "7f",
+              "replacement_hex": "eb"
+            }
+          ]
         }
       }
     },
@@ -2241,6 +2261,21 @@
               "offset": 13977,
               "original_hex": "01",
               "replacement_hex": "00"
+            }
+          ]
+        },
+        "7452e60974df84e533709fd80187931fa5a201073916e79fa1a22fb512665070": {
+          "length": 57344,
+          "changes": [
+            {
+              "offset": 232,
+              "original_hex": "0e80b6",
+              "replacement_hex": "ee85d3"
+            },
+            {
+              "offset": 37508,
+              "original_hex": "0e80b6",
+              "replacement_hex": "ee85d3"
             }
           ]
         }

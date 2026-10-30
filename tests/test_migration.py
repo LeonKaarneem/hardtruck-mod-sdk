@@ -206,6 +206,7 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             write_fixed_eye_variant,
             write_legacy_variant,
         )
+        from tests.estonian_variants import estonian_binary_images
         from tests.release_fixtures import write_current_payload
 
         cls.release = load_release(ROOT)
@@ -226,9 +227,12 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             path = root / f"fixed-eye-{name}.dll"
             write_fixed_eye_variant(cls.payload, name, path)
             cls.game_sources.append((f"fixed-eye-{name}", path.read_bytes()))
+        estonian_game, estonian_dx8 = estonian_binary_images(cls.payload)
+        cls.game_sources.append(("estonian", estonian_game))
         cls.dx8_sources = (
             ("stock", (cls.payload / "dx8-stock.dll").read_bytes()),
             ("vsync", (cls.payload / "dx8-vsync.dll").read_bytes()),
+            ("estonian", estonian_dx8),
         )
         cls.catalog_path = ROOT / "modpack/migrations.json"
 
@@ -251,13 +255,15 @@ class RealCatalogAndStagingTests(unittest.TestCase):
 
     def test_catalog_is_compact_and_reconstructs_every_source_lineage(self):
         self.assertLessEqual(self.catalog_path.stat().st_size, 512 * 1024)
+        self.assertEqual(len(self.game_sources), 41)
+        self.assertEqual(len(self.dx8_sources), 3)
         catalog = load_catalog(self.catalog_path)
         unique_game_sources = {digest(data): data for _, data in self.game_sources}
         game = catalog["targets"]["game/sys/game.dll"]
         self.assertEqual(set(game["sources"]), set(unique_game_sources))
         pristine = (self.payload / "game-0000.dll").read_bytes()
         for source_hash, source in unique_game_sources.items():
-            with self.subTest(source=source_hash):
+            with self.subTest(target="game", source=source_hash):
                 self.assertEqual(
                     game["sources"][source_hash],
                     {"length": len(source), "changes": generate_splices(source, pristine)},
@@ -265,7 +271,16 @@ class RealCatalogAndStagingTests(unittest.TestCase):
         for lineage, source in self.game_sources:
             with self.subTest(lineage=lineage):
                 self.assertEqual(normalize_to_pristine(source, "game/sys/game.dll", catalog), pristine)
+        unique_dx8_sources = {digest(data): data for _, data in self.dx8_sources}
+        dx8 = catalog["targets"]["sys/dx8.dll"]
+        self.assertEqual(set(dx8["sources"]), set(unique_dx8_sources))
         pristine_dx8 = (self.payload / "dx8-stock.dll").read_bytes()
+        for source_hash, source in unique_dx8_sources.items():
+            with self.subTest(target="dx8", source=source_hash):
+                self.assertEqual(
+                    dx8["sources"][source_hash],
+                    {"length": len(source), "changes": generate_splices(source, pristine_dx8)},
+                )
         for lineage, source in self.dx8_sources:
             with self.subTest(lineage=lineage):
                 self.assertEqual(normalize_to_pristine(source, "sys/dx8.dll", catalog), pristine_dx8)
@@ -295,7 +310,7 @@ class RealCatalogAndStagingTests(unittest.TestCase):
                     self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), source)
                     self.assertEqual([path for path in self.output.rglob("*") if path.is_file()], [self.output / "game/sys/game.dll"])
 
-    def test_stock_and_vsync_dx8_normalize_with_and_without_mod(self):
+    def test_every_dx8_source_normalizes_with_and_without_mod(self):
         from htmod.cli import stage
 
         for lineage, source in self.dx8_sources:
@@ -318,18 +333,23 @@ class RealCatalogAndStagingTests(unittest.TestCase):
     def test_zero_mods_and_data_only_selection_normalize_without_extra_outputs(self):
         from htmod.cli import stage
 
-        self.write_game_source(self.game_sources[1][1])
-        self.write_dx8_source(self.dx8_sources[1][1])
         expected = {
             "game/sys/game.dll": self.golden["pristine"]["game_dll"],
             "sys/dx8.dll": self.golden["pristine"]["dx8_dll"],
         }
-        for selected in ([], ["config"]):
-            with self.subTest(selected=selected):
-                stage(self.release, self.game, self.output, self.catalog_path, selected, expected)
-                self.assertEqual(digest((self.output / "game/sys/game.dll").read_bytes()), expected["game/sys/game.dll"])
-                self.assertEqual(digest((self.output / "sys/dx8.dll").read_bytes()), expected["sys/dx8.dll"])
-                self.assertEqual(len([path for path in self.output.rglob("*") if path.is_file()]), 2)
+        source_cases = (
+            (self.game_sources[1], self.dx8_sources[1]),
+            (self.game_sources[-1], self.dx8_sources[-1]),
+        )
+        for (game_lineage, game_source), (dx8_lineage, dx8_source) in source_cases:
+            self.write_game_source(game_source)
+            self.write_dx8_source(dx8_source)
+            for selected in ([], ["config"]):
+                with self.subTest(game=game_lineage, dx8=dx8_lineage, selected=selected):
+                    stage(self.release, self.game, self.output, self.catalog_path, selected, expected)
+                    self.assertEqual(digest((self.output / "game/sys/game.dll").read_bytes()), expected["game/sys/game.dll"])
+                    self.assertEqual(digest((self.output / "sys/dx8.dll").read_bytes()), expected["sys/dx8.dll"])
+                    self.assertEqual(len([path for path in self.output.rglob("*") if path.is_file()]), 2)
 
     def test_old_camera_is_removed_when_camera_is_deselected(self):
         from htmod.cli import stage

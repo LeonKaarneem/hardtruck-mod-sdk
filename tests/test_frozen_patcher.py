@@ -67,6 +67,14 @@ class RealFrozenPatcherTests(unittest.TestCase):
             path = cls.root / f"fixed-eye-{name}.dll"
             write_fixed_eye_variant(cls.payload, name, path)
             cls.game_sources.append((f"fixed-eye-{name}", path.read_bytes()))
+        from tests.estonian_variants import estonian_binary_images
+        estonian_game, estonian_dx8 = estonian_binary_images(cls.payload)
+        cls.game_sources.append(("estonian", estonian_game))
+        cls.dx8_sources = (
+            ("stock", (cls.payload / "dx8-stock.dll").read_bytes()),
+            ("vsync", (cls.payload / "dx8-vsync.dll").read_bytes()),
+            ("estonian", estonian_dx8),
+        )
         cls.golden = json.loads((ROOT / "tests/golden/v3.json").read_text(encoding="utf-8"))
         cls.game_dir = cls.root / "game with spaces"
         (cls.game_dir / "game/sys").mkdir(parents=True)
@@ -123,7 +131,7 @@ class RealFrozenPatcherTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256((self.output / "game/sys/game.dll").read_bytes()).hexdigest(), expected["game/sys/game.dll"])
                 self.assertEqual(target.read_bytes(), source)
 
-    def test_zero_mods_old_camera_removal_and_both_dx8_sources(self):
+    def test_zero_mods_old_camera_removal_and_every_dx8_source(self):
         game_target = self.game_dir / "game/sys/game.dll"
         _, old_camera = next((name, data) for name, data in self.game_sources if name == "legacy-0001")
         game_target.write_bytes(old_camera)
@@ -132,15 +140,15 @@ class RealFrozenPatcherTests(unittest.TestCase):
             hashlib.sha256((self.output / "game/sys/game.dll").read_bytes()).hexdigest(),
             self.golden["pristine"]["game_dll"],
         )
-        for name in ("stock", "vsync"):
-            with self.subTest(dx8=name):
-                source = (self.payload / f"dx8-{name}.dll").read_bytes()
-                (self.game_dir / "sys/dx8.dll").write_bytes(source)
-                self.stage(["dx8_vsync"], {"sys/dx8.dll": self.golden["dx8"]["vsync"]})
-                self.assertEqual(
-                    hashlib.sha256((self.output / "sys/dx8.dll").read_bytes()).hexdigest(),
-                    self.golden["dx8"]["vsync"],
-                )
+        for lineage, source in self.dx8_sources:
+            for selected, expected_name in (([], "stock"), (["dx8_vsync"], "vsync")):
+                with self.subTest(dx8=lineage, selected=selected):
+                    (self.game_dir / "sys/dx8.dll").write_bytes(source)
+                    self.stage(selected, {"sys/dx8.dll": self.golden["dx8"][expected_name]})
+                    self.assertEqual(
+                        hashlib.sha256((self.output / "sys/dx8.dll").read_bytes()).hexdigest(),
+                        self.golden["dx8"][expected_name],
+                    )
 
 
 if __name__ == "__main__":

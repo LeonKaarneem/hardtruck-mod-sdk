@@ -8,7 +8,7 @@ You must own a legal copy of the game. The modpack does not include the game, an
 
 ## Windows installation
 
-1. Extract `HardTruckModern-0.0.1.zip` completely and close the game.
+1. Extract `HardTruckModern-0.1.0.zip` completely and close the game.
 2. Run `Setup.bat` in the extracted folder.
 3. Choose **Install all** for the complete modpack, or **Choose components** to answer a prompt for each component.
 4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, select one from the numbered list, or manually enter the folder containing `prism3d.exe`.
@@ -16,7 +16,7 @@ You must own a legal copy of the game. The modpack does not include the game, an
 
 **Start a new profile after installing handling, economy, or driver definition changes, including Install all.** Existing saves are incompatible with those definitions. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
-Players do **not** need Python. The package contains no original game or DX8 DLL payloads. The bundled local `htmod.exe` patcher recognizes the installed files and stages the selected variants on your computer before Setup backs up and installs them. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused. Restore the stock DX8 DLL before setup if you use d3d8to9 or another wrapper.
+Players do **not** need Python. Setup accepts canonical v1.2 and official Estonian v1.2 binaries; current variants and historical modpack upgrades still work. For official Estonian installations, the bundled local `htmod.exe` normalizes both DLLs to canonical v1.2 on your computer before staging the selected mods. The package contains no original or localized game or DX8 DLL payloads. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused. Restore the stock DX8 DLL before setup if you use d3d8to9 or another wrapper.
 
 ## Components
 
