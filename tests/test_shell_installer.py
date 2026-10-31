@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 from tools import build_windows_release
@@ -334,6 +335,207 @@ class ShellInstallerTests(unittest.TestCase):
                 self.assertEqual(sha256(game / "game/sys/game.dll"), before)
                 self.assertFalse((game / "game/usr/config.cfg").exists())
                 self.assertFalse((package / "installer/backups").exists())
+
+
+class ShellSelectionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.release_temporary = tempfile.TemporaryDirectory(prefix="htmod-shell-selection-")
+        cls.root = Path(cls.release_temporary.name)
+        modpack = cls.root / "modpack"
+        shutil.copytree(ROOT / "modpack", modpack)
+        release_path = modpack / "release.json"
+        release = json.loads(release_path.read_text(encoding="utf-8"))
+        release["mods"].insert(1, "synthetic")
+        release_path.write_text(json.dumps(release, indent=2) + "\n", encoding="utf-8")
+        synthetic = modpack / "mods/synthetic"
+        (synthetic / "files").mkdir(parents=True)
+        (synthetic / "files/marker.txt").write_bytes(b"synthetic\n")
+        (synthetic / "mod.json").write_text(json.dumps({
+            "schema_version": 1,
+            "id": "synthetic",
+            "version": "1",
+            "kind": "data",
+            "setup": {
+                "label": "Synthetic",
+                "description": "Synthetic release component",
+                "default": True,
+            },
+            "requires": ["config"],
+            "conflicts": [],
+            "new_profile": False,
+            "files": [{
+                "source": "marker.txt",
+                "destination": "game/usr/synthetic.txt",
+            }],
+        }, indent=2) + "\n", encoding="utf-8")
+        cls.component_ids = release["mods"]
+        cls.release = cls.root / "release"
+        patcher = cls.root / "htmod.exe"
+        from tests.release_fixtures import fake_pe64
+        fake_pe64(patcher)
+        args = SimpleNamespace(
+            output=cls.release,
+            game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
+            dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+            patcher_exe=patcher,
+            migrations=ROOT / "modpack/migrations.json",
+        )
+        with mock.patch.object(
+            build_windows_release,
+            "load_release",
+            return_value=build_windows_release.load_release(cls.root),
+        ):
+            build_windows_release.build(args)
+
+        cls.bin = cls.root / "bin"
+        cls.bin.mkdir()
+        wine = cls.bin / "wine"
+        wine.write_text(
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "printf '%s\\n' \"$@\" > \"$HTMOD_TEST_ARGUMENTS\"\n"
+            "shift\n"
+            "exec python3 \"$HTMOD_TEST_CLI\" --root \"$HTMOD_TEST_ROOT\" \"$@\"\n",
+            encoding="utf-8",
+        )
+        winepath = cls.bin / "winepath"
+        winepath.write_text(
+            "#!/bin/sh\n"
+            "set -eu\n"
+            "[ \"$1\" = \"-w\" ]\n"
+            "printf '%s\\n' \"$2\"\n",
+            encoding="utf-8",
+        )
+        wine.chmod(0o755)
+        winepath.chmod(0o755)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.release_temporary.cleanup()
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="htmod-shell-selection-test-")
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.package = self.root / "package"
+        shutil.copytree(self.release, self.package)
+        self.game = self.root / "game"
+        (self.game / "game/sys").mkdir(parents=True)
+        (self.game / "sys").mkdir()
+        for relative in ("prism3d.exe", "game/sys/game.dll", "sys/dx8.dll"):
+            shutil.copyfile(build_windows_release.default_test_base_file(Path(relative)), self.game / relative)
+        self.original_game = (self.game / "game/sys/game.dll").read_bytes()
+        self.original_dx8 = (self.game / "sys/dx8.dll").read_bytes()
+        self.arguments = self.root / "arguments"
+        self.environment = os.environ.copy()
+        self.environment.update({
+            "PATH": str(self.bin) + os.pathsep + self.environment["PATH"],
+            "HTMOD_TEST_ARGUMENTS": str(self.arguments),
+            "HTMOD_TEST_CLI": str(ROOT / "tools/htmod.py"),
+            "HTMOD_TEST_ROOT": str(self.release_temporary_path),
+        })
+
+    @property
+    def release_temporary_path(self):
+        return Path(self.release_temporary.name)
+
+    def run_install(self):
+        return subprocess.run(
+            ["/bin/sh", str(self.package / "INSTALL.sh"), "--yes", str(self.game)],
+            text=True,
+            capture_output=True,
+            timeout=120,
+            env=self.environment,
+        )
+
+    def manifest_path(self):
+        return self.package / "installer/payload/install-manifest.tsv"
+
+    def replace_selection(self, *selections):
+        path = self.manifest_path()
+        lines = [
+            line for line in path.read_text(encoding="utf-8").splitlines()
+            if not line.startswith("install-mods\t")
+        ]
+        lines.extend(selections)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def assert_failed_without_changes(self, result):
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), self.original_game)
+        self.assertEqual((self.game / "sys/dx8.dll").read_bytes(), self.original_dx8)
+        self.assertFalse((self.game / "game/usr/config.cfg").exists())
+        self.assertFalse((self.game / "game/usr/synthetic.txt").exists())
+        self.assertFalse((self.package / "installer/backups").exists())
+
+    def test_manifest_has_one_release_ordered_selection(self):
+        records = [
+            line.split("\t")
+            for line in self.manifest_path().read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertEqual(
+            [record for record in records if record[0] == "install-mods"],
+            [["install-mods", "-", " ".join(self.component_ids)]],
+        )
+        self.assertEqual(len([record for record in records if record[0] == "variant"]), 16)
+        self.assertEqual(len([record for record in records if record[0] == "data"]), 21)
+
+    def test_install_passes_each_release_component_once_in_order(self):
+        result = self.run_install()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        arguments = self.arguments.read_text(encoding="utf-8").splitlines()
+        selected = [arguments[index + 1] for index, value in enumerate(arguments[:-1]) if value == "--mod"]
+        self.assertEqual(arguments[1], "render-quick-setup")
+        self.assertEqual(selected, self.component_ids)
+        self.assertEqual((self.game / "game/usr/synthetic.txt").read_bytes(), b"synthetic\n")
+        quick_setup = self.game / "game/usr/ui/cosetup.sc"
+        self.assertIn(b"Enabled: configuration, camera, physics,<br>", quick_setup.read_bytes())
+        backups = list((self.package / "installer/backups").glob("shell-*/installation.tsv"))
+        self.assertEqual(len(backups), 1)
+        entries = [line.split("\t") for line in backups[0].read_text(encoding="utf-8").splitlines()]
+        entry = next(item for item in entries if item[1] == "game/usr/ui/cosetup.sc")
+        self.assertEqual(entry[3], sha256(quick_setup))
+
+    def test_missing_duplicate_and_malformed_selections_fail_before_changes(self):
+        valid = "install-mods\t-\t" + " ".join(self.component_ids)
+        cases = {
+            "missing": (),
+            "duplicate": (valid, valid),
+            "empty": ("install-mods\t-\t",),
+            "whitespace": ("install-mods\t-\t   ",),
+            "relative": ("install-mods\tnot-internal\t" + " ".join(self.component_ids),),
+            "extra-field": (valid + "\textra",),
+            "empty-middle-column": ("install-mods\t-\t\tconfig",),
+            "trailing-empty-column": ("install-mods\t-\tconfig\t",),
+            "invalid-id": ("install-mods\t-\tconfig invalid-id",),
+        }
+        for name, selections in cases.items():
+            with self.subTest(selection=name), tempfile.TemporaryDirectory() as temporary:
+                package = Path(temporary) / "package"
+                shutil.copytree(self.package, package)
+                original_package = self.package
+                self.package = package
+                try:
+                    self.replace_selection(*selections)
+                    self.arguments.unlink(missing_ok=True)
+                    result = self.run_install()
+                    self.assert_failed_without_changes(result)
+                    self.assertFalse(self.arguments.exists(), "stage ran for an invalid install-mods record")
+                    self.assertRegex(result.stdout + result.stderr, "install-mods|selection")
+                finally:
+                    self.package = original_package
+
+    def test_unknown_and_incomplete_selections_are_rejected_by_stage_before_changes(self):
+        for name, selection, message in (
+            ("unknown", "config missing", "unknown mod"),
+            ("dependency", "synthetic", "requires"),
+        ):
+            with self.subTest(selection=name):
+                self.replace_selection("install-mods\t-\t" + selection)
+                result = self.run_install()
+                self.assert_failed_without_changes(result)
+                self.assertRegex(result.stdout + result.stderr, message)
 
 
 if __name__ == "__main__":

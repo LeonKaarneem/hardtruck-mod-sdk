@@ -89,6 +89,56 @@ class DLLFreeReleaseTests(unittest.TestCase):
             }
             self.assertEqual(first, second)
 
+    def test_rebuild_discards_stale_output_and_matches_a_fresh_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            args = self.make_arguments(root, "release")
+            build_windows_release.build(args)
+            stale = (
+                args.output / "stale-top-level.txt",
+                args.output / "installer/stale-installer.txt",
+                args.output / "installer/payload/stale-payload.txt",
+            )
+            for path in stale:
+                path.write_bytes(b"stale")
+
+            fresh_args = SimpleNamespace(**vars(args))
+            fresh_args.output = root / "fresh"
+            build_windows_release.build(fresh_args)
+            build_windows_release.build(args)
+
+            for path in stale:
+                self.assertFalse(path.exists(), path)
+            self.assert_dll_free_schema_three(args.output, args.patcher_exe)
+            rebuilt = {
+                path.relative_to(args.output).as_posix(): path.read_bytes()
+                for path in args.output.rglob("*") if path.is_file()
+            }
+            fresh = {
+                path.relative_to(fresh_args.output).as_posix(): path.read_bytes()
+                for path in fresh_args.output.rglob("*") if path.is_file()
+            }
+            self.assertEqual(rebuilt, fresh)
+
+    def test_validation_failure_leaves_existing_output_untouched(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            args = self.make_arguments(temporary)
+            build_windows_release.build(args)
+            before = {
+                path.relative_to(args.output).as_posix(): path.read_bytes()
+                for path in args.output.rglob("*") if path.is_file()
+            }
+            args.patcher_exe.write_bytes(b"invalid")
+
+            with self.assertRaisesRegex(Exception, "64-bit|AMD64|PE"):
+                build_windows_release.build(args)
+
+            after = {
+                path.relative_to(args.output).as_posix(): path.read_bytes()
+                for path in args.output.rglob("*") if path.is_file()
+            }
+            self.assertEqual(after, before)
+
     def custom_catalog(self, args, mutate=None):
         catalog = json.loads((ROOT / "modpack/migrations.json").read_text(encoding="utf-8"))
         if mutate is not None:

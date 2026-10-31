@@ -14,7 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "sdk"))
 from htmod import PatchError, Selection, load_release
 from htmod.migration import load_catalog
 from htmod.patch import PatchRunner, PatchState
-from htmod.runner import load_binary_mods, materialize_data
+from htmod.runner import load_binary_mods, materialize_data, verify_pristine_images
 from tools.build_windows_patcher import BuildError as PatcherBuildError, verify_pe64
 
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
@@ -43,10 +43,11 @@ def build_game_variants(source):
         if mod.kind == "binary" and mod.target == "game/sys/game.dll"
     )
     non_game_components = tuple(mod_id for mod_id in release.mods if mod_id not in game_components)
+    pristine = source.read_bytes()
+    verify_pristine_images(release, {"game/sys/game.dll": pristine})
     game_mods = load_binary_mods(release, game_components)
     variants = {}
     hashes = set()
-    pristine = source.read_bytes()
     pristine_hash = hashlib.sha256(pristine).hexdigest()
 
     for name, variant in release.game_variants.items():
@@ -79,8 +80,9 @@ def build_game_variants(source):
 
 def build_dx8_payloads(source):
     release = load_release(PROJECT_ROOT)
-    mod = load_binary_mods(release, ("dx8_vsync",))[0]
     pristine = source.read_bytes()
+    verify_pristine_images(release, {"sys/dx8.dll": pristine})
+    mod = load_binary_mods(release, ("dx8_vsync",))[0]
     images = {"sys/dx8.dll": bytearray(pristine)}
     runner = PatchRunner(images)
     if runner.check([mod])[mod.id] != PatchState.ORIGINAL:
@@ -195,6 +197,7 @@ def build_shell_manifest(release, payload, game_variants, dx8):
         raise BuildError("shell installer requires one curated all-game-components variant")
     add("install-game", "game/sys/game.dll", game_variants[install_all[0]]["sha256"])
     add("install-dx8", "sys/dx8.dll", dx8["vsync"]["sha256"])
+    add("install-mods", "-", " ".join(tuple(release.mods)))
     add("stock-dx8", "sys/dx8.dll", dx8["stock"]["sha256"])
     add("patcher", "htmod.exe", sha256(payload / "htmod.exe"))
     add("migrations", "migrations.json", sha256(payload / "migrations.json"))
@@ -270,10 +273,7 @@ def build(args):
     with tempfile.TemporaryDirectory(prefix=f".{output.name}.build-", dir=output.parent) as release_temporary:
         release_temporary = Path(release_temporary)
         release_staging = release_temporary / "release"
-        if output.exists():
-            shutil.copytree(output, release_staging)
-        else:
-            release_staging.mkdir()
+        release_staging.mkdir()
 
         installer = release_staging / "installer"
         installer.mkdir(parents=True, exist_ok=True)

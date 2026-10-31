@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "sdk"))
 
 from htmod import load_release
-from htmod.runner import materialize_data
+from htmod.runner import materialize_data, materialize_data_bytes
 
 
 def sha256(path):
@@ -65,6 +65,28 @@ class GoldenDataTests(unittest.TestCase):
                 if path.is_file()
             }
             self.assertEqual(actual, self.golden["data_payloads"])
+
+    def test_materialized_bytes_match_golden_without_creating_directories(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            payload = Path(temporary) / "not-created"
+            components = materialize_data_bytes(self.release)
+            self.assertFalse(payload.exists())
+            actual = {
+                "data/" + destination.removeprefix("game/usr/"): hashlib.sha256(content).hexdigest()
+                for files in components.values()
+                for destination, content in files.items()
+            }
+            self.assertEqual(actual, self.golden["data_payloads"])
+            self.assertEqual(
+                {component: list(files) for component, files in components.items()},
+                {
+                    component: [
+                        "game/usr/" + path.removeprefix("data/")
+                        for path in paths
+                    ]
+                    for component, paths in self.golden["data_components"].items()
+                },
+            )
 
     def test_config_transform_removes_renderer_and_matches_legacy_line_endings(self):
         with tempfile.TemporaryDirectory() as temporary:

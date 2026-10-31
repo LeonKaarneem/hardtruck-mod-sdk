@@ -1,51 +1,56 @@
 import hashlib
 import importlib.util
 from pathlib import Path
-import re
-import shutil
+import sys
 
+from . import registry
 from .errors import PatchError
 from .patch import PatchRunner
+from .quick_setup import QUICK_SETUP_DESTINATION, render_quick_setup
 
 
-REGISTERED_BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync"})
+def verify_pristine_images(release, images):
+    for target, data in images.items():
+        if target not in release.pristine_sha256:
+            raise PatchError(f"target '{target}' has no manifest pristine SHA-256")
+        expected = release.pristine_sha256[target]
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != expected:
+            raise PatchError(
+                f"target '{target}' pristine SHA-256 mismatch: expected {expected}, got {actual}"
+            )
 
 
-def strip_r_renderer(data):
-    text = data.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
-    sanitized = re.sub(
-        r"^[ \t]*uset\s+r_renderer\s+.*(?:\n|$)",
-        "",
-        text,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-    return sanitized.encode("utf-8")
-
-
-TRANSFORMS = {"strip_r_renderer": strip_r_renderer}
-
-
-def materialize_data(release, payload):
-    data_root = payload / "data"
+def materialize_data_bytes(release, selected=None):
+    selected = tuple(release.mods) if selected is None else tuple(selected)
     components = {}
     for mod in release.mods.values():
         if mod.kind != "data":
             continue
-        owned = []
+        files = {}
         for record in mod.files:
-            relative = record.destination.removeprefix("game/usr/")
+            content = mod.source_path(record).read_bytes()
+            for transform in record.transforms:
+                content = registry.TRANSFORMS[transform](content)
+            if record.destination == QUICK_SETUP_DESTINATION:
+                content = render_quick_setup(content, selected)
+            files[record.destination] = content
+        components[mod.id] = files
+    return components
+
+
+def materialize_data(release, payload, selected=None):
+    data_root = payload / "data"
+    components = {}
+    for mod_id, files in materialize_data_bytes(release, selected).items():
+        owned = []
+        for destination, content in files.items():
+            relative = destination.removeprefix("game/usr/")
             target = data_root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            source = mod.source_path(record)
-            if record.transforms:
-                content = source.read_bytes()
-                for transform in record.transforms:
-                    content = TRANSFORMS[transform](content)
-                target.write_bytes(content)
-            else:
-                shutil.copyfile(source, target)
+            target.write_bytes(content)
             owned.append(f"data/{relative}")
-        components[mod.id] = owned
+        components[mod_id] = owned
     return components
 
 
@@ -58,7 +63,7 @@ def load_binary_mods(release, mod_ids):
         if manifest.kind != "binary":
             raise PatchError(f"mod '{mod_id}' is not a binary mod")
         handler = manifest.handler
-        if handler not in REGISTERED_BINARY_HANDLERS:
+        if handler not in registry.BINARY_HANDLERS:
             raise PatchError(f"binary handler '{handler}' is not registered")
         module_name = f"_htmod_registered_{handler}"
         module_path = release.root / "mods" / handler / "patch.py"
@@ -66,10 +71,14 @@ def load_binary_mods(release, mod_ids):
         if spec is None or spec.loader is None:
             raise PatchError(f"cannot load registered binary handler '{handler}'")
         module = importlib.util.module_from_spec(spec)
+        dont_write_bytecode = sys.dont_write_bytecode
+        sys.dont_write_bytecode = True
         try:
             spec.loader.exec_module(module)
         except (OSError, ImportError, AttributeError) as error:
             raise PatchError(f"cannot load registered binary handler '{handler}': {error}") from error
+        finally:
+            sys.dont_write_bytecode = dont_write_bytecode
         loaded_mod = module.MOD
         if loaded_mod.id != mod_id:
             raise PatchError(

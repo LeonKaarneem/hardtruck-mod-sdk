@@ -38,9 +38,20 @@ INSTALL_GAME=
 INSTALL_GAME_HASH=
 INSTALL_DX8=
 INSTALL_DX8_HASH=
+INSTALL_MODS=
+INSTALL_MODS_COUNT=0
 PATCHER=
 CATALOG=
 DATA_COUNT=0
+
+while IFS= read -r line; do
+    case $line in
+        install-mods"$TAB"*"$TAB""$TAB"*|install-mods"$TAB"*"$TAB")
+            echo "error: malformed install-mods selection." >&2
+            exit 1
+            ;;
+    esac
+done < "$MANIFEST"
 
 while IFS="$TAB" read -r kind relative expected; do
     [ -n "$kind" ] || continue
@@ -56,6 +67,21 @@ while IFS="$TAB" read -r kind relative expected; do
         install-dx8)
             INSTALL_DX8=$relative
             INSTALL_DX8_HASH=$expected
+            continue
+            ;;
+        install-mods)
+            INSTALL_MODS_COUNT=$((INSTALL_MODS_COUNT + 1))
+            if [ "$INSTALL_MODS_COUNT" -ne 1 ] || [ "$relative" != "-" ] || [ -z "$expected" ]; then
+                echo "error: install-mods requires exactly one nonempty internal selection." >&2
+                exit 1
+            fi
+            case $expected in
+                *"$TAB"*)
+                    echo "error: malformed install-mods selection." >&2
+                    exit 1
+                    ;;
+            esac
+            INSTALL_MODS=$expected
             continue
             ;;
     esac
@@ -88,6 +114,26 @@ done < "$MANIFEST"
 
 if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ -z "$PATCHER" ] || [ -z "$CATALOG" ] || [ "$DATA_COUNT" -eq 0 ]; then
     echo "error: incomplete generated install manifest." >&2
+    exit 1
+fi
+if [ "$INSTALL_MODS_COUNT" -ne 1 ] || [ -z "$INSTALL_MODS" ]; then
+    echo "error: install-mods requires exactly one nonempty internal selection." >&2
+    exit 1
+fi
+set -f
+set --
+for MOD_ID in $INSTALL_MODS; do
+    case $MOD_ID in
+        ''|[0-9_]*|*[!a-z0-9_]*)
+            echo "error: malformed install-mods component ID: $MOD_ID" >&2
+            exit 1
+            ;;
+    esac
+    set -- "$@" --mod "$MOD_ID"
+done
+set +f
+if [ "$#" -eq 0 ]; then
+    echo "error: install-mods requires exactly one nonempty internal selection." >&2
     exit 1
 fi
 if ! command -v wine >/dev/null 2>&1 || ! command -v winepath >/dev/null 2>&1; then
@@ -131,8 +177,7 @@ if ! wine "$PATCHER" stage \
     --game-dir "$(winepath -w "$GAME")" \
     --output-dir "$(winepath -w "$STAGING")" \
     --migrations "$(winepath -w "$CATALOG")" \
-    --mod config --mod handling_defs --mod economy_def --mod driver_def \
-    --mod camera --mod physics --mod ai --mod ui_keyboard --mod dx8_vsync \
+    "$@" \
     --expect "game/sys/game.dll=$INSTALL_GAME_HASH" \
     --expect "sys/dx8.dll=$INSTALL_DX8_HASH"; then
     rm -rf "$STAGING"
@@ -145,6 +190,20 @@ if [ "$(hash_file "$STAGING/game/sys/game.dll")" != "$INSTALL_GAME_HASH" ] || \
     echo "error: staged DLL hash verification failed; no files were changed." >&2
     exit 1
 fi
+if ! wine "$PATCHER" render-quick-setup \
+    --output-dir "$(winepath -w "$STAGING")" \
+    "$@"; then
+    rm -rf "$STAGING"
+    echo "error: frozen Quick Setup rendering failed; no files were changed." >&2
+    exit 1
+fi
+QUICK_SETUP=$STAGING/game/usr/ui/cosetup.sc
+if [ ! -f "$QUICK_SETUP" ]; then
+    rm -rf "$STAGING"
+    echo "error: frozen Quick Setup rendering did not produce ui/cosetup.sc." >&2
+    exit 1
+fi
+QUICK_SETUP_HASH=$(hash_file "$QUICK_SETUP")
 
 BACKUP=$PACKAGE/installer/backups/shell-$(date +%Y%m%d-%H%M%S)-$$
 mkdir -p "$BACKUP/files"
@@ -271,7 +330,11 @@ while IFS="$TAB" read -r kind relative expected; do
             ;;
         data)
             data_relative=${relative#data/}
-            install_file "$PAYLOAD/$relative" "$GAME/game/usr/$data_relative" "game/usr/$data_relative" "$expected"
+            if [ "$relative" = "data/ui/cosetup.sc" ]; then
+                install_file "$QUICK_SETUP" "$GAME/game/usr/$data_relative" "game/usr/$data_relative" "$QUICK_SETUP_HASH"
+            else
+                install_file "$PAYLOAD/$relative" "$GAME/game/usr/$data_relative" "game/usr/$data_relative" "$expected"
+            fi
             ;;
     esac
 done < "$MANIFEST"
@@ -280,7 +343,12 @@ while IFS="$TAB" read -r kind relative expected; do
     case $kind in
         install-game) destination=$GAME/game/sys/game.dll ;;
         install-dx8) destination=$GAME/sys/dx8.dll ;;
-        data) destination=$GAME/game/usr/${relative#data/} ;;
+        data)
+            destination=$GAME/game/usr/${relative#data/}
+            if [ "$relative" = "data/ui/cosetup.sc" ]; then
+                expected=$QUICK_SETUP_HASH
+            fi
+            ;;
         *) continue ;;
     esac
     actual=$(hash_file "$destination")

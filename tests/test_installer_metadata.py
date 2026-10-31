@@ -14,7 +14,7 @@ from tools import build_windows_release
 
 QUICK_SETUP = ROOT / "modpack/mods/config/files/ui/cosetup.sc"
 QUICK_SETUP_VALUE = (
-    "UNOFFICIAL MOD - Hard Truck Modern 0.1.0<br>"
+    "UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>"
     "Better physics, cameras and handling<br>"
     "Improved economy and AI cleanup<br>"
     "Features depend on Setup choices"
@@ -27,6 +27,16 @@ QUICK_SETUP_BLOCK = (
     '\t\tcoords:"262.000000 625.000000 762.000000 735.000000"\r\n'
     '\t}\r\n'
 ).encode("utf-8")
+QUICK_SETUP_ENABLED_VALUE = (
+    "UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>"
+    "Enabled: configuration, camera, physics,<br>"
+    "handling, economy, driver, AI,<br>"
+    "keyboard, DX8 vsync"
+)
+QUICK_SETUP_ENABLED_BLOCK = QUICK_SETUP_BLOCK.replace(
+    QUICK_SETUP_VALUE.encode("utf-8"),
+    QUICK_SETUP_ENABLED_VALUE.encode("utf-8"),
+)
 STOCK_QUICK_SETUP_SHA256 = "2506947443d594a16cc4f34f9aa5186d4cb838fe1c1c6aae64ed83cb96cb2f62"
 CREDITS = ROOT / "modpack/mods/config/files/ui/mcredits.sc"
 STOCK_CREDITS = ROOT / "data/patch_zipfs/ui/mcredits.sc"
@@ -119,6 +129,36 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
         ])
 
 
+class WindowsLifecyclePlanContractTests(unittest.TestCase):
+    def setUp(self):
+        self.source = (ROOT / "tools/templates/Setup.ps1").read_text(encoding="utf-8")
+
+    def test_helper_validates_artifacts_and_invokes_one_exact_plan(self):
+        self.assertIn("function Invoke-LifecyclePlan", self.source)
+        start = self.source.index("function Invoke-LifecyclePlan")
+        end = self.source.index("\nfunction ", start + 1)
+        helper = self.source[start:end]
+        self.assertIn('"plan",', helper)
+        self.assertIn('"--exact"', helper)
+        self.assertIn('Test-Hash $patcher', helper)
+        self.assertIn('Test-Hash $catalog', helper)
+        self.assertIn("ConvertFrom-Json", helper)
+
+    def test_install_consumes_plan_selection_and_binary_changes(self):
+        start = self.source.index("function Install-Mods")
+        end = self.source.index("\nfunction ", start + 1)
+        install = self.source[start:end]
+        self.assertNotIn("Invoke-LifecyclePlan", install)
+        self.assertIn("$plan.selected", install)
+        self.assertIn("$plan.binary_changes", install)
+        self.assertNotIn("$selectedGameComponents", install)
+        self.assertNotIn("$Manifest.game_variants", install)
+
+    def test_powershell_dependency_and_curated_selection_policy_is_removed(self):
+        self.assertNotIn("function Assert-Selection", self.source)
+        self.assertNotIn("No unique curated game.dll variant", self.source)
+
+
 class CreditsTests(unittest.TestCase):
     def test_stock_patch_12_credits_are_preserved_except_for_five_page_blocks(self):
         self.assertTrue(CREDITS.is_file(), "config-owned Credits override is missing")
@@ -176,7 +216,13 @@ class QuickSetupTests(unittest.TestCase):
             components = materialize_data(release, payload)
             generated = payload / "data/ui/cosetup.sc"
             self.assertTrue(generated.is_file())
-            self.assertEqual(generated.read_bytes(), QUICK_SETUP.read_bytes())
+            content = generated.read_bytes()
+            self.assertEqual(
+                content,
+                QUICK_SETUP.read_bytes().replace(QUICK_SETUP_BLOCK, QUICK_SETUP_ENABLED_BLOCK),
+            )
+            self.assertEqual(content.count(QUICK_SETUP_ENABLED_BLOCK), 1)
+            self.assertNotIn(b"Features depend on Setup choices", content)
             self.assertIn("data/ui/cosetup.sc", components["config"])
 
 

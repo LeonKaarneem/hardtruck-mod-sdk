@@ -88,6 +88,57 @@ class InstallerCase(unittest.TestCase):
             json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
         )
 
+    def fake_patcher_environment(self, package, root, plan):
+        patcher = Path(package) / "installer/payload/htmod.exe"
+        patcher.write_bytes(b"fake patcher")
+        manifest = self.manifest(package)
+        manifest["payloads"]["htmod.exe"] = sha256(patcher)
+        self.write_manifest(package, manifest)
+        binary = Path(root) / "fake-bin"
+        binary.mkdir()
+        commands = Path(root) / "fake-commands"
+        wine = binary / "wine"
+        wine.write_text(r'''#!/bin/sh
+set -eu
+command_name=
+game_dir=
+output_dir=
+previous=
+for argument in "$@"; do
+    if [ "$previous" = "--game-dir" ]; then game_dir=$argument; fi
+    if [ "$previous" = "--output-dir" ]; then output_dir=$argument; fi
+    if [ -z "$command_name" ]; then
+        case $argument in plan|stage) command_name=$argument ;; esac
+    fi
+    previous=$argument
+done
+printf '%s\n' "$command_name" >> "$HTMOD_TEST_COMMANDS"
+if [ "$command_name" = "plan" ]; then
+    printf '%s\n' "$HTMOD_TEST_PLAN"
+    exit 0
+fi
+if [ "$command_name" = "stage" ]; then
+    game_dir=$(printf '%s' "${game_dir#Z:}" | tr '\\' '/')
+    output_dir=$(printf '%s' "${output_dir#Z:}" | tr '\\' '/')
+    mkdir -p "$output_dir/game/sys" "$output_dir/sys"
+    if [ "${HTMOD_TEST_WRONG_STAGE:-0}" = "1" ]; then
+        printf 'wrong staged game' > "$output_dir/game/sys/game.dll"
+        printf 'wrong staged dx8' > "$output_dir/sys/dx8.dll"
+    else
+        cp "$game_dir/game/sys/game.dll" "$output_dir/game/sys/game.dll"
+        cp "$game_dir/sys/dx8.dll" "$output_dir/sys/dx8.dll"
+    fi
+    exit 0
+fi
+exit 64
+''', encoding="utf-8")
+        wine.chmod(0o755)
+        return {
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "HTMOD_TEST_PLAN": plan if isinstance(plan, str) else json.dumps(plan, separators=(",", ":")),
+            "HTMOD_TEST_COMMANDS": str(commands),
+        }
+
     def backup_manifests(self, package):
         return sorted(Path(package).glob("installer/backups/*/installation.json"))
 
@@ -140,8 +191,65 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         manifest = self.manifest(self.package)
         self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["0001"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
-        self.assertTrue((self.game / "game/usr/ui/cosetup.sc").is_file())
+        quick_setup = self.game / "game/usr/ui/cosetup.sc"
+        self.assertTrue(quick_setup.is_file())
+        content = quick_setup.read_bytes()
+        self.assertIn(b"<br>Enabled: configuration, camera\"\r\n", content)
+        self.assertNotIn(b"Features depend on Setup choices", content)
+        self.assertNotIn(b"handling", content.split(b"Enabled:", 1)[1])
+        installation = json.loads(self.backup_manifests(self.package)[0].read_text(encoding="utf-8"))
+        entry = next(
+            item for item in installation["entries"]
+            if item["destination"] == "game/usr/ui/cosetup.sc"
+        )
+        self.assertEqual(entry["installed_sha256"], sha256(quick_setup))
         self.assertFalse((self.game / "game/usr/defs/truck_base.def").exists())
+
+    def test_custom_dependency_closure_and_data_selection_come_from_plan(self):
+        result = self.run_setup(self.package, self.game, action="Custom", components=["ui_keyboard"])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            sha256(self.game / "game/sys/game.dll"),
+            self.manifest(self.package)["game_variants"]["1000"]["sha256"],
+        )
+        self.assertIn(
+            b"<br>Enabled: configuration, keyboard\"\r\n",
+            (self.game / "game/usr/ui/cosetup.sc").read_bytes(),
+        )
+
+    def test_noop_binary_targets_use_current_hashes_instead_of_curated_metadata(self):
+        manifest = self.manifest(self.package)
+        expected_game = sha256(self.game / "game/sys/game.dll")
+        expected_dx8 = sha256(self.game / "sys/dx8.dll")
+        for record in manifest["game_variants"].values():
+            record["sha256"] = "0" * 64
+        for record in manifest["dx8"].values():
+            record["sha256"] = "0" * 64
+        self.write_manifest(self.package, manifest)
+
+        result = self.run_setup(self.package, self.game, action="Custom", components=["config"])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), expected_game)
+        self.assertEqual(sha256(self.game / "sys/dx8.dll"), expected_dx8)
+        installation = json.loads(self.backup_manifests(self.package)[0].read_text(encoding="utf-8"))
+        self.assertFalse([entry for entry in installation["entries"] if entry["destination"].endswith(".dll")])
+
+    def test_changed_binary_expectation_comes_from_plan_instead_of_curated_metadata(self):
+        manifest = self.manifest(self.package)
+        expected_game = manifest["game_variants"]["0001"]["sha256"]
+        expected_dx8 = manifest["dx8"]["stock"]["sha256"]
+        for record in manifest["game_variants"].values():
+            record["sha256"] = "0" * 64
+        for record in manifest["dx8"].values():
+            record["sha256"] = "0" * 64
+        self.write_manifest(self.package, manifest)
+
+        result = self.run_setup(self.package, self.game, action="Custom", components=["camera"])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(sha256(self.game / "game/sys/game.dll"), expected_game)
+        self.assertEqual(sha256(self.game / "sys/dx8.dll"), expected_dx8)
 
     def test_every_curated_variant_uses_existing_noninteractive_component_ids(self):
         manifest = self.manifest(self.package)
@@ -216,28 +324,6 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         self.assertFalse((self.game / "game/usr/ui/cosetup.sc").exists())
         self.assert_stock(self.game)
 
-    def test_metadata_dependencies_and_conflicts_fail_before_changes(self):
-        cases = []
-        dependency = self.manifest(self.package)
-        dependency["components"]["config"]["requires"] = ["camera"]
-        cases.append((dependency, ["config"], "requires 'camera'"))
-        conflict = self.manifest(self.package)
-        conflict["components"]["camera"]["conflicts"] = ["physics"]
-        cases.append((conflict, ["camera", "physics"], "conflicts with 'physics'"))
-        for index, (manifest, components, message) in enumerate(cases):
-            with self.subTest(message=message):
-                root = self.root / f"invalid-{index}"
-                root.mkdir()
-                package = self.make_package(root)
-                game = self.make_game(root)
-                self.write_manifest(package, manifest)
-                result = self.run_setup(package, game, action="Custom", components=components)
-                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-                self.assertIn(message, result.stdout + result.stderr)
-                self.assertEqual(sha256(game / "game/sys/game.dll"), manifest["game_variants"]["0000"]["sha256"])
-                self.assertFalse((game / "game/usr/config.cfg").exists())
-                self.assertFalse((package / "installer/backups").exists())
-
     def test_unknown_component_lists_generated_stable_ids(self):
         result = self.run_setup(self.package, self.game, action="Custom", components=["missing"])
         self.assertEqual(result.returncode, 1)
@@ -256,6 +342,23 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("new profile", (result.stdout + result.stderr).lower())
 
+    def test_new_profile_warning_uses_dependency_expanded_plan_selection(self):
+        manifest = self.manifest(self.package)
+        for component in manifest["components"].values():
+            component["new_profile"] = False
+        manifest["components"]["config"]["new_profile"] = True
+        self.write_manifest(self.package, manifest)
+
+        result = self.run_setup(self.package, self.game, action="Custom", components=["ui_keyboard"])
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("new profile", (result.stdout + result.stderr).lower())
+        self.assertTrue((self.game / "game/usr/config.cfg").is_file())
+        self.assertEqual(
+            sha256(self.game / "game/sys/game.dll"),
+            manifest["game_variants"]["1000"]["sha256"],
+        )
+
     def test_powershell_consumes_data_components_without_hardcoded_ids(self):
         manifest = self.manifest(self.package)
         manifest["components"]["extra"] = {
@@ -273,7 +376,23 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         manifest["data_components"]["extra"] = ["data/ui/extra.sc"]
         manifest["payloads"]["data/ui/extra.sc"] = sha256(payload)
         self.write_manifest(self.package, manifest)
-        result = self.run_setup(self.package, self.game, action="Custom", components=["extra"])
+        plan = {
+            "schema_version": 1,
+            "mode": "exact",
+            "requested": ["extra"],
+            "selected": ["extra"],
+            "no_op": False,
+            "data_changes": [],
+            "binary_changes": [],
+        }
+        environment = self.fake_patcher_environment(self.package, self.root, plan)
+        result = self.run_setup(
+            self.package,
+            self.game,
+            action="Custom",
+            components=["extra"],
+            env=environment,
+        )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(sha256(self.game / "game/usr/ui/extra.sc"), sha256(payload))
 
@@ -304,7 +423,7 @@ class InstallerSafetyTests(InstallerCase):
                 before = sha256(target)
                 result = self.run_setup(package, game, action="Custom", components=["config"])
                 self.assertEqual(result.returncode, 1)
-                self.assertRegex((result.stdout + result.stderr).lower(), "unknown|unsupported")
+                self.assertRegex((result.stdout + result.stderr).lower(), "unknown|unsupported|recognized")
                 self.assertEqual(sha256(target), before)
                 self.assertFalse((package / "installer/backups").exists())
 
@@ -318,8 +437,8 @@ class InstallerSafetyTests(InstallerCase):
         self.assertFalse((self.game / "game/usr/config.cfg").exists())
         self.assertFalse((self.package / "installer/backups").exists())
 
-    def test_corrupt_patcher_catalog_and_wrong_staged_hash_fail_before_backup(self):
-        for failure in ("patcher", "catalog", "wrong-hash"):
+    def test_corrupt_patcher_and_catalog_fail_before_backup(self):
+        for failure in ("patcher", "catalog"):
             with self.subTest(failure=failure):
                 root = self.root / f"stage-failure-{failure}"
                 root.mkdir()
@@ -327,12 +446,8 @@ class InstallerSafetyTests(InstallerCase):
                 game = self.make_game(root)
                 if failure == "patcher":
                     (package / "installer/payload/htmod.exe").write_bytes(b"not an executable")
-                elif failure == "catalog":
-                    (package / "installer/payload/migrations.json").write_text("{", encoding="utf-8")
                 else:
-                    manifest = self.manifest(package)
-                    manifest["game_variants"]["1111"]["sha256"] = "0" * 64
-                    self.write_manifest(package, manifest)
+                    (package / "installer/payload/migrations.json").write_text("{", encoding="utf-8")
                 before_game = (game / "game/sys/game.dll").read_bytes()
                 before_dx8 = (game / "sys/dx8.dll").read_bytes()
                 result = self.run_setup(package, game)
@@ -342,11 +457,94 @@ class InstallerSafetyTests(InstallerCase):
                 self.assertFalse((package / "installer/backups").exists())
                 self.assertFalse((game / "game/usr/config.cfg").exists())
 
+    @unittest.skipIf(os.name == "nt", "fake Wine command is a POSIX test fixture")
+    def test_invalid_plan_is_refused_before_stage_backup_or_game_changes(self):
+        cases = [
+            ("malformed", "{"),
+            ("schema", '{"schema_version":2}'),
+            ("multiple", '{"schema_version":1}\n{"schema_version":1}'),
+            ("scalar-plan", "1"),
+        ]
+        for name, field, value in (
+            ("null-selected", "selected", None),
+            ("scalar-selected", "selected", "config"),
+            ("null-binary-changes", "binary_changes", None),
+            ("scalar-data-changes", "data_changes", "invalid"),
+            ("non-boolean-no-op", "no_op", "false"),
+        ):
+            plan = {
+                "schema_version": 1,
+                "mode": "exact",
+                "requested": [],
+                "selected": [],
+                "no_op": True,
+                "data_changes": [],
+                "binary_changes": [],
+            }
+            plan[field] = value
+            cases.append((name, json.dumps(plan, separators=(",", ":"))))
+        for name, output in cases:
+            with self.subTest(plan=name):
+                root = self.root / f"invalid-plan-{name}"
+                root.mkdir()
+                package = self.make_package(root)
+                game = self.make_game(root)
+                environment = self.fake_patcher_environment(package, root, output)
+                before = {
+                    str(path.relative_to(game)): path.read_bytes()
+                    for path in game.rglob("*")
+                    if path.is_file()
+                }
+
+                result = self.run_setup(package, game, env=environment)
+
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("plan", (result.stdout + result.stderr).lower())
+                after = {
+                    str(path.relative_to(game)): path.read_bytes()
+                    for path in game.rglob("*")
+                    if path.is_file()
+                }
+                self.assertEqual(after, before)
+                self.assertFalse((package / "installer/backups").exists())
+                self.assertEqual((root / "fake-commands").read_text(encoding="utf-8").splitlines(), ["plan"])
+
+    @unittest.skipIf(os.name == "nt", "fake Wine command is a POSIX test fixture")
+    def test_declarative_plan_with_wrong_staged_hash_fails_before_backup(self):
+        plan = {
+            "schema_version": 1,
+            "mode": "exact",
+            "requested": [],
+            "selected": [],
+            "no_op": False,
+            "data_changes": [],
+            "binary_changes": [
+                {
+                    "target": target,
+                    "action": "replace",
+                    "variant": "fake",
+                    "components": [],
+                    "source_sha256": sha256(self.game / target),
+                    "expected_sha256": "0" * 64,
+                }
+                for target in ("game/sys/game.dll", "sys/dx8.dll")
+            ],
+        }
+        environment = self.fake_patcher_environment(self.package, self.root, plan)
+        environment["HTMOD_TEST_WRONG_STAGE"] = "1"
+
+        result = self.run_setup(self.package, self.game, env=environment)
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertRegex(result.stdout + result.stderr, r"Staged\s+(?:\|\s+)?DLL\s+hash\s+verification\s+failed")
+        self.assertFalse(self.backup_manifests(self.package))
+        self.assertEqual((self.root / "fake-commands").read_text(encoding="utf-8").splitlines(), ["plan", "stage"])
+
     def test_patcher_and_staged_hash_failures_clean_only_generated_staging(self):
         script = r'''
 $root = $env:HTMOD_STAGE_TEST_ROOT
 $source = Get-Content -LiteralPath (Join-Path $root "package/installer/Setup.ps1") -Raw
-foreach ($name in @("Convert-FrozenPath", "Get-ComponentRecords", "Invoke-StagedMods")) {
+foreach ($name in @("Convert-FrozenPath", "Get-ComponentRecords", "Invoke-LifecyclePlan", "Invoke-StagedMods")) {
     $match = [regex]::Match($source, "(?ms)^function $name \{.*?^\}")
     if (-not $match.Success) { throw "Missing function $name" }
     Invoke-Expression $match.Value
@@ -361,6 +559,11 @@ function winepath {
     return $Path
 }
 function wine {
+    if ($args -contains "plan") {
+        Write-Output '{"schema_version":1,"mode":"exact","requested":[],"selected":[],"no_op":true,"data_changes":[],"binary_changes":[]}'
+        $global:LASTEXITCODE = 0
+        return
+    }
     $index = [Array]::IndexOf($args, "--output-dir")
     $stage = $args[$index + 1]
     $game = Join-Path $stage "game/sys/game.dll"
@@ -375,11 +578,14 @@ $script:PayloadRoot = Join-Path $root "package/installer/payload"
 $script:InstallerRoot = Join-Path $root "package/installer"
 $script:GamePath = Join-Path $root "game"
 $manifest = @{ payloads = @{ "htmod.exe" = "a"; "migrations.json" = "b" }; components = @{} }
-$variant = @{ sha256 = "c" }
-$dx8 = @{ sha256 = "d" }
+$plan = Invoke-LifecyclePlan @{} $manifest
+$jobs = @(
+    @{ relative = "game/sys/game.dll"; hash = "c" },
+    @{ relative = "sys/dx8.dll"; hash = "d" }
+)
 $threw = $false
 try {
-    Invoke-StagedMods @{} $manifest $variant $dx8
+    Invoke-StagedMods $plan $manifest $jobs
 }
 catch {
     $threw = $true
@@ -405,18 +611,72 @@ if ((Get-Content -LiteralPath $sentinel -Raw) -ne "preserve") { throw "Backup se
                 )
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_mid_install_failure_rolls_back_every_changed_file(self):
+    def test_directory_destination_is_refused_before_backup_or_game_changes(self):
         (self.game / "game/usr/ui/mmain.sc").mkdir(parents=True)
+
+        def snapshot():
+            return {
+                str(path.relative_to(self.game)): path.read_bytes() if path.is_file() else None
+                for path in self.game.rglob("*")
+            }
+
+        before = snapshot()
         result = self.run_setup(self.package, self.game, action="Custom", components=["config"])
         self.assertEqual(result.returncode, 1)
-        self.assertIn("restored", (result.stdout + result.stderr).lower())
-        self.assert_stock(self.game)
-        self.assertFalse((self.game / "game/usr/config.cfg").exists())
+        output = (result.stdout + result.stderr).lower()
+        self.assertIn("frozen lifecycle planning failed", output)
+        self.assertRegex(output, "unsafe|not a regular file")
+        self.assertFalse(self.backup_manifests(self.package))
+        self.assertEqual(snapshot(), before)
+
+    def test_post_change_failure_rolls_back_every_changed_file_in_reverse(self):
+        before = {
+            str(path.relative_to(self.game)): path.read_bytes()
+            for path in self.game.rglob("*")
+            if path.is_file()
+        }
+        setup = self.package / "installer/Setup.ps1"
+        source = setup.read_text(encoding="utf-8")
+        install = "            Copy-Atomic $job.source $job.destination $job.hash\n"
+        rollback = "    foreach ($entry in $Changes) {\n"
+        self.assertEqual(source.count(install), 1)
+        self.assertEqual(source.count(rollback), 1)
+        source = source.replace(
+            install,
+            install
+            + '            Add-Content -LiteralPath $env:HTMOD_TEST_CHANGE_LOG -Value ("installed:" + $job.relative)\n'
+            + '            if ($job.relative -eq "game/usr/config.cfg") { throw "Injected post-change failure." }\n',
+        )
+        source = source.replace(
+            rollback,
+            rollback
+            + '            Add-Content -LiteralPath $env:HTMOD_TEST_CHANGE_LOG -Value ("rollback:" + $entry.destination)\n',
+        )
+        setup.write_text(source, encoding="utf-8")
+        change_log = self.root / "changes.log"
+
+        result = self.run_setup(self.package, self.game, env={"HTMOD_TEST_CHANGE_LOG": str(change_log)})
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        events = change_log.read_text(encoding="utf-8").splitlines()
+        installed = [line.removeprefix("installed:") for line in events if line.startswith("installed:")]
+        restored = [line.removeprefix("rollback:") for line in events if line.startswith("rollback:")]
+        self.assertGreater(len(installed), 1)
+        self.assertEqual(installed[-1], "game/usr/config.cfg")
+        self.assertEqual(restored, list(reversed(installed)))
+        after = {
+            str(path.relative_to(self.game)): path.read_bytes()
+            for path in self.game.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(after, before)
         backups = self.backup_manifests(self.package)
         self.assertEqual(len(backups), 1)
         failure = json.loads(backups[0].read_text(encoding="utf-8"))
         self.assertEqual(failure["schema_version"], 1)
         self.assertEqual(failure["status"], "RolledBack")
+        self.assertEqual(failure["error"], "Injected post-change failure.")
+        self.assertEqual([entry["destination"] for entry in failure["entries"]], installed)
 
     def test_uninstall_preserves_user_modified_files_and_marks_partial(self):
         installed = self.run_setup(self.package, self.game, action="Custom", components=["config"])
@@ -811,7 +1071,7 @@ class InstallerDetectionTests(InstallerCase):
 @unittest.skipIf(PWSH is None, "PowerShell 7 is required for installer runtime tests")
 class FreshExtractedDeliverableTests(InstallerCase):
     def test_zip_extracted_setup_installs_and_uninstalls_with_batch_entry_point(self):
-        archive = self.root / "HardTruckModern-0.1.0.zip"
+        archive = self.root / "HardTruckModern-0.2.0.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for path in sorted(self.release.rglob("*")):
                 if path.is_file():

@@ -85,6 +85,64 @@ class PETests(unittest.TestCase):
                 self.assertIsNone(function(value))
         self.assertIsNone(image.rva_to_offset(0x1000, size=0x1000))
 
+    def make_appended_tail(self):
+        image = PEImage.parse(make_pe())
+        first = image.append_section(".first", b"abcde", 0x40000040)
+        image.append_section(".second", b"fghijkl", 0x40000040)
+        return image, first
+
+    def test_appended_tail_uses_actual_last_section_and_returns_first(self):
+        image, first = self.make_appended_tail()
+        self.assertEqual(image.validate_appended_tail(".first"), first)
+        self.assertEqual(image.sections[-1].name, ".second")
+        self.assertEqual(
+            struct.unpack_from("<I", image.data, image.optional_offset + 56)[0],
+            0x5000,
+        )
+
+    def test_appended_tail_refuses_invalid_layout_without_mutation(self):
+        for mutation in (
+            "raw-size", "nonzero-padding", "raw-overlap", "noncanonical-va",
+            "noncanonical-raw", "trailing", "first-size-of-image",
+        ):
+            with self.subTest(mutation=mutation):
+                image, first = self.make_appended_tail()
+                second = image.sections[-1]
+                second_header = image.section_table + 40 * (len(image.sections) - 1)
+                if mutation == "raw-size":
+                    struct.pack_into("<I", image.data, second_header + 16, second.raw_size + 1)
+                    image.data += b"\0"
+                elif mutation == "nonzero-padding":
+                    image.data[second.raw_offset:second.raw_offset] = (
+                        b"\x01" + bytes(image.file_alignment - 1)
+                    )
+                    struct.pack_into(
+                        "<I", image.data, second_header + 20,
+                        second.raw_offset + image.file_alignment,
+                    )
+                elif mutation == "raw-overlap":
+                    struct.pack_into("<I", image.data, second_header + 20, first.raw_offset)
+                elif mutation == "noncanonical-va":
+                    struct.pack_into(
+                        "<I", image.data, second_header + 12,
+                        second.virtual_address + image.section_alignment,
+                    )
+                elif mutation == "noncanonical-raw":
+                    image.data[second.raw_offset:second.raw_offset] = bytes(image.file_alignment)
+                    struct.pack_into(
+                        "<I", image.data, second_header + 20,
+                        second.raw_offset + image.file_alignment,
+                    )
+                elif mutation == "trailing":
+                    image.data += b"foreign"
+                else:
+                    struct.pack_into("<I", image.data, image.optional_offset + 56, 0x4000)
+                image = PEImage.parse(image.data)
+                before = image.data[:]
+                with self.assertRaises(PEError):
+                    image.validate_appended_tail(".first")
+                self.assertEqual(image.data, before)
+
 
 class SignatureTests(unittest.TestCase):
     def test_unique_bounded_signature_supports_wildcards(self):

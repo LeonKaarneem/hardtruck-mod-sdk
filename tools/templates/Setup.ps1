@@ -71,32 +71,6 @@ function New-Selection {
     return $selection
 }
 
-function Assert-Selection {
-    param(
-        [hashtable]$Selection,
-        $Manifest
-    )
-    foreach ($property in @(Get-ComponentRecords $Manifest)) {
-        $name = $property.Name
-        if (-not $Selection[$name]) {
-            continue
-        }
-        foreach ($required in @($property.Value.requires)) {
-            if (-not $Selection.ContainsKey($required)) {
-                throw "Component '$name' requires unknown component '$required'."
-            }
-            if (-not $Selection[$required]) {
-                throw "Component '$name' requires '$required'."
-            }
-        }
-        foreach ($conflict in @($property.Value.conflicts)) {
-            if ($Selection.ContainsKey($conflict) -and $Selection[$conflict]) {
-                throw "Component '$name' conflicts with '$conflict'."
-            }
-        }
-    }
-}
-
 function Resolve-SetupAction {
     param(
         [string]$Action,
@@ -144,7 +118,6 @@ function Get-Selection {
         foreach ($name in @($selection.Keys)) {
             $selection[$name] = $true
         }
-        Assert-Selection $selection $Manifest
         return $selection
     }
 
@@ -168,7 +141,6 @@ function Get-Selection {
             $selection[$property.Name] = Read-YesNo $metadata.label -DefaultYes ([bool]$metadata.default)
         }
     }
-    Assert-Selection $selection $Manifest
     return $selection
 }
 
@@ -579,12 +551,103 @@ function Convert-FrozenPath {
     return $converted.Trim()
 }
 
-function Invoke-StagedMods {
+function Invoke-LifecyclePlan {
     param(
         [hashtable]$Selection,
+        $Manifest
+    )
+    $patcher = Join-Path $script:PayloadRoot "htmod.exe"
+    $catalog = Join-Path $script:PayloadRoot "migrations.json"
+    if (-not (Test-Hash $patcher $Manifest.payloads."htmod.exe")) {
+        throw "Frozen patcher is missing or corrupt: $patcher"
+    }
+    if (-not (Test-Hash $catalog $Manifest.payloads."migrations.json")) {
+        throw "Migration catalog is missing or corrupt: $catalog"
+    }
+    $arguments = @(
+        "plan",
+        "--exact",
+        "--game-dir", (Convert-FrozenPath $script:GamePath),
+        "--migrations", (Convert-FrozenPath $catalog)
+    )
+    foreach ($property in @(Get-ComponentRecords $Manifest)) {
+        if ($Selection[$property.Name]) {
+            $arguments += @("--mod", $property.Name)
+        }
+    }
+    if ($env:OS -eq "Windows_NT") {
+        $output = @(& $patcher @arguments)
+    }
+    else {
+        $output = @(& wine $patcher @arguments)
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Frozen lifecycle planning failed; no files were changed. $($output -join ' ')"
+    }
+    try {
+        $parsed = @(($output -join [Environment]::NewLine) | ConvertFrom-Json)
+    }
+    catch {
+        throw "Frozen patcher returned an invalid lifecycle plan: $($_.Exception.Message)"
+    }
+    if ($parsed.Count -ne 1) {
+        throw "Frozen patcher did not return exactly one lifecycle plan."
+    }
+    $plan = $parsed[0]
+    if ($plan -isnot [PSCustomObject]) {
+        throw "Frozen patcher returned an invalid lifecycle plan: expected a structured object."
+    }
+    $properties = @($plan.PSObject.Properties.Name)
+    foreach ($name in @("schema_version", "mode", "requested", "selected", "no_op", "data_changes", "binary_changes")) {
+        if ($properties -notcontains $name) {
+            throw "Frozen patcher returned an invalid lifecycle plan: missing '$name'."
+        }
+    }
+    if (-not ($plan.schema_version -is [int] -or $plan.schema_version -is [long]) -or
+        $plan.schema_version -ne 1 -or $plan.mode -ne "exact") {
+        throw "Frozen patcher returned an unsupported lifecycle plan."
+    }
+    foreach ($name in @("requested", "selected", "data_changes", "binary_changes")) {
+        if ($null -eq $plan.$name -or $plan.$name -isnot [System.Collections.IList]) {
+            throw "Frozen patcher returned an invalid lifecycle plan: '$name' must be an array."
+        }
+    }
+    if ($plan.no_op -isnot [bool]) {
+        throw "Frozen patcher returned an invalid lifecycle plan: 'no_op' must be Boolean."
+    }
+    $selectedIds = @()
+    if ($null -ne $plan.selected) {
+        foreach ($id in @($plan.selected)) {
+            if ($id -isnot [string] -or [string]::IsNullOrWhiteSpace($id) -or
+                $selectedIds -contains $id -or $null -eq $Manifest.components.PSObject.Properties[$id]) {
+                throw "Frozen patcher returned an invalid selected component ID."
+            }
+            $selectedIds += $id
+        }
+    }
+    $binaryTargets = @{}
+    if ($null -ne $plan.binary_changes) {
+        foreach ($change in @($plan.binary_changes)) {
+            if ($null -eq $change) {
+                throw "Frozen patcher returned an invalid binary change."
+            }
+            $target = [string]$change.target
+            $expected = [string]$change.expected_sha256
+            if (($target -ne "game/sys/game.dll" -and $target -ne "sys/dx8.dll") -or
+                $binaryTargets.ContainsKey($target) -or $expected -notmatch "^[0-9a-fA-F]{64}$") {
+                throw "Frozen patcher returned an invalid binary change."
+            }
+            $binaryTargets[$target] = $true
+        }
+    }
+    return $plan
+}
+
+function Invoke-StagedMods {
+    param(
+        $Plan,
         $Manifest,
-        $Variant,
-        $Dx8
+        [array]$BinaryJobs
     )
     $patcher = Join-Path $script:PayloadRoot "htmod.exe"
     $catalog = Join-Path $script:PayloadRoot "migrations.json"
@@ -602,26 +665,14 @@ function Invoke-StagedMods {
             "--output-dir", (Convert-FrozenPath $stageRoot),
             "--migrations", (Convert-FrozenPath $catalog)
         )
-        $stagingIds = @(
-            Get-ComponentRecords $Manifest |
-                Where-Object { $_.Value.kind -eq "binary" -and $Selection[$_.Name] } |
-                ForEach-Object { $_.Name }
-        )
-        for ($index = 0; $index -lt $stagingIds.Count; $index++) {
-            $id = $stagingIds[$index]
-            foreach ($required in @($Manifest.components.$id.requires)) {
-                if ($stagingIds -notcontains $required) {
-                    $stagingIds += $required
-                }
+        if ($null -ne $Plan.selected) {
+            foreach ($id in @($Plan.selected)) {
+                $arguments += @("--mod", $id)
             }
         }
-        foreach ($property in @(Get-ComponentRecords $Manifest)) {
-            if ($stagingIds -contains $property.Name) {
-                $arguments += @("--mod", $property.Name)
-            }
+        foreach ($job in $BinaryJobs) {
+            $arguments += @("--expect", "$($job.relative)=$($job.hash)")
         }
-        $arguments += @("--expect", "game/sys/game.dll=$($Variant.sha256)")
-        $arguments += @("--expect", "sys/dx8.dll=$($Dx8.sha256)")
         Write-Host "Staging selected binary components locally; no original DLL payloads are shipped."
         if ($env:OS -eq "Windows_NT") {
             & $patcher @arguments | Write-Host
@@ -632,10 +683,32 @@ function Invoke-StagedMods {
         if ($LASTEXITCODE -ne 0) {
             throw "Frozen patcher staging failed; no files were changed."
         }
-        $stagedGame = Join-Path $stageRoot "game/sys/game.dll"
-        $stagedDx8 = Join-Path $stageRoot "sys/dx8.dll"
-        if (-not (Test-Hash $stagedGame $Variant.sha256) -or -not (Test-Hash $stagedDx8 $Dx8.sha256)) {
-            throw "Staged DLL hash verification failed; no files were changed."
+        foreach ($job in $BinaryJobs) {
+            $staged = Join-Path $stageRoot $job.relative
+            if (-not (Test-Hash $staged $job.hash)) {
+                throw "Staged DLL hash verification failed; no files were changed."
+            }
+        }
+        if ($null -ne $Plan.selected -and @($Plan.selected) -contains "config") {
+            $renderArguments = @(
+                "render-quick-setup",
+                "--output-dir", (Convert-FrozenPath $stageRoot)
+            )
+            foreach ($id in @($Plan.selected)) {
+                $renderArguments += @("--mod", $id)
+            }
+            if ($env:OS -eq "Windows_NT") {
+                & $patcher @renderArguments | Write-Host
+            }
+            else {
+                & wine $patcher @renderArguments | Write-Host
+            }
+            if ($LASTEXITCODE -ne 0) {
+                throw "Frozen Quick Setup rendering failed; no files were changed."
+            }
+            if (-not (Test-Path -LiteralPath (Join-Path $stageRoot "game/usr/ui/cosetup.sc") -PathType Leaf)) {
+                throw "Frozen Quick Setup rendering did not produce ui/cosetup.sc."
+            }
         }
         return $stageRoot
     }
@@ -649,43 +722,36 @@ function Invoke-StagedMods {
 
 function Install-Mods {
     param(
-        [hashtable]$Selection,
-        $Manifest
+        $Manifest,
+        $Plan
     )
-    $gameDestination = Join-Path $script:GamePath "game/sys/game.dll"
-    $dx8Destination = Join-Path $script:GamePath "sys/dx8.dll"
-    $selectedGameComponents = @(
-        Get-ComponentRecords $Manifest |
-            Where-Object { $_.Value.target -eq "game/sys/game.dll" -and $Selection[$_.Name] } |
-            ForEach-Object { $_.Name }
-    )
-    $selectedGameKey = $selectedGameComponents -join ","
-    $variantRecords = @(
-        $Manifest.game_variants.PSObject.Properties |
-            Where-Object { (@($_.Value.components) -join ",") -eq $selectedGameKey }
-    )
-    if ($variantRecords.Count -ne 1) {
-        throw "No unique curated game.dll variant matches the selected components; no files were changed."
+    $binaryChanges = @{}
+    if ($null -ne $plan.binary_changes) {
+        foreach ($change in @($plan.binary_changes)) {
+            $binaryChanges[[string]$change.target] = $change
+        }
     }
-    $variant = $variantRecords[0].Value
-    $dx8Choice = if ($Selection.dx8_vsync) { "vsync" } else { "stock" }
-    $dx8 = $Manifest.dx8.$dx8Choice
     $jobs = @()
-    $jobs += @{
-        source = $null
-        destination = $gameDestination
-        relative = "game/sys/game.dll"
-        hash = $variant.sha256
+    foreach ($relative in @("game/sys/game.dll", "sys/dx8.dll")) {
+        $destination = Join-Path $script:GamePath $relative
+        $hash = if ($binaryChanges.ContainsKey($relative)) {
+            [string]$binaryChanges[$relative].expected_sha256
+        }
+        else {
+            (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+        $jobs += @{
+            source = $null
+            destination = $destination
+            relative = $relative
+            hash = $hash
+        }
     }
-    $jobs += @{
-        source = $null
-        destination = $dx8Destination
-        relative = "sys/dx8.dll"
-        hash = $dx8.sha256
-    }
+    $binaryJobs = @($jobs)
+    $selectedIds = @($plan.selected)
     foreach ($property in @(Get-ComponentRecords $Manifest)) {
         $component = $property.Name
-        if ($property.Value.kind -ne "data" -or -not $Selection[$component]) {
+        if ($property.Value.kind -ne "data" -or $selectedIds -notcontains $component) {
             continue
         }
         foreach ($payloadRelative in $Manifest.data_components.$component) {
@@ -709,9 +775,17 @@ function Install-Mods {
     $changes = @()
     $entries = @()
     try {
-        $stageRoot = Invoke-StagedMods $Selection $Manifest $variant $dx8
+        $stageRoot = Invoke-StagedMods $plan $Manifest $binaryJobs
         $jobs[0].source = Join-Path $stageRoot "game/sys/game.dll"
         $jobs[1].source = Join-Path $stageRoot "sys/dx8.dll"
+        if ($selectedIds -contains "config") {
+            foreach ($job in $jobs) {
+                if ($job.relative -eq "game/usr/ui/cosetup.sc") {
+                    $job.source = Join-Path $stageRoot "game/usr/ui/cosetup.sc"
+                    $job.hash = (Get-FileHash -LiteralPath $job.source -Algorithm SHA256).Hash.ToLowerInvariant()
+                }
+            }
+        }
         $script:CurrentBackup = New-BackupDirectory
         foreach ($job in $jobs) {
             if ((Test-Path -LiteralPath $job.destination) -and
@@ -939,6 +1013,7 @@ function Get-ReportComponents {
         [string]$GamePath
     )
     $ids = @{}
+    $quickSetupHashes = @{}
     if (-not (Test-Path -LiteralPath $script:BackupRoot -PathType Container)) {
         return @()
     }
@@ -985,6 +1060,9 @@ function Get-ReportComponents {
                     }
                 }
                 else {
+                    if ($relative -eq "game/usr/ui/cosetup.sc") {
+                        $quickSetupHashes[[string]$entry.installed_sha256] = $true
+                    }
                     foreach ($component in @($Manifest.data_components.PSObject.Properties)) {
                         foreach ($payload in @($component.Value)) {
                             if ($relative -eq ("game/usr/" + $payload.Substring("data/".Length))) {
@@ -1020,7 +1098,17 @@ function Get-ReportComponents {
             $installed = $payloads.Count -gt 0
             foreach ($payload in $payloads) {
                 $relative = "game/usr/" + $payload.Substring("data/".Length)
-                if (-not (Test-Hash (Join-Path $GamePath $relative) ([string]$Manifest.payloads.$payload))) {
+                $destination = Join-Path $GamePath $relative
+                $matching = Test-Hash $destination ([string]$Manifest.payloads.$payload)
+                if (-not $matching -and $payload -eq "data/ui/cosetup.sc") {
+                    foreach ($expected in @($quickSetupHashes.Keys)) {
+                        if (Test-Hash $destination ([string]$expected)) {
+                            $matching = $true
+                            break
+                        }
+                    }
+                }
+                if (-not $matching) {
                     $installed = $false
                     break
                 }
@@ -1221,9 +1309,10 @@ try {
         Uninstall-Mods $manifest
     }
     else {
+        $plan = Invoke-LifecyclePlan $selection $manifest
         $newProfile = $false
         foreach ($property in @(Get-ComponentRecords $manifest)) {
-            if ($selection[$property.Name] -and $property.Value.new_profile) {
+            if (@($plan.selected) -contains $property.Name -and $property.Value.new_profile) {
                 $newProfile = $true
                 break
             }
@@ -1231,7 +1320,7 @@ try {
         if ($newProfile) {
             Write-Warning "Selected components make existing saves incompatible; create a new profile after installation."
         }
-        Install-Mods $selection $manifest
+        Install-Mods $manifest $plan
     }
     if ($Action -eq "Menu") { exit 2 } else { exit 0 }
 }

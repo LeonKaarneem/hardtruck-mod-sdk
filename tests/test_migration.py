@@ -381,6 +381,23 @@ class RealCatalogAndStagingTests(unittest.TestCase):
         self.assertEqual((self.output / "game/sys/game.dll").read_bytes(), first)
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), first)
 
+    def test_stage_rejects_catalog_pristine_that_disagrees_with_release_pin(self):
+        from htmod.cli import stage
+        from htmod.manifest import load_release
+
+        modpack = self.root / "modpack"
+        shutil.copytree(ROOT / "modpack", modpack)
+        for path in modpack.glob("mods/*/mod.json"):
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+            if manifest.get("kind") == "binary" and manifest.get("target") == "game/sys/game.dll":
+                manifest["source_sha256"] = "0" * 64
+                path.write_text(json.dumps(manifest), encoding="utf-8")
+        release = load_release(self.root)
+        self.write_game_source(self.game_sources[0][1])
+        with self.assertRaisesRegex(Exception, "pristine.*SHA-256|SHA-256.*pristine"):
+            stage(release, self.game, self.output, self.catalog_path, [], self.expectations("0000"))
+        self.assertFalse(self.output.exists())
+
     def test_unknown_corrupt_wrong_expectation_and_invalid_selection_write_nothing(self):
         from htmod import cli
         from htmod.cli import stage

@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -7,14 +8,81 @@ import sys
 import tempfile
 
 from .errors import PatchError
+from .lifecycle import Lifecycle, build_plan, inspect_status
 from .manifest import Selection, load_release
-from .migration import load_catalog, normalize_to_pristine
+from .migration import add_source, encode_catalog, load_catalog, normalize_to_pristine
 from .patch import PatchRunner, PatchState
-from .runner import load_binary_mods, runner_from_directory
+from .quick_setup import QUICK_SETUP_DESTINATION
+from .runner import materialize_data_bytes, load_binary_mods, runner_from_directory, verify_pristine_images
 
 
 STAGED_TARGETS = frozenset({"game/sys/game.dll", "sys/dx8.dll"})
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _regular_input(path, label):
+    path = Path(path)
+    if path.is_symlink():
+        raise PatchError(f"{label} is an unsafe symlink: {path}")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as error:
+        raise PatchError(f"cannot access {label} {path}: {error}") from error
+    if not resolved.is_file():
+        raise PatchError(f"{label} is not a safe regular file: {path}")
+    return resolved
+
+
+def _catalog_output(path):
+    path = Path(path).absolute()
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise PatchError(f"migration output is unsafe or not a regular file: {path}")
+    try:
+        parent = path.parent.resolve(strict=True)
+    except OSError as error:
+        raise PatchError(f"cannot access migration output parent: {error}") from error
+    if not parent.is_dir():
+        raise PatchError(f"migration output parent is not a directory: {path.parent}")
+    return parent / path.name
+
+
+def _atomic_catalog(path, data):
+    descriptor, name = tempfile.mkstemp(prefix=".htmod-migration-", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(data)
+            output.flush()
+            os.fsync(output.fileno())
+        if path.exists():
+            os.chmod(name, path.stat().st_mode)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def migration_add(target, source, pristine, migrations, output):
+    source_path = _regular_input(source, "migration source")
+    pristine_path = _regular_input(pristine, "pristine source")
+    migrations_path = _regular_input(migrations, "migration catalog")
+    output_path = _catalog_output(output)
+    if output_path in {source_path, pristine_path}:
+        raise PatchError("migration output must not overwrite a source DLL")
+    catalog = load_catalog(migrations_path)
+    updated, status, source_hash = add_source(
+        catalog,
+        target,
+        source_path.read_bytes(),
+        pristine_path.read_bytes(),
+    )
+    if status == "added":
+        _atomic_catalog(output_path, encode_catalog(updated))
+    return {
+        "schema_version": 1,
+        "status": status,
+        "target": target,
+        "source_sha256": source_hash,
+    }
 
 
 def default_root():
@@ -155,6 +223,7 @@ def stage(release, game_dir, output_dir, migrations, mod_ids, expectations):
         target: bytearray(normalize_to_pristine(path.read_bytes(), target, catalog))
         for target, path in input_paths.items()
     }
+    verify_pristine_images(release, images)
     by_target = {
         target: [mod for mod in mods if mod.target == target]
         for target in images
@@ -176,16 +245,64 @@ def stage(release, game_dir, output_dir, migrations, mod_ids, expectations):
     return {target: bytes(data) for target, data in images.items()}
 
 
+def render_quick_setup_output(release, output_dir, mod_ids):
+    Selection(mod_ids).validate(release.mods)
+    selected = tuple(mod_id for mod_id in release.mods if mod_id in mod_ids)
+    content = materialize_data_bytes(release, selected)["config"][QUICK_SETUP_DESTINATION]
+    output_root = Path(output_dir).absolute()
+    if output_root.exists() and (output_root.is_symlink() or not output_root.is_dir()):
+        raise PatchError(f"output directory is unsafe or not a directory: {output_root}")
+    output_root.mkdir(parents=True, exist_ok=True)
+    if output_root.is_symlink():
+        raise PatchError(f"output directory is an unsafe symlink: {output_root}")
+    images = {QUICK_SETUP_DESTINATION: content}
+    _atomic_outputs(output_root, images)
+    return images
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(prog="htmod", description="Hard Truck mod SDK")
     parser.add_argument("--root", type=Path, default=default_root())
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list", help="list release components")
     subparsers.add_parser("validate", help="validate release manifests")
-    for command in ("check", "apply", "restore"):
+    subparser = subparsers.add_parser("migration-add", help="add one DLL source to a migration catalog")
+    subparser.add_argument("--target", required=True)
+    subparser.add_argument("--source", type=Path, required=True)
+    subparser.add_argument("--pristine", type=Path, required=True)
+    subparser.add_argument("--migrations", type=Path, required=True)
+    subparser.add_argument("--output", type=Path, required=True)
+    subparser = subparsers.add_parser("status", help="inspect release status as JSON")
+    subparser.add_argument("--game-dir", type=Path, required=True)
+    subparser.add_argument("--migrations", type=Path, required=True)
+    subparser = subparsers.add_parser("plan", help="plan selected changes as JSON")
+    subparser.add_argument("--game-dir", type=Path, required=True)
+    subparser.add_argument("--migrations", type=Path, required=True)
+    subparser.add_argument("--mod", action="append", default=[], dest="mod_ids")
+    subparser.add_argument("--exact", action="store_true")
+    for command in ("check", "restore"):
         subparser = subparsers.add_parser(command, help=f"{command} registered binary mods")
         subparser.add_argument("--game-dir", type=Path, required=True)
         subparser.add_argument("--mod", action="append", required=True, dest="mod_ids")
+    subparser = subparsers.add_parser("apply", help="apply lifecycle or registered binary mods")
+    subparser.add_argument("--game-dir", type=Path, required=True)
+    subparser.add_argument("--migrations", type=Path)
+    subparser.add_argument("--mod", action="append", default=[], dest="mod_ids")
+    subparser.add_argument("--exact", action="store_true")
+    subparser.add_argument("--all", action="store_true")
+    subparser = subparsers.add_parser("remove", help="remove selected components or backup history")
+    subparser.add_argument("--game-dir", type=Path, required=True)
+    subparser.add_argument("--migrations", type=Path, required=True)
+    subparser.add_argument("--mod", action="append", default=[], dest="mod_ids")
+    subparser.add_argument("--cascade", action="store_true")
+    subparser.add_argument("--all", action="store_true")
+    subparser.add_argument("--dry-run", action="store_true")
+    subparser = subparsers.add_parser("recover", help="recover an interrupted lifecycle transaction")
+    subparser.add_argument("--game-dir", type=Path, required=True)
+    subparser.add_argument("--transaction-id")
+    subparser = subparsers.add_parser("render-quick-setup", help="render selected Quick Setup text")
+    subparser.add_argument("--output-dir", type=Path, required=True)
+    subparser.add_argument("--mod", action="append", default=[], dest="mod_ids")
     subparser = subparsers.add_parser("stage", help="normalize and stage selected binary mods")
     subparser.add_argument("--game-dir", type=Path, required=True)
     subparser.add_argument("--output-dir", type=Path, required=True)
@@ -199,12 +316,63 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         release = load_release(args.root)
+        if args.command == "migration-add":
+            result = migration_add(
+                args.target, args.source, args.pristine, args.migrations, args.output,
+            )
+            print(json.dumps(result, separators=(",", ":")))
+            return 0
         if args.command == "list":
             for mod_id in release.mods:
                 print(mod_id)
             return 0
         if args.command == "validate":
             print(f"Release valid: {len(release.mods)} mods, {len(release.game_variants)} game variants")
+            return 0
+        if args.command == "status":
+            catalog = load_catalog(args.migrations)
+            report = inspect_status(release, args.game_dir, catalog)
+            print(json.dumps(report.to_dict(), separators=(",", ":")))
+            return 0
+        if args.command == "plan":
+            catalog = load_catalog(args.migrations)
+            plan = build_plan(
+                release, args.game_dir, catalog, args.mod_ids, exact=args.exact,
+            )
+            print(json.dumps(plan.to_dict(), separators=(",", ":")))
+            return 0
+        if args.command == "remove":
+            result = Lifecycle(release, args.game_dir, args.migrations).remove(
+                requested=args.mod_ids,
+                cascade_dependents=args.cascade,
+                all=args.all,
+                dry_run=args.dry_run,
+            )
+            print(json.dumps(result.to_dict(), separators=(",", ":")))
+            if args.dry_run or result.status in {"removed", "no_op"}:
+                return 0
+            return 1
+        if args.command == "recover":
+            result = Lifecycle(release, args.game_dir, None).recover(args.transaction_id)
+            print(json.dumps(result.to_dict(), separators=(",", ":")))
+            return 0 if result.status in {"recovered", "no_op"} else 1
+        if args.command == "apply" and args.migrations is not None:
+            if args.all and args.mod_ids:
+                raise PatchError("--all cannot be combined with --mod")
+            requested = tuple(release.mods) if args.all else args.mod_ids
+            result = Lifecycle(release, args.game_dir, args.migrations).apply(
+                requested=requested, exact=args.exact,
+            )
+            print(json.dumps(result.to_dict(), separators=(",", ":")))
+            return 0 if result.status in {"installed", "no_op"} else 1
+        if args.command == "apply" and not args.mod_ids:
+            raise PatchError("--mod is required without --migrations")
+        if args.command == "apply" and (args.exact or args.all):
+            raise PatchError("lifecycle apply options require --migrations")
+        if args.command == "render-quick-setup":
+            rendered = render_quick_setup_output(release, args.output_dir, args.mod_ids)
+            for target, data in rendered.items():
+                print(f"{target}: {hashlib.sha256(data).hexdigest()}")
             return 0
         if args.command == "stage":
             staged = stage(

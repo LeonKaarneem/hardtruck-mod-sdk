@@ -51,37 +51,14 @@ class UIKeyboardMod(BinaryMod):
 
     @staticmethod
     def _valid_section(image):
-        section = image.section(NEWSEC_NAME)
-        if section != image.sections[-1]:
-            return False
-        last_va_end = max(
-            item.virtual_address + align(item.virtual_span, image.section_alignment)
-            for item in image.sections[:-1]
-        )
-        expected_vaddr = align(last_va_end, image.section_alignment)
-        previous_raw_end = max(
-            item.raw_offset + item.raw_size for item in image.sections[:-1]
-        )
-        expected_raw_offset = align(previous_raw_end, image.file_alignment)
-        if section.virtual_address != expected_vaddr \
-                or section.raw_offset != expected_raw_offset:
-            return False
+        section = image.validate_appended_tail(NEWSEC_NAME)
         if (section.virtual_size, section.raw_size, section.flags) != (
             NEWSEC_SIZE, NEWSEC_SIZE, NEWSEC_FLAGS
         ):
             return False
-        if len(image.data) != section.raw_offset + section.raw_size:
-            return False
-        if previous_raw_end > section.raw_offset or any(
-            image.data[previous_raw_end:section.raw_offset]
-        ):
-            return False
         base_va = image.image_base + section.virtual_address
         expected = build_wrapper(base_va) + bytes(NEWSEC_SIZE - len(WRAPPER))
-        if image.data[section.raw_offset:section.raw_offset + NEWSEC_SIZE] != expected:
-            return False
-        expected_image = align(section.virtual_address + NEWSEC_SIZE, image.section_alignment)
-        return struct.unpack_from("<I", image.data, image.optional_offset + 56)[0] == expected_image
+        return image.data[section.raw_offset:section.raw_offset + NEWSEC_SIZE] == expected
 
     def inspect(self, image):
         try:

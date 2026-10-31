@@ -178,6 +178,49 @@ class PEImage:
         self._section_undo[name] = undo
         return section
 
+    def validate_appended_tail(self, first_name):
+        first = self.section(first_name)
+        first_index = self.sections.index(first)
+        previous = self.sections[:first_index]
+        last_va_end = max(
+            (
+                section.virtual_address + align(section.virtual_span, self.section_alignment)
+                for section in previous
+            ),
+            default=0,
+        )
+        previous_raw_end = max(
+            (section.raw_offset + section.raw_size for section in previous),
+            default=0,
+        )
+        for section in self.sections[first_index:]:
+            expected_vaddr = align(last_va_end, self.section_alignment)
+            expected_raw_offset = align(previous_raw_end, self.file_alignment)
+            if section.virtual_address != expected_vaddr \
+                    or section.raw_offset != expected_raw_offset:
+                raise PEError(f"noncanonical appended section layout for '{section.name}'")
+            if section.raw_size <= 0 \
+                    or section.raw_size != align(section.virtual_size, self.file_alignment):
+                raise PEError(f"unaligned appended section raw size for '{section.name}'")
+            if previous_raw_end > section.raw_offset or any(
+                self.data[previous_raw_end:section.raw_offset]
+            ):
+                raise PEError(f"foreign data before appended section '{section.name}'")
+            last_va_end = section.virtual_address + align(
+                section.virtual_span, self.section_alignment
+            )
+            previous_raw_end = section.raw_offset + section.raw_size
+        if len(self.data) != previous_raw_end:
+            raise PEError("trailing data follows appended sections")
+        last = self.sections[-1]
+        expected_image = align(
+            last.virtual_address + align(last.virtual_size, self.section_alignment),
+            self.section_alignment,
+        )
+        if struct.unpack_from("<I", self.data, self.optional_offset + 56)[0] != expected_image:
+            raise PEError("SizeOfImage does not match the actual last appended section")
+        return first
+
     def remove_section(self, name, original_eof=None, original_image_size=None):
         if not self.sections or self.sections[-1].name != name:
             raise PEError(f"last section is not '{name}'; refusing removal")

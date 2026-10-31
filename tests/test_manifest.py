@@ -109,6 +109,7 @@ class ManifestTests(unittest.TestCase):
             ],
         )
         self.assertEqual(list(release.game_variants), [f"{n:04b}" for n in range(16)])
+        self.assertEqual({mod.version for mod in release.mods.values()}, {"0.2.0"})
         self.assertEqual(release.legacy_game_sha256, (
             "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
             "30fa4d5fa1d28bb4278973eec4272d5a25886a16b020e9879a4d266ab8c7d3a2",
@@ -136,6 +137,28 @@ class ManifestTests(unittest.TestCase):
             "cf421034c41ecf1c0b794117d4b97bcd7decfa32c573b0478e3cc2d54aaedd18",
         ))
         self.assertEqual(release.root, ROOT / "modpack")
+
+    def test_release_exposes_one_pristine_hash_per_binary_target(self):
+        release = load_release(ROOT)
+        self.assertEqual(release.pristine_sha256, {
+            "game/sys/game.dll": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
+            "sys/dx8.dll": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c",
+        })
+
+    def test_rejects_disagreeing_pristine_hashes_for_one_target(self):
+        factory = self.factory()
+        alpha = valid_binary_mod()
+        beta = valid_binary_mod()
+        beta.update(id="beta", source_sha256="1" * 64, conflicts=["alpha"])
+        release = {
+            "schema_version": 1,
+            "mods": ["alpha", "beta"],
+            "game_variants": {},
+        }
+        self.assert_invalid(
+            factory.write(release, {"alpha": alpha, "beta": beta}),
+            "disagree.*pristine|pristine.*disagree",
+        )
 
     def test_legacy_game_hashes_are_unique_lowercase_sha256_strings(self):
         valid = "a" * 64

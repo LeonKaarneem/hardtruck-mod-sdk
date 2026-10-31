@@ -79,6 +79,8 @@ class RealFrozenPatcherTests(unittest.TestCase):
         cls.game_dir = cls.root / "game with spaces"
         (cls.game_dir / "game/sys").mkdir(parents=True)
         (cls.game_dir / "sys").mkdir()
+        (cls.game_dir / "game/sys/game.dll").write_bytes(cls.game_sources[0][1])
+        (cls.game_dir / "sys/dx8.dll").write_bytes(cls.dx8_sources[0][1])
         cls.output = cls.root / "staged with spaces"
         cls.runtime_prefix = cls.root / "runtime-prefix"
         cls.runtime_prefix.mkdir()
@@ -94,7 +96,40 @@ class RealFrozenPatcherTests(unittest.TestCase):
         self.assertTrue(path.is_absolute())
         return "Z:" + str(path)
 
+    def plan(self, selected):
+        arguments = [WINE, str(self.exe), "plan", "--exact"]
+        for name, value in (
+            ("--game-dir", self.game_dir),
+            ("--migrations", ROOT / "modpack/migrations.json"),
+        ):
+            arguments.extend((name, self.windows_path(value)))
+        for mod in selected:
+            arguments.extend(("--mod", mod))
+        self.assertEqual(self.wine_environment["PATH"], "")
+        result = subprocess.run(
+            arguments,
+            env=self.wine_environment,
+            text=True,
+            capture_output=True,
+            timeout=120,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(len(result.stdout.splitlines()), 1, result.stdout)
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan["schema_version"], 1)
+        self.assertEqual(plan["mode"], "exact")
+        return plan
+
     def stage(self, selected, expected):
+        plan = self.plan(selected)
+        if "ui_keyboard" in selected:
+            self.assertIn("config", plan["selected"])
+        changes = {change["target"]: change for change in plan["binary_changes"]}
+        for target, expected_hash in expected.items():
+            if target in changes:
+                self.assertEqual(changes[target]["expected_sha256"], expected_hash)
+            else:
+                self.assertEqual(hashlib.sha256((self.game_dir / target).read_bytes()).hexdigest(), expected_hash)
         arguments = [WINE, str(self.exe), "stage"]
         for name, value in (
             ("--game-dir", self.game_dir),
@@ -102,11 +137,11 @@ class RealFrozenPatcherTests(unittest.TestCase):
             ("--migrations", ROOT / "modpack/migrations.json"),
         ):
             arguments.extend((name, self.windows_path(value)))
-        for mod in selected:
+        for mod in plan["selected"]:
             arguments.extend(("--mod", mod))
-        for target, expected_hash in expected.items():
+        for target in ("game/sys/game.dll", "sys/dx8.dll"):
+            expected_hash = changes[target]["expected_sha256"] if target in changes else hashlib.sha256((self.game_dir / target).read_bytes()).hexdigest()
             arguments.extend(("--expect", f"{target}={expected_hash}"))
-        self.assertEqual(self.wine_environment["PATH"], "")
         result = subprocess.run(
             arguments,
             env=self.wine_environment,
@@ -122,7 +157,7 @@ class RealFrozenPatcherTests(unittest.TestCase):
         self.assertEqual(data[pe_offset:pe_offset + 4], b"PE\0\0")
         self.assertEqual(struct.unpack_from("<H", data, pe_offset + 4)[0], 0x8664)
         expected = {"game/sys/game.dll": self.golden["game_variants"]["1111"]["sha256"]}
-        selected = ("ui_keyboard", "ai", "physics", "camera", "config")
+        selected = ("ui_keyboard", "ai", "physics", "camera")
         for lineage, source in self.game_sources:
             with self.subTest(lineage=lineage):
                 target = self.game_dir / "game/sys/game.dll"
@@ -149,6 +184,33 @@ class RealFrozenPatcherTests(unittest.TestCase):
                         hashlib.sha256((self.output / "sys/dx8.dll").read_bytes()).hexdigest(),
                         self.golden["dx8"][expected_name],
                     )
+
+    def test_render_quick_setup_without_python_on_path(self):
+        output = self.root / "rendered Quick Setup"
+        result = subprocess.run(
+            [
+                WINE,
+                str(self.exe),
+                "render-quick-setup",
+                "--output-dir",
+                self.windows_path(output),
+                "--mod",
+                "ui_keyboard",
+                "--mod",
+                "config",
+            ],
+            env=self.wine_environment,
+            text=True,
+            capture_output=True,
+            timeout=120,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.wine_environment["PATH"], "")
+        rendered = output / "game/usr/ui/cosetup.sc"
+        content = rendered.read_bytes()
+        self.assertIn(b"<br>Enabled: configuration, keyboard\"\r\n", content)
+        digest = hashlib.sha256(content).hexdigest()
+        self.assertEqual(result.stdout.strip(), f"game/usr/ui/cosetup.sc: {digest}")
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
-# Hard Truck: 18 Wheels of Steel - Modern 0.1.0
+# Hard Truck: 18 Wheels of Steel - Modern 0.2.0
 
-A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-0.1.0.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python. **No original game or DX8 DLL is shipped.** The included frozen `htmod.exe` normalizes a recognized installed DLL and builds the selected current variant locally; only the user's actual incoming files are backed up.
+A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-0.2.0.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python. **No original game or DX8 DLL is shipped.** The included frozen `htmod.exe` normalizes a recognized installed DLL and builds the selected current variant locally; only the user's actual incoming files are backed up.
 
 > **Start a new profile after installing definition changes.** Existing saves are version-checked against those definitions and will not load. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
 ## Install on Windows
 
-1. Extract `HardTruckModern-0.1.0.zip` completely.
+1. Extract `HardTruckModern-0.2.0.zip` completely.
 2. Close the game and run `Setup.bat` in the extracted folder.
 3. Choose **Install all**, or **Choose components** for a custom install.
 4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, choose from the numbered list, or enter the folder containing `prism3d.exe` manually.
@@ -43,7 +43,7 @@ Every entry is processed to replace username, computer name, home/game/package p
 | `ui_keyboard` | Tab/Shift+Tab focus navigation and Enter activation in native menus | No |
 | `dx8_vsync` | Native DX8 vsync for the stock renderer | No |
 
-With Configuration installed, the main menu shows **Hard Truck Modern 0.1.0** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls. All five native Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
+With Configuration installed, the main menu shows **Hard Truck Modern 0.2.0** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls. All five native Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
 
 ## Controls and display
 
@@ -62,7 +62,7 @@ Widescreen is Vert- (cropped vertically). For the original field of view, use a 
 
 ## Linux / Wine
 
-Use a 64-bit Wine prefix (required for the 64-bit patcher; it still runs the 32-bit game) and install the game normally. Extract `HardTruckModern-0.1.0.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
+Use a 64-bit Wine prefix (required for the 64-bit patcher; it still runs the 32-bit game) and install the game normally. Extract `HardTruckModern-0.2.0.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
 
 ```sh
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"

@@ -1,13 +1,12 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path, PurePosixPath
 import re
 
+from . import registry
 from .errors import ManifestError
 
 
-BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync"})
-TRANSFORM_NAMES = frozenset({"strip_r_renderer"})
 FORBIDDEN_DIRECTORIES = frozenset({"save", "saves", "music", "log", "logs", "__pycache__"})
 FORBIDDEN_EXTENSIONS = frozenset({".sav", ".log", ".dmp", ".mdmp", ".dump", ".pyc", ".pyo"})
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -57,6 +56,7 @@ class Release:
     mods: dict
     game_variants: dict
     legacy_game_sha256: tuple
+    pristine_sha256: dict = field(default_factory=dict)
 
 
 class Selection:
@@ -190,13 +190,13 @@ def load_mod(root, mod_id):
                 raise ManifestError(f"{record_context} destination is forbidden")
             transforms = string_list(record.get("transforms", []), "transforms", record_context)
             for transform in transforms:
-                if transform not in TRANSFORM_NAMES:
+                if transform not in registry.TRANSFORMS:
                     raise ManifestError(f"{record_context} has unknown transform '{transform}'")
             files.append(DataFile(source.as_posix(), destination.as_posix(), transforms))
     else:
         require_fields(value, ("handler", "target", "source_sha256"), context)
         handler = value["handler"]
-        if not isinstance(handler, str) or handler not in BINARY_HANDLERS:
+        if not isinstance(handler, str) or handler not in registry.BINARY_HANDLERS:
             raise ManifestError(f"{context} has unknown handler '{handler}'")
         target = safe_path(value["target"], "target", context).as_posix()
         source_sha256 = value["source_sha256"]
@@ -284,6 +284,14 @@ def load_release(root):
                 if reference not in mods:
                     raise ManifestError(f"mod '{mod.id}' {field} unknown mod '{reference}'")
 
+    pristine_sha256 = {}
+    for mod in mods.values():
+        if mod.kind != "binary":
+            continue
+        if mod.target in pristine_sha256 and pristine_sha256[mod.target] != mod.source_sha256:
+            raise ManifestError(f"target '{mod.target}' manifests disagree on pristine source SHA-256")
+        pristine_sha256[mod.target] = mod.source_sha256
+
     if not isinstance(value["game_variants"], dict):
         raise ManifestError("release game_variants must be an object")
     game_components = tuple(
@@ -317,4 +325,4 @@ def load_release(root):
         if components != expected:
             raise ManifestError(f"game variant '{name}' does not match component bits")
         variants[name] = GameVariant(record["file"], components)
-    return Release(modpack, mods, variants, legacy_game_sha256)
+    return Release(modpack, mods, variants, legacy_game_sha256, pristine_sha256)

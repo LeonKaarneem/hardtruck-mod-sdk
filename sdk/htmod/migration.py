@@ -223,3 +223,53 @@ def load_catalog(path):
             elif not source["changes"]:
                 raise MigrationError(f"{source_context} non-pristine source must have changes")
     return catalog
+
+
+def encode_catalog(catalog):
+    data = (json.dumps(catalog, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    if len(data) > MAX_CATALOG_SIZE:
+        raise MigrationError(f"migration catalog exceeds {MAX_CATALOG_SIZE}-byte size budget")
+    return data
+
+
+def add_source(catalog, target, data, pristine):
+    if target not in {"game/sys/game.dll", "sys/dx8.dll"} or target not in catalog["targets"]:
+        raise MigrationError(f"unknown migration target '{target}'")
+    target_record = catalog["targets"][target]
+    if len(pristine) != target_record["pristine_length"]:
+        raise MigrationError(
+            f"target '{target}' pristine length does not match the catalog"
+        )
+    pristine_hash = hashlib.sha256(pristine).hexdigest()
+    if pristine_hash != target_record["pristine_sha256"]:
+        raise MigrationError(
+            f"target '{target}' pristine SHA-256 does not match the catalog"
+        )
+    if normalize_to_pristine(pristine, target, catalog) != pristine:
+        raise MigrationError(f"target '{target}' pristine identity does not normalize exactly")
+    source_hash = hashlib.sha256(data).hexdigest()
+    record = {
+        "length": len(data),
+        "changes": generate_splices(data, pristine),
+    }
+    existing = target_record["sources"].get(source_hash)
+    if existing is not None:
+        if existing != record:
+            raise MigrationError(
+                f"target '{target}' has conflicting duplicate source {source_hash}"
+            )
+        return catalog, "no_op", source_hash
+    changes = record["changes"]
+    if (len(changes) == 1 and changes[0]["offset"] == 0
+            and len(bytes.fromhex(changes[0]["original_hex"])) == len(data)
+            and len(bytes.fromhex(changes[0]["replacement_hex"])) == len(pristine)):
+        raise MigrationError("refusing to store a full binary delta")
+    updated = dict(catalog)
+    updated["targets"] = dict(catalog["targets"])
+    updated["targets"][target] = dict(target_record)
+    updated["targets"][target]["sources"] = dict(target_record["sources"])
+    updated["targets"][target]["sources"][source_hash] = record
+    if normalize_to_pristine(data, target, updated) != pristine:
+        raise MigrationError(f"target '{target}' source does not normalize to exact pristine bytes")
+    encode_catalog(updated)
+    return updated, "added", source_hash
