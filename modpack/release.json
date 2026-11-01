@@ -9,6 +9,7 @@
     "physics",
     "ai",
     "ui_keyboard",
+    "frame_cap",
     "dx8_vsync"
   ],
   "legacy_game_sha256": [

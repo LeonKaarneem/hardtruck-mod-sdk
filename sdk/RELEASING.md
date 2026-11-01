@@ -7,10 +7,10 @@ Player packages remain Python-free: users extract the ZIP and run `Setup.bat`, o
 | Coverage | Prerequisites and selection |
 |---|---|
 | Synthetic manifest, PE, migration, lifecycle, and installer logic | Python 3 only. Run the committed suite; environment-dependent cases skip explicitly. |
-| Pinned real DLL fixtures | Provide canonical v1.2 `game/sys/game.dll` and `sys/dx8.dll` under `test-base`, or set `HTMOD_TEST_BASE` to that root. These files are test inputs, never package content. |
+| Pinned real binary fixtures | Provide canonical v1.2 `prism3d.exe`, `game/sys/game.dll`, and `sys/dx8.dll` under `test-base`, or set `HTMOD_TEST_BASE` to that root. These files are test inputs, never package content. |
 | Real frozen patcher | Set `HTMOD_TEST_PATCHER_EXE=/path/to/htmod.exe`. Real execution also needs Wine and `winepath` at the paths used by the tests. Shell installer tests use the same variable. |
 | PowerShell installer | Install PowerShell 7 and set `PWSH=/path/to/pwsh` when it is not on `PATH`. Runtime cases also need `HTMOD_TEST_PATCHER_EXE` or `HTMOD_RELEASE_ZIP`. |
-| Exact release ZIP | Set `HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.2.0.zip`. PowerShell and shell tests fresh-extract and exercise that exact ZIP, including its bundled patcher. |
+| Exact release ZIP | Set `HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.3.0.zip`. PowerShell and shell tests fresh-extract and exercise that exact ZIP, including its bundled patcher. |
 | Live Wine smokes | Use a disposable full game, a fresh dedicated Wine prefix, Wine with 32-bit application support, Xvfb, openbox, xdotool, scrot, and Python 3. Visual review is still required. |
 
 Run the standard suite from the repository root:
@@ -22,7 +22,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 Run an exact-ZIP suite with all available installer runtimes selected explicitly:
 
 ```sh
-PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.2.0.zip \
+PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.3.0.zip \
   PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
 ```
 
@@ -50,17 +50,17 @@ PWSH=/path/to/pwsh HTMOD_RELEASE_ZIP=/path/to/HardTruckModern-0.2.0.zip \
    diff -r /tmp/htmod-build-a /tmp/htmod-build-b
    ```
 
-The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `game.dll` and `sys/dx8.dll` only for verification; override their locations with `--game-dll` and `--dx8-dll` when necessary.
+The patcher build recreates its dedicated Wine prefix and installs hash-locked requirements. The release builder uses pinned pristine v1.2 `prism3d.exe`, `game.dll`, and `sys/dx8.dll` only for verification; override their locations with `--prism3d-exe`, `--game-dll`, and `--dx8-dll` when necessary.
 
-Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no original or localized game or DX8 DLL payloads. Installers accept canonical v1.2 and official Estonian v1.2 sources. Estonian binaries normalize locally to canonical v1.2 before selected mods. Unknown DLLs are refused.
+Schema-3 output contains `htmod.exe`, `migrations.json`, data, and expected hashes, but no original or localized game executable or DLL payloads. Installers accept canonical v1.2 and official Estonian v1.2 sources. Estonian binaries normalize locally to canonical v1.2 before selected mods. Unknown binaries are refused.
 
-A custom `--migrations` catalog must contain exactly both canonical targets, pristine lengths and hashes matching the build inputs, and every required current, released legacy, official Estonian, and DX8 source state. Use the `migration-add` command in [AUTHORING.md](AUTHORING.md) to author individual source records without copying DLLs or full binary deltas.
+A custom `--migrations` catalog must contain exactly all three canonical targets, pristine lengths and hashes matching the build inputs, and every required current, released legacy, official Estonian, DX8, and prism3d stock/cap source state. Use the `migration-add` command in [AUTHORING.md](AUTHORING.md) to author individual source records without copying executables, DLLs, or full binary deltas.
 
 6. Package the `HardTruckModern` directory, fresh-extract that exact ZIP, and run the complete suite against it. Check ZIP integrity and forbidden files, including `__pycache__`, Python bytecode, research, test prefixes, logs, saves, backups, and other non-release content. Never publish merely because an in-tree build or only the PowerShell suite passed.
 
 ## Installer compatibility rules
 
-`tools/templates/Setup.ps1` consumes generated schema-3 component metadata and invokes the bundled frozen patcher before creating backups. Do not duplicate labels, dependencies, conflicts, data ownership, component IDs, variant-selection rules, or Quick Setup text generation in PowerShell. Staged DLLs then enter the existing atomic copy jobs. The frozen `render-quick-setup --output-dir ... --mod ...` operation uses the shared SDK renderer to stage `game/usr/ui/cosetup.sc`; Setup copies that file and records its actual hash for the selected plan.
+`tools/templates/Setup.ps1` consumes generated schema-3 component metadata and invokes the bundled frozen patcher before creating backups. Do not duplicate labels, dependencies, conflicts, data ownership, component IDs, variant-selection rules, or Quick Setup text generation in PowerShell. Staged executables and DLLs then enter the existing atomic copy jobs. The frozen `render-quick-setup --output-dir ... --mod ...` operation uses the shared SDK renderer to stage `game/usr/ui/cosetup.sc`; Setup copies that file and records its actual hash for the selected plan.
 
 Preserve schema-1 backup compatibility, exact incoming backup bytes, rollback, uninstall records, save and unrelated-file guards, and automatic detection. `tools/templates/INSTALL.sh` consumes generated `install-manifest.tsv`, invokes the same executable through Wine and `winepath` before its backup transaction, and uses the same rendered Quick Setup file and actual hash in `installation.tsv`. It retains per-run backups plus reverse-order rollback on ordinary mid-install failure. Retain manual recovery instructions for catastrophic interruption and do not add a second payload mapping. Windows `Setup.bat` remains unchanged.
 

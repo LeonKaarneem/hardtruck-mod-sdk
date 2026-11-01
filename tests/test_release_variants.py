@@ -146,8 +146,10 @@ class ReleaseDerivedVariantTests(unittest.TestCase):
                     payload,
                     variants,
                     dx8={},
+                    prism3d={},
                     game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
                     dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+                    prism3d_exe=build_windows_release.default_test_base_file(Path("prism3d.exe")),
                 )
                 self.assertEqual(len(installer["game_variants"]), 32)
                 self.assertEqual(installer["game_variants"]["10000"]["components"], ["third"])

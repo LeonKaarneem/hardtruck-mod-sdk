@@ -93,15 +93,18 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(len([r for r in records if r[0] == "variant"]), 16)
         self.assertEqual(len([r for r in records if r[0] == "data"]), 20)
         self.assertIn(["install-game", "game/sys/game.dll", self.manifest()["game_variants"]["1111"]["sha256"]], records)
+        self.assertIn(["install-prism3d", "prism3d.exe", self.manifest()["prism3d"]["cap"]["sha256"]], records)
 
     def test_install_all_validates_payloads_and_backs_up_every_replaced_or_created_file(self):
         original_game = (self.game / "game/sys/game.dll").read_bytes()
         original_dx8 = (self.game / "sys/dx8.dll").read_bytes()
+        original_prism3d = (self.game / "prism3d.exe").read_bytes()
         result = self.run_install()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         manifest = self.manifest()
         self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["1111"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["vsync"]["sha256"])
+        self.assertEqual(sha256(self.game / "prism3d.exe"), manifest["prism3d"]["cap"]["sha256"])
         data_records = []
         for files in manifest["data_components"].values():
             data_records.extend(files)
@@ -114,23 +117,28 @@ class ShellInstallerTests(unittest.TestCase):
         backup = backups[0].parent
         self.assertEqual((backup / "files/game/sys/game.dll").read_bytes(), original_game)
         self.assertEqual((backup / "files/sys/dx8.dll").read_bytes(), original_dx8)
+        self.assertEqual((backup / "files/prism3d.exe").read_bytes(), original_prism3d)
         entries = [line.split("\t") for line in backups[0].read_text(encoding="utf-8").splitlines()]
-        self.assertEqual(len(entries), 22)
+        self.assertEqual(len(entries), 23)
         self.assertEqual(len([entry for entry in entries if entry[0] == "created"]), 20)
 
     def test_estonian_install_all_preserves_sources_and_installs_all_data(self):
         from tests.estonian_variants import (
             ESTONIAN_DX8_SHA256,
             ESTONIAN_GAME_SHA256,
+            ESTONIAN_PRISM3D_SHA256,
             estonian_binary_images,
+            estonian_prism3d_image,
         )
         from tests.release_fixtures import write_current_payload
 
         payload = self.root / "current-payload"
         write_current_payload(payload)
         game_source, dx8_source = estonian_binary_images(payload)
+        prism3d_source = estonian_prism3d_image(payload)
         (self.game / "game/sys/game.dll").write_bytes(game_source)
         (self.game / "sys/dx8.dll").write_bytes(dx8_source)
+        (self.game / "prism3d.exe").write_bytes(prism3d_source)
 
         result = self.run_install()
 
@@ -139,6 +147,10 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertEqual(
             sha256(self.game / "sys/dx8.dll"),
             "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
+        )
+        self.assertEqual(
+            sha256(self.game / "prism3d.exe"),
+            "38bd905e7493326788d5e02ff790ce92eac43c7b533b1f9e8dc185ae5de92a63",
         )
         manifest = self.manifest()
         for files in manifest["data_components"].values():
@@ -156,6 +168,12 @@ class ShellInstallerTests(unittest.TestCase):
                 dx8_source,
                 ESTONIAN_DX8_SHA256,
                 "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
+            ),
+            (
+                "prism3d.exe",
+                prism3d_source,
+                ESTONIAN_PRISM3D_SHA256,
+                "38bd905e7493326788d5e02ff790ce92eac43c7b533b1f9e8dc185ae5de92a63",
             ),
         ):
             with self.subTest(path=relative):
@@ -202,6 +220,7 @@ class ShellInstallerTests(unittest.TestCase):
         manifest = self.manifest()
         original_game = (self.game / "game/sys/game.dll").read_bytes()
         original_dx8 = (self.game / "sys/dx8.dll").read_bytes()
+        original_prism3d = (self.game / "prism3d.exe").read_bytes()
         sentinel = self.game / "game/usr/defs"
         sentinel.parent.mkdir(parents=True)
         sentinel.write_bytes(b"user sentinel; mkdir must fail")
@@ -211,6 +230,7 @@ class ShellInstallerTests(unittest.TestCase):
         self.assertIn("Rollback complete", result.stdout + result.stderr)
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), original_game)
         self.assertEqual((self.game / "sys/dx8.dll").read_bytes(), original_dx8)
+        self.assertEqual((self.game / "prism3d.exe").read_bytes(), original_prism3d)
         self.assertEqual(sentinel.read_bytes(), b"user sentinel; mkdir must fail")
         for relative in ("config.cfg", "ui/mmain.sc", "ui/cosetup.sc"):
             self.assertFalse((self.game / "game/usr" / relative).exists(), relative)
@@ -378,6 +398,7 @@ class ShellSelectionTests(unittest.TestCase):
             output=cls.release,
             game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
             dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+            prism3d_exe=build_windows_release.default_test_base_file(Path("prism3d.exe")),
             patcher_exe=patcher,
             migrations=ROOT / "modpack/migrations.json",
         )

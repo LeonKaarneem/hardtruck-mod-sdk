@@ -215,6 +215,10 @@ def _current_states(release, target, pristine):
         selections = (("stock", ()), ("vsync", ("dx8_vsync",)))
         for _, components in selections:
             Selection(components).validate(release.mods)
+    elif target == "prism3d.exe":
+        selections = (("stock", ()), ("cap", ("frame_cap",)))
+        for _, components in selections:
+            Selection(components).validate(release.mods)
     else:
         raise PatchError(f"target '{target}' has no curated current-state definitions")
 

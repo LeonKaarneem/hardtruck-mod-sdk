@@ -27,6 +27,7 @@ class LifecycleRemovalCliTests(ApplyFixture):
 
     def test_selective_remove_dry_run_and_result_json(self):
         from tests.test_lifecycle import ROOT
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", self.game_variants["0011"])
         self.write_target("sys/dx8.dll", self.dx8["stock"])
         self.write_data(("config",))
@@ -73,14 +74,14 @@ class LifecycleRemovalCliTests(ApplyFixture):
         returncode, stdout, stderr = self.run_cli(base)
         self.assertEqual(returncode, 1, stderr)
         self.assertEqual(json.loads(stdout)["status"], "partial")
-        self.assertEqual(len(self.generations()), generation_count)
+        self.assertEqual(len(self.generations()), generation_count + 1)
 
         self.write_target("game/sys/game.dll", self.game_variants["0001"])
         returncode, stdout, stderr = self.run_cli(base + ["--dry-run"])
         self.assertEqual(returncode, 0, stderr)
         self.assertEqual(json.loads(stdout)["mode"], "backup_history")
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), self.game_variants["0001"])
-        self.assertEqual(len(self.generations()), generation_count)
+        self.assertEqual(len(self.generations()), generation_count + 1)
 
         returncode, stdout, stderr = self.run_cli(base)
         self.assertEqual(returncode, 0, stderr)
@@ -88,7 +89,7 @@ class LifecycleRemovalCliTests(ApplyFixture):
         returncode, stdout, stderr = self.run_cli(base)
         self.assertEqual(returncode, 0, stderr)
         self.assertEqual(json.loads(stdout)["status"], "no_op")
-        self.assertEqual(len(self.generations()), generation_count + 1)
+        self.assertEqual(len(self.generations()), generation_count + 2)
 
     def test_recover_success_and_partial_emit_one_json_result(self):
         from tests.test_lifecycle import ROOT

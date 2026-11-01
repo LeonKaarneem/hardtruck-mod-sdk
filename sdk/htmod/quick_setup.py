@@ -14,6 +14,7 @@ QUICK_SETUP_LABELS = {
     "driver_def": "driver",
     "ai": "AI",
     "ui_keyboard": "keyboard",
+    "frame_cap": "frame cap",
     "dx8_vsync": "DX8 vsync",
 }
 QUICK_SETUP_ORDER = tuple(QUICK_SETUP_LABELS)
@@ -69,7 +70,7 @@ def render_quick_setup(template, selected):
     if GENERIC_TEXT not in value and DYNAMIC_TEXT not in value:
         raise PatchError("config ui/cosetup.sc information block has no replaceable text")
     header = value.split(b"<br>", 1)[0]
-    if header + b"<br>" != b"UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>":
+    if header + b"<br>" != b"UNOFFICIAL MOD - Hard Truck Modern 0.3.0<br>":
         raise PatchError("config ui/cosetup.sc information header is missing")
     dynamic = "<br>".join(enabled_lines(selected)).encode("ascii")
     replacement = match.group(1) + header + DYNAMIC_TEXT + dynamic.removeprefix(b"Enabled:") + match.group(3)

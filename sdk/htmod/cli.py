@@ -16,7 +16,7 @@ from .quick_setup import QUICK_SETUP_DESTINATION
 from .runner import materialize_data_bytes, load_binary_mods, runner_from_directory, verify_pristine_images
 
 
-STAGED_TARGETS = frozenset({"game/sys/game.dll", "sys/dx8.dll"})
+STAGED_TARGETS = frozenset({"game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"})
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 

@@ -35,14 +35,14 @@ class QuickSetupRendererTests(unittest.TestCase):
         self.assertIn(
             b"Enabled: configuration, camera, physics,<br>"
             b"handling, economy, driver, AI,<br>"
-            b"keyboard, DX8 vsync",
+            b"keyboard, frame cap, DX8 vsync",
             content,
         )
         self.assertNotIn(b"Features depend on Setup choices", content)
 
     def test_config_and_keyboard_use_one_compact_line(self):
         content = render_quick_setup(self.template, ("ui_keyboard", "config"))
-        self.assertIn(b'value:"UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>', content)
+        self.assertIn(b'value:"UNOFFICIAL MOD - Hard Truck Modern 0.3.0<br>', content)
         self.assertIn(b"<br>Enabled: configuration, keyboard\"\r\n", content)
         self.assertNotIn(b"<br>Enabled: configuration, keyboard<br>", content)
 
@@ -78,7 +78,7 @@ class QuickSetupRendererTests(unittest.TestCase):
         content = render_quick_setup(self.template, ("config", "ui_keyboard"))
         self.assertEqual(content.count(b"\n"), content.count(b"\r\n"))
         expected_value = (
-            b"UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>"
+            b"UNOFFICIAL MOD - Hard Truck Modern 0.3.0<br>"
             b"Enabled: configuration, keyboard"
         )
         before, separator, after = self.template.partition(QUICK_SETUP_VALUE.encode("utf-8"))

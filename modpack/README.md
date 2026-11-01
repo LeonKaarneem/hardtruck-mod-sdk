@@ -1,12 +1,12 @@
-# Hard Truck: 18 Wheels of Steel - Modern 0.2.0
+# Hard Truck: 18 Wheels of Steel - Modern 0.3.0
 
-A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-0.2.0.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python. **No original game or DX8 DLL is shipped.** The included frozen `htmod.exe` normalizes a recognized installed DLL and builds the selected current variant locally; only the user's actual incoming files are backed up.
+A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software, 2002). The supported player package is `HardTruckModern-0.3.0.zip`: it installs manifest-owned data and registered binary components with backups and uninstall support, without requiring Python. **No original game executable or DLL is shipped.** The included frozen `htmod.exe` normalizes recognized installed binaries and builds the selected current variants locally; only the user's actual incoming files are backed up.
 
 > **Start a new profile after installing definition changes.** Existing saves are version-checked against those definitions and will not load. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
 ## Install on Windows
 
-1. Extract `HardTruckModern-0.2.0.zip` completely.
+1. Extract `HardTruckModern-0.3.0.zip` completely.
 2. Close the game and run `Setup.bat` in the extracted folder.
 3. Choose **Install all**, or **Choose components** for a custom install.
 4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, choose from the numbered list, or enter the folder containing `prism3d.exe` manually.
@@ -14,7 +14,7 @@ A quality-of-life mod for **18 Wheels of Steel: Hard Truck v1.2** (SCS Software,
 
 Keep the extracted `installer` folder so Setup can retain backups and uninstall later. To restore the pre-install state, run `Setup.bat` and choose **Uninstall**. Files changed after installation are reported and skipped rather than overwritten. Saves and unrelated files are preserved.
 
-Setup accepts canonical v1.2 and official Estonian v1.2 binaries; current binary variants and upgrades from previously released modpack variants still work. Its frozen patcher normalizes official Estonian inputs locally to canonical v1.2 before applying the selected mods and staging the current variant. Setup then backs up the actual incoming DLL. No original or localized game or DX8 DLL payloads ship. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused before backup. Restore the stock DX8 DLL before setup if you use d3d8to9. Native Windows no-Python staging and PowerShell 5.1 behavior still require native Windows verification.
+Setup accepts canonical v1.2 and official Estonian v1.2 binaries; current binary variants and upgrades from previously released modpack variants still work. Its frozen patcher normalizes official Estonian inputs locally to canonical v1.2 before applying the selected mods and staging the current variant. Setup then backs up the actual incoming executable and DLLs. No original or localized game executable or DLL payloads ship. Unknown `prism3d.exe`, `game.dll`, or wrapped `sys/dx8.dll` files are refused before backup. Restore the stock DX8 DLL before setup if you use d3d8to9. Native Windows no-Python staging and PowerShell 5.1 behavior still require native Windows verification.
 
 ## Manual crash reports
 
@@ -41,9 +41,10 @@ Every entry is processed to replace username, computer name, home/game/package p
 | `physics` | Reduces shoulder/tunnel-edge dead stops, velocity snap, and trailer-mass error | No |
 | `ai` | Fixes menu/demo traffic despawn cleanup and its log spam/pool leak | No |
 | `ui_keyboard` | Tab/Shift+Tab focus navigation and Enter activation in native menus | No |
+| `frame_cap` | Absolute-deadline 60 FPS engine cap using the existing engine clock | No |
 | `dx8_vsync` | Native DX8 vsync for the stock renderer | No |
 
-With Configuration installed, the main menu shows **Hard Truck Modern 0.2.0** at lower right. The native Set Up Company screen also identifies the unofficial mod, summarizes improvements, and notes that features depend on Setup choices without moving stock controls. All five native Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
+With Configuration installed, the main menu shows **Hard Truck Modern 0.3.0** at lower right. The native Set Up Company screen also identifies the unofficial mod and lists the components enabled by the completed installation without moving stock controls. All five native Credits pages retain their stock content and add persistent **Hard Truck Modern** and **MOD SDK: LeonKaarneem** lines below it.
 
 ## Controls and display
 
@@ -51,10 +52,7 @@ Press `~` to open the console. With `config` and `ui_keyboard` installed, Tab an
 
 Key 2 selects the mouse-orbit chase camera; keys 1 and 3–7 retain their stock camera roles. F6 teleports to service, F7 to gas, F8 to a weigh station, F9 toggles the debug camera, F10 toggles tickets, and F12 takes a screenshot.
 
-**Cap FPS at 60 or lower** to avoid the original high-frame-rate physics bugs. On Windows 10/11, either:
-
-- use [d3d8to9](https://github.com/crosire/d3d8to9) with your driver's vsync, restoring stock `sys/dx8.dll` before running Setup; or
-- select the native `dx8_vsync` component without a wrapper.
+The default `frame_cap` component avoids the original high-frame-rate physics bugs with an absolute 16,667 microsecond engine-clock schedule. It does not set a constant physics delta or call a renderer API, and it busy-waits when a frame is early. Renderer vsync is optional on Windows 10/11: use [d3d8to9](https://github.com/crosire/d3d8to9) with your driver's vsync, restoring stock `sys/dx8.dll` before running Setup, or select native `dx8_vsync` without a wrapper.
 
 Do not use both: they replace the same DLL. The launcher offers only resolutions up to 1024×768; run `prism3d.exe` directly or edit `uset r_mode "WIDTHxHEIGHTx32"` in `game/usr/config.cfg`.
 
@@ -62,13 +60,13 @@ Widescreen is Vert- (cropped vertically). For the original field of view, use a 
 
 ## Linux / Wine
 
-Use a 64-bit Wine prefix (required for the 64-bit patcher; it still runs the 32-bit game) and install the game normally. Extract `HardTruckModern-0.2.0.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
+Use a 64-bit Wine prefix (required for the 64-bit patcher; it still runs the 32-bit game) and install the game normally. Extract `HardTruckModern-0.3.0.zip`, then run the generated install-all script with the folder containing `prism3d.exe`:
 
 ```sh
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
 ```
 
-The POSIX-shell path needs `sha256sum`, standard shell utilities, and Wine with `winepath`, not Python or PowerShell. It invokes the same frozen `htmod.exe` as Windows to normalize recognized game/DX8 inputs and stage the all-components variant locally, then validates data payloads and staged hashes before recording changes. Unknown DLLs, symlinks, and existing non-regular destinations are refused. Originals plus `installation.tsv` go to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
+The POSIX-shell path needs `sha256sum`, standard shell utilities, and Wine with `winepath`, not Python or PowerShell. It invokes the same frozen `htmod.exe` as Windows to normalize recognized executable/game/DX8 inputs and stage the all-components variants locally, then validates data payloads and staged hashes before recording changes. Unknown binaries, symlinks, and existing non-regular destinations are refused. Originals plus `installation.tsv` go to a timestamped `installer/backups/shell-*` directory. `--yes` skips the confirmation prompt for automation. An ordinary mid-install failure rolls back earlier files in reverse order from these backups. A crash, power loss, or `kill -9` can interrupt recovery itself; in that case use the retained `installation.tsv` and `files/` backups to restore manually. This simple path has no component selection or automatic uninstaller. Start a **new profile** after installation.
 
 For playing under Wine, prefer these settings in `game/usr/config.cfg`:
 
@@ -77,7 +75,7 @@ uset r_device "gl"
 uset gl_sync "1"
 ```
 
-The OpenGL renderer provides a useful 60 FPS cap under Wine. DX8 also works through WineD3D. Keep FPS at 60 or lower and start a new profile after definition changes.
+The built-in cap works with OpenGL and DX8 under Wine; these optional renderer settings only select the renderer and its vsync behavior. Start a new profile after definition changes.
 
 ## Known limitations
 
@@ -98,6 +96,7 @@ See **`sdk/README.md`** for data mods, operand patches, code hooks, dependencies
 python3 tools/htmod.py check --game-dir "/path/to/game" --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py restore --game-dir "/path/to/game" --mod config --mod camera --mod physics --mod ai --mod ui_keyboard
 python3 tools/htmod.py restore --game-dir "/path/to/game" --mod dx8_vsync
+python3 tools/htmod.py restore --game-dir "/path/to/game" --mod frame_cap
 ```
 
 Use Setup's **Uninstall** for a normal installation because it also restores manifest-owned data and backup history.

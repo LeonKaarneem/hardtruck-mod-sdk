@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "frame_cap",
+  "version": "0.3.0",
+  "kind": "binary",
+  "setup": {
+    "label": "60 FPS cap",
+    "description": "Cap engine frames at approximately 60 FPS to avoid high-frame-rate physics bugs",
+    "default": true
+  },
+  "requires": [],
+  "conflicts": [],
+  "new_profile": false,
+  "handler": "frame_cap",
+  "target": "prism3d.exe",
+  "source_sha256": "5a8f94da924b05620e2a69daa09682dae3cab6b301ddc463b54f5750b514bddd"
+}

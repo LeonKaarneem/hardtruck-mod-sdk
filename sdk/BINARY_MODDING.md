@@ -1,6 +1,6 @@
 # Binary modding
 
-Use binary handlers only for changes that cannot be represented by data overrides. Handlers transform verified in-memory PE images; they never write directly to a game DLL. Work on a disposable v1.2 game copy and keep the original source SHA-256 pinned in every manifest for the same target.
+Use binary handlers only for changes that cannot be represented by data overrides. Handlers transform verified in-memory PE images; they never write directly to a game binary. Work on a disposable v1.2 game copy and keep the original source SHA-256 pinned in every manifest for the same target.
 
 ## Supported handler API
 
@@ -66,6 +66,8 @@ def jump(source_va, destination_va):
 
 `validate_appended_tail(first_name)` validates canonical virtual addresses and raw offsets, raw sizes aligned to virtual sizes, zero inter-section padding, no overlaps or trailing data, and SizeOfImage from the actual last section. Each handler validates only its own payload, flags, sizes, and hook sites. `remove_section` is end-only, so composed handlers restore in reverse order. HIGHLOW relocation blocks are DWORD-padded with a zero entry when the real entry count is odd.
 
+`modpack/mods/frame_cap/patch.py` is the `prism3d.exe` reference. It replaces the per-frame call with a jump to `.htfps`, uses the existing engine microsecond clock for an absolute 16,667 microsecond schedule, pushes the original resume address, and tail-jumps to the original function. It handles initialization, missed frames, long gaps, and 64-bit clock wrap without a renderer call, new import, or constant physics delta. The curated target states are `stock` and `cap`; canonical, official Estonian, and capped inputs have compact migration records.
+
 ## Register a handler
 
 Using `example_operand` as the ID:
@@ -76,7 +78,7 @@ Using `example_operand` as the ID:
 4. Add the ID to the ordered `mods` list in `modpack/release.json`.
 5. For a `game.dll` component, deliberately extend `game_variants`. Bit positions follow release order, each variant must match its component bits, and every final binary tuple must be curated. Preserve prior payload streams and retain released hashes in `legacy_game_sha256` with migration source coverage.
 
-Every binary manifest for one target must pin the same pristine hash, even when the components conflict. Release loading exposes the target map as `release.pristine_sha256`. Builders and staging verify this pin before applying mods or writing output. Unknown DLL hashes remain refused. Other targets require explicit builder and migration-catalog support driven by validated release metadata.
+Every binary manifest for one target must pin the same pristine hash, even when the components conflict. Release loading exposes the target map as `release.pristine_sha256`. Builders and staging verify this pin before applying mods or writing output. Unknown executable or DLL hashes remain refused. Other targets require explicit builder and migration-catalog support driven by validated release metadata.
 
 `Selection.validate` rejects missing requirements, duplicate selections, and conflicts before file changes. Handler loading itself is identity-only so builders can load every game handler before validating each curated selection.
 
@@ -108,4 +110,4 @@ Direct commands accept only the manifest's pinned pristine image or an exact rec
 
 Lifecycle apply also normalizes recognized legacy and official Estonian sources. Direct check, apply, and restore do not consult migration catalogs. Selective lifecycle removal rebuilds a retained curated variant; whole removal replays exact incoming backups rather than using direct binary restore.
 
-Do not add a payload copy map, standalone patcher, or release-only handler path. Experimental FOV modifications are not SDK components or supported release features. No original game or DX8 DLL payload may be added to the repository or package.
+Do not add a payload copy map, standalone patcher, or release-only handler path. Experimental FOV modifications are not SDK components or supported release features. No original game executable or DLL payload may be added to the repository or package.

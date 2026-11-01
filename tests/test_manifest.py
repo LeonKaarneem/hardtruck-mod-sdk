@@ -105,11 +105,12 @@ class ManifestTests(unittest.TestCase):
                 "physics",
                 "ai",
                 "ui_keyboard",
+                "frame_cap",
                 "dx8_vsync",
             ],
         )
         self.assertEqual(list(release.game_variants), [f"{n:04b}" for n in range(16)])
-        self.assertEqual({mod.version for mod in release.mods.values()}, {"0.2.0"})
+        self.assertEqual({mod.version for mod in release.mods.values()}, {"0.3.0"})
         self.assertEqual(release.legacy_game_sha256, (
             "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
             "30fa4d5fa1d28bb4278973eec4272d5a25886a16b020e9879a4d266ab8c7d3a2",
@@ -143,6 +144,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(release.pristine_sha256, {
             "game/sys/game.dll": "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3",
             "sys/dx8.dll": "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c",
+            "prism3d.exe": "5a8f94da924b05620e2a69daa09682dae3cab6b301ddc463b54f5750b514bddd",
         })
 
     def test_rejects_disagreeing_pristine_hashes_for_one_target(self):
@@ -479,6 +481,7 @@ class CliTests(unittest.TestCase):
                 "physics",
                 "ai",
                 "ui_keyboard",
+                "frame_cap",
                 "dx8_vsync",
             ],
         )

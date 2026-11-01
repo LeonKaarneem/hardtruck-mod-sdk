@@ -38,6 +38,8 @@ INSTALL_GAME=
 INSTALL_GAME_HASH=
 INSTALL_DX8=
 INSTALL_DX8_HASH=
+INSTALL_PRISM3D=
+INSTALL_PRISM3D_HASH=
 INSTALL_MODS=
 INSTALL_MODS_COUNT=0
 PATCHER=
@@ -56,7 +58,7 @@ done < "$MANIFEST"
 while IFS="$TAB" read -r kind relative expected; do
     [ -n "$kind" ] || continue
     case $kind in
-        variant|legacy-game|stock-dx8)
+        variant|legacy-game|stock-dx8|stock-prism3d)
             continue
             ;;
         install-game)
@@ -67,6 +69,11 @@ while IFS="$TAB" read -r kind relative expected; do
         install-dx8)
             INSTALL_DX8=$relative
             INSTALL_DX8_HASH=$expected
+            continue
+            ;;
+        install-prism3d)
+            INSTALL_PRISM3D=$relative
+            INSTALL_PRISM3D_HASH=$expected
             continue
             ;;
         install-mods)
@@ -112,7 +119,7 @@ while IFS="$TAB" read -r kind relative expected; do
     esac
 done < "$MANIFEST"
 
-if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ -z "$PATCHER" ] || [ -z "$CATALOG" ] || [ "$DATA_COUNT" -eq 0 ]; then
+if [ -z "$INSTALL_GAME" ] || [ -z "$INSTALL_DX8" ] || [ -z "$INSTALL_PRISM3D" ] || [ -z "$PATCHER" ] || [ -z "$CATALOG" ] || [ "$DATA_COUNT" -eq 0 ]; then
     echo "error: incomplete generated install manifest." >&2
     exit 1
 fi
@@ -145,6 +152,7 @@ while IFS="$TAB" read -r kind relative expected; do
     case $kind in
         install-game) destination=$GAME/game/sys/game.dll ;;
         install-dx8) destination=$GAME/sys/dx8.dll ;;
+        install-prism3d) destination=$GAME/prism3d.exe ;;
         data) destination=$GAME/game/usr/${relative#data/} ;;
         *) continue ;;
     esac
@@ -172,22 +180,24 @@ if [ -e "$STAGING" ]; then
     echo "error: staging path already exists: $STAGING" >&2
     exit 1
 fi
-printf 'Staging selected binary components locally; no original DLL payloads are shipped.\n'
+printf 'Staging selected binary components locally; no original game binary payloads are shipped.\n'
 if ! wine "$PATCHER" stage \
     --game-dir "$(winepath -w "$GAME")" \
     --output-dir "$(winepath -w "$STAGING")" \
     --migrations "$(winepath -w "$CATALOG")" \
     "$@" \
     --expect "game/sys/game.dll=$INSTALL_GAME_HASH" \
-    --expect "sys/dx8.dll=$INSTALL_DX8_HASH"; then
+    --expect "sys/dx8.dll=$INSTALL_DX8_HASH" \
+    --expect "prism3d.exe=$INSTALL_PRISM3D_HASH"; then
     rm -rf "$STAGING"
     echo "error: frozen patcher staging failed; no files were changed." >&2
     exit 1
 fi
 if [ "$(hash_file "$STAGING/game/sys/game.dll")" != "$INSTALL_GAME_HASH" ] || \
-        [ "$(hash_file "$STAGING/sys/dx8.dll")" != "$INSTALL_DX8_HASH" ]; then
+        [ "$(hash_file "$STAGING/sys/dx8.dll")" != "$INSTALL_DX8_HASH" ] || \
+        [ "$(hash_file "$STAGING/prism3d.exe")" != "$INSTALL_PRISM3D_HASH" ]; then
     rm -rf "$STAGING"
-    echo "error: staged DLL hash verification failed; no files were changed." >&2
+    echo "error: staged binary hash verification failed; no files were changed." >&2
     exit 1
 fi
 if ! wine "$PATCHER" render-quick-setup \
@@ -328,6 +338,9 @@ while IFS="$TAB" read -r kind relative expected; do
         install-dx8)
             install_file "$STAGING/sys/dx8.dll" "$GAME/sys/dx8.dll" "sys/dx8.dll" "$expected"
             ;;
+        install-prism3d)
+            install_file "$STAGING/prism3d.exe" "$GAME/prism3d.exe" "prism3d.exe" "$expected"
+            ;;
         data)
             data_relative=${relative#data/}
             if [ "$relative" = "data/ui/cosetup.sc" ]; then
@@ -343,6 +356,7 @@ while IFS="$TAB" read -r kind relative expected; do
     case $kind in
         install-game) destination=$GAME/game/sys/game.dll ;;
         install-dx8) destination=$GAME/sys/dx8.dll ;;
+        install-prism3d) destination=$GAME/prism3d.exe ;;
         data)
             destination=$GAME/game/usr/${relative#data/}
             if [ "$relative" = "data/ui/cosetup.sc" ]; then

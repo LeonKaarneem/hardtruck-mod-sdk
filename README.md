@@ -1,6 +1,6 @@
 # Hard Truck Mod SDK and Modern Modpack
 
-**Hard Truck Mod SDK** is an unofficial modding toolkit and quality-of-life modpack for **18 Wheels of Steel: Hard Truck v1.2** by SCS Software. It provides reusable mod-development tools and modern gameplay improvements, including truck physics and handling fixes, an ETS-style chase camera, traffic AI cleanup, economy improvements, keyboard-accessible menus, and privacy-conscious crash reports.
+**Hard Truck Mod SDK** is an unofficial modding toolkit and quality-of-life modpack for **18 Wheels of Steel: Hard Truck v1.2** by SCS Software. It provides reusable mod-development tools and modern gameplay improvements, including a 60 FPS engine cap, truck physics and handling fixes, an ETS-style chase camera, traffic AI cleanup, economy improvements, keyboard-accessible menus, and privacy-conscious crash reports.
 
 Players can install the finished Hard Truck mod without Python. Mod authors can use the SDK's manifests, PE patching, migration support, deterministic builds, and test harnesses to create their own Hard Truck mods.
 
@@ -8,7 +8,7 @@ You must own a legal copy of the game. The modpack does not include the game, an
 
 ## Windows installation
 
-1. Extract `HardTruckModern-0.2.0.zip` completely and close the game.
+1. Extract `HardTruckModern-0.3.0.zip` completely and close the game.
 2. Run `Setup.bat` in the extracted folder.
 3. Choose **Install all** for the complete modpack, or **Choose components** to answer a prompt for each component.
 4. Setup checks Steam libraries, common Program Files/GOG locations, and previous installations. Confirm a detected folder, select one from the numbered list, or manually enter the folder containing `prism3d.exe`.
@@ -16,7 +16,7 @@ You must own a legal copy of the game. The modpack does not include the game, an
 
 **Start a new profile after installing handling, economy, or driver definition changes, including Install all.** Existing saves are incompatible with those definitions. Setup preserves save files but cannot migrate them; back up `game/usr/save/` first.
 
-Players do **not** need Python. Setup accepts canonical v1.2 and official Estonian v1.2 binaries; current variants and historical modpack upgrades still work. For official Estonian installations, the bundled local `htmod.exe` normalizes both DLLs to canonical v1.2 on your computer before staging the selected mods. The package contains no original or localized game or DX8 DLL payloads. Unknown `game.dll` or wrapped `sys/dx8.dll` files are refused. Restore the stock DX8 DLL before setup if you use d3d8to9 or another wrapper.
+Players do **not** need Python. Setup accepts canonical v1.2 and official Estonian v1.2 binaries; current variants and historical modpack upgrades still work. For official Estonian installations, the bundled local `htmod.exe` normalizes the executable and both DLLs to canonical v1.2 on your computer before staging the selected mods. The package contains no original or localized game executable or DLL payloads. Unknown `prism3d.exe`, `game.dll`, or wrapped `sys/dx8.dll` files are refused. Restore the stock DX8 DLL before setup if you use d3d8to9 or another wrapper.
 
 The Quick Setup information panel lists the components enabled by the completed installation. Custom selections therefore produce a shorter list than Install all without changing the stock Setup controls or layout.
 
@@ -32,6 +32,7 @@ The Quick Setup information panel lists the components enabled by the completed 
 | Physics | Fewer shoulder/tunnel-edge dead stops and corrected trailer mass | No |
 | AI | Traffic despawn cleanup and reduced log spam | No |
 | Keyboard navigation | Tab focus, Enter activation, and keyboard-adjusted sliders | No |
+| 60 FPS cap | Absolute-deadline engine frame cap for high-FPS physics stability | No |
 | DX8 vsync | Native vsync for the stock DirectX 8 renderer | No |
 
 ## Controls and display
@@ -42,7 +43,7 @@ The Quick Setup information panel lists the components enabled by the completed 
 - `F9` toggles the debug camera, `F10` toggles tickets, and `F12` takes a screenshot.
 - Tab and Shift+Tab move through native menu controls, Enter activates the focused control, and Left/Right adjusts focused sliders.
 
-**Cap FPS at 60 or lower** to avoid the original high-frame-rate physics bugs. Use either d3d8to9 or the native DX8 vsync component, not both. Widescreen uses Vert-; use a 4:3 resolution with GPU aspect-ratio scaling for the original field of view.
+The default **60 FPS cap** uses an absolute engine-clock deadline to avoid the original high-frame-rate physics bugs without changing physics timing. It busy-waits when a frame is early. Renderer vsync is optional; use either d3d8to9 or the native DX8 vsync component, not both. Widescreen uses Vert-; use a 4:3 resolution with GPU aspect-ratio scaling for the original field of view.
 
 ## Manual crash reports
 
@@ -64,11 +65,11 @@ Use a 64-bit Wine prefix for the bundled patcher, extract the release ZIP, and r
 ./INSTALL.sh "/path/to/18 Wheels of Steel Hard Truck"
 ```
 
-Use `./INSTALL.sh --yes "/path/to/game"` for unattended installation. The script installs all components and requires POSIX shell utilities, `sha256sum`, and Wine with `winepath`; Python and PowerShell are not required. It stages recognized DLL variants locally, validates payloads, and stores originals with `installation.tsv` under `installer/backups/shell-*`. Start a new profile after installation.
+Use `./INSTALL.sh --yes "/path/to/game"` for unattended installation. The script installs all components and requires POSIX shell utilities, `sha256sum`, and Wine with `winepath`; Python and PowerShell are not required. It stages recognized executable and DLL variants locally, validates payloads, and stores originals with `installation.tsv` under `installer/backups/shell-*`. Start a new profile after installation.
 
 The Linux path has no component selection or automatic uninstaller. Ordinary installation failures roll back earlier changes. After a catastrophic interruption, restore manually from the retained `installation.tsv` and `files/` backups.
 
-For Wine, the OpenGL renderer with `uset r_device "gl"` and `uset gl_sync "1"` in `game/usr/config.cfg` provides a useful 60 FPS cap.
+The built-in frame cap works with DX8 and OpenGL under Wine. Renderer-specific `gl_sync` or DX8 vsync settings remain optional.
 
 ## Credits
 

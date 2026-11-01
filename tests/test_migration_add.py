@@ -181,6 +181,18 @@ class MigrationAddTests(unittest.TestCase):
                 self.assert_preserved(result, None)
                 self.assertIn("target", result.stderr)
 
+    def test_prism3d_target_is_supported_when_catalogued(self):
+        self.catalog["targets"]["prism3d.exe"] = self.catalog["targets"][TARGET]
+        self.migrations.write_bytes(encoded(self.catalog))
+        result = self.run_cli(self.arguments(target="prism3d.exe"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["target"], "prism3d.exe")
+        written = json.loads(self.output.read_text(encoding="utf-8"))
+        self.assertEqual(
+            normalize_to_pristine(self.source_bytes, "prism3d.exe", written),
+            self.pristine_bytes,
+        )
+
     def test_corrupt_catalog_and_mismatched_pristine_are_refused(self):
         cases = []
         self.migrations.write_bytes(b"not json")

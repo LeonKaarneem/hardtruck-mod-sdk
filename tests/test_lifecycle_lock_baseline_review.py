@@ -84,6 +84,7 @@ class RepeatedHistoryBaselineTests(ApplyFixture):
             with self.subTest(source=name):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 self.write_target("game/sys/game.dll", game_source)
                 self.write_target("sys/dx8.dll", dx8_source)
                 existing = self.release.mods["config"].files[0].destination

@@ -42,6 +42,7 @@ class ApplyFixture(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root)
         self.game = self.root / "game dir"
         self.game.mkdir()
+        self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
 
     def write_target(self, target, data):
         path = self.game / target
@@ -110,6 +111,7 @@ class LifecycleApplyTests(ApplyFixture):
     def test_data_only_apply_transforms_data_and_preserves_binaries_saves_and_unrelated_files(self):
         unknown_game = b"unknown game"
         unknown_dx8 = b"unknown dx8"
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", unknown_game)
         self.write_target("sys/dx8.dll", unknown_dx8)
         self.write_target("game/usr/save/profile.sav", b"save bytes")
@@ -211,6 +213,7 @@ class LifecycleApplyTests(ApplyFixture):
             with self.subTest(source=name):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
                 self.write_target("game/sys/game.dll", source)
                 self.write_target("sys/dx8.dll", self.dx8["stock"])
                 result = self.service().apply(requested=("camera",), exact=True)
@@ -335,6 +338,7 @@ class LifecycleApplyTests(ApplyFixture):
 
         self.write_target("game/sys/game.dll", self.game_variants["0000"])
         self.write_target("sys/dx8.dll", self.dx8["stock"])
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         argv = [
             "--root", str(ROOT), "apply", "--game-dir", str(self.game),
             "--migrations", str(ROOT / "modpack/migrations.json"), "--all", "--exact",
@@ -347,7 +351,7 @@ class LifecycleApplyTests(ApplyFixture):
         self.assertEqual(stderr.getvalue(), "")
         value = json.loads(stdout.getvalue())
         self.assertEqual(value["status"], "installed")
-        self.assertEqual(len(value["operations"]), 22)
+        self.assertEqual(len(value["operations"]), 23)
         installed_paths = {
             path for path in self.tree_hashes() if not path.startswith(".htmod/")
         }
@@ -355,8 +359,9 @@ class LifecycleApplyTests(ApplyFixture):
             destination
             for files in self.data_bytes.values()
             for destination in files
-        } | {"game/sys/game.dll", "sys/dx8.dll"}
+        } | {"game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"}
         self.assertEqual(installed_paths, expected_paths)
+        self.assertEqual((self.game / "prism3d.exe").read_bytes(), (self.payload / "prism3d-cap.exe").read_bytes())
         self.assertTrue(all(
             component.state in {"matching", "installed"}
             for component in self.status().components
@@ -390,6 +395,7 @@ class LifecycleApplyTests(ApplyFixture):
 
 class LifecycleApplyFailureTests(LifecycleApplyTests):
     def prepare_two_binary_changes(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", self.game_variants["0000"])
         self.write_target("sys/dx8.dll", self.dx8["stock"])
         return self.plan(("camera", "dx8_vsync"), exact=True)
@@ -723,6 +729,7 @@ class LifecycleApplyFailureTests(LifecycleApplyTests):
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), self.game_variants["0000"])
 
     def test_no_op_rechecks_plan_while_holding_lock_without_backup(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         config = materialize_data_bytes(self.release, ("config",))["config"]
         for destination, content in config.items():
             self.write_target(destination, content)

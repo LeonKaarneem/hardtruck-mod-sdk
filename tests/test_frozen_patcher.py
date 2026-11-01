@@ -28,7 +28,7 @@ class FrozenSpecTests(unittest.TestCase):
         self.assertIn("sdk", spec)
         self.assertIn("onefile", spec.lower())
         self.assertIn('excludes=["tests", "research"]', spec)
-        for forbidden in ("test-base", "game-*.dll", "dx8-*.dll"):
+        for forbidden in ("test-base", "game-*.dll", "dx8-*.dll", "prism3d-*.exe"):
             self.assertNotIn(forbidden, spec)
 
     def test_build_requirements_and_python_toolchain_are_pinned(self):
@@ -67,7 +67,7 @@ class RealFrozenPatcherTests(unittest.TestCase):
             path = cls.root / f"fixed-eye-{name}.dll"
             write_fixed_eye_variant(cls.payload, name, path)
             cls.game_sources.append((f"fixed-eye-{name}", path.read_bytes()))
-        from tests.estonian_variants import estonian_binary_images
+        from tests.estonian_variants import estonian_binary_images, estonian_prism3d_image
         estonian_game, estonian_dx8 = estonian_binary_images(cls.payload)
         cls.game_sources.append(("estonian", estonian_game))
         cls.dx8_sources = (
@@ -75,12 +75,18 @@ class RealFrozenPatcherTests(unittest.TestCase):
             ("vsync", (cls.payload / "dx8-vsync.dll").read_bytes()),
             ("estonian", estonian_dx8),
         )
+        cls.prism3d_sources = (
+            ("stock", (cls.payload / "prism3d-stock.exe").read_bytes()),
+            ("cap", (cls.payload / "prism3d-cap.exe").read_bytes()),
+            ("estonian", estonian_prism3d_image(cls.payload)),
+        )
         cls.golden = json.loads((ROOT / "tests/golden/v3.json").read_text(encoding="utf-8"))
         cls.game_dir = cls.root / "game with spaces"
         (cls.game_dir / "game/sys").mkdir(parents=True)
         (cls.game_dir / "sys").mkdir()
         (cls.game_dir / "game/sys/game.dll").write_bytes(cls.game_sources[0][1])
         (cls.game_dir / "sys/dx8.dll").write_bytes(cls.dx8_sources[0][1])
+        (cls.game_dir / "prism3d.exe").write_bytes(cls.prism3d_sources[0][1])
         cls.output = cls.root / "staged with spaces"
         cls.runtime_prefix = cls.root / "runtime-prefix"
         cls.runtime_prefix.mkdir()
@@ -139,7 +145,7 @@ class RealFrozenPatcherTests(unittest.TestCase):
             arguments.extend((name, self.windows_path(value)))
         for mod in plan["selected"]:
             arguments.extend(("--mod", mod))
-        for target in ("game/sys/game.dll", "sys/dx8.dll"):
+        for target in ("game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"):
             expected_hash = changes[target]["expected_sha256"] if target in changes else hashlib.sha256((self.game_dir / target).read_bytes()).hexdigest()
             arguments.extend(("--expect", f"{target}={expected_hash}"))
         result = subprocess.run(
@@ -184,6 +190,19 @@ class RealFrozenPatcherTests(unittest.TestCase):
                         hashlib.sha256((self.output / "sys/dx8.dll").read_bytes()).hexdigest(),
                         self.golden["dx8"][expected_name],
                     )
+
+    def test_every_prism3d_source_stages_stock_and_cap_without_python_on_path(self):
+        for lineage, source in self.prism3d_sources:
+            for selected, expected_name in (([], "stock"), (["frame_cap"], "cap")):
+                with self.subTest(prism3d=lineage, selected=selected):
+                    target = self.game_dir / "prism3d.exe"
+                    target.write_bytes(source)
+                    self.stage(selected, {"prism3d.exe": self.golden["prism3d"][expected_name]})
+                    self.assertEqual(
+                        hashlib.sha256((self.output / "prism3d.exe").read_bytes()).hexdigest(),
+                        self.golden["prism3d"][expected_name],
+                    )
+                    self.assertEqual(target.read_bytes(), source)
 
     def test_render_quick_setup_without_python_on_path(self):
         output = self.root / "rendered Quick Setup"

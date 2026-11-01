@@ -20,6 +20,8 @@ from tools.build_windows_patcher import BuildError as PatcherBuildError, verify_
 TEMPLATE_ROOT = PROJECT_ROOT / "tools/templates"
 PRISTINE_GAME_SHA256 = "eb01589a2f6c05e67623a26994b0167df20536e976012f0d470ed526e54292e3"
 PRISTINE_DX8_SHA256 = "7dcdca3c8c01dd03650507da1264d5322f8d8f3587f731201dc0e0e49dbbd66c"
+PRISTINE_PRISM3D_SHA256 = "5a8f94da924b05620e2a69daa09682dae3cab6b301ddc463b54f5750b514bddd"
+ESTONIAN_PRISM3D_SHA256 = "4f7b19abd89dca5c993300f3fa94063e4bfd7ac7cc80f15d8a15d6189311c16e"
 ESTONIAN_GAME_SHA256 = "d943600154c27be3f6ea8162e375c69bc27c477ab5bfc29c7ceebc8221c17653"
 ESTONIAN_DX8_SHA256 = "7452e60974df84e533709fd80187931fa5a201073916e79fa1a22fb512665070"
 
@@ -100,11 +102,37 @@ def build_dx8_payloads(source):
     }
 
 
-def validate_migration_catalog(catalog, release, game_dll, dx8_dll, game_variants, dx8):
-    expected_targets = {"game/sys/game.dll", "sys/dx8.dll"}
+def build_prism3d_payloads(source):
+    release = load_release(PROJECT_ROOT)
+    pristine = source.read_bytes()
+    verify_pristine_images(release, {"prism3d.exe": pristine})
+    mod = load_binary_mods(release, ("frame_cap",))[0]
+    images = {"prism3d.exe": bytearray(pristine)}
+    runner = PatchRunner(images)
+    if runner.check([mod])[mod.id] != PatchState.ORIGINAL:
+        raise BuildError("prism3d stock payload failed original-state verification")
+    runner.apply([mod])
+    if runner.check([mod])[mod.id] != PatchState.PATCHED:
+        raise BuildError("prism3d cap payload failed patched-state verification")
+    cap_hash = hashlib.sha256(images["prism3d.exe"]).hexdigest()
+    runner.restore([mod])
+    if images["prism3d.exe"] != pristine:
+        raise BuildError("prism3d frame cap did not restore to pristine bytes")
+    return {
+        "stock": {"sha256": hashlib.sha256(pristine).hexdigest()},
+        "cap": {"sha256": cap_hash},
+    }
+
+
+def validate_migration_catalog(catalog, release, game_dll, dx8_dll, game_variants, dx8, prism3d, prism3d_exe):
+    expected_targets = {"game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"}
     if set(catalog["targets"]) != expected_targets:
-        raise BuildError("migration catalog must contain exactly both canonical targets")
-    for target, source in (("game/sys/game.dll", game_dll), ("sys/dx8.dll", dx8_dll)):
+        raise BuildError("migration catalog must contain exactly all canonical targets")
+    for target, source in (
+        ("game/sys/game.dll", game_dll),
+        ("sys/dx8.dll", dx8_dll),
+        ("prism3d.exe", prism3d_exe),
+    ):
         record = catalog["targets"][target]
         if record["pristine_length"] != source.stat().st_size:
             raise BuildError(f"migration target '{target}' pristine length does not match build input")
@@ -117,6 +145,10 @@ def validate_migration_catalog(catalog, release, game_dll, dx8_dll, game_variant
             | {ESTONIAN_GAME_SHA256}
         ),
         "sys/dx8.dll": {record["sha256"] for record in dx8.values()} | {ESTONIAN_DX8_SHA256},
+        "prism3d.exe": (
+            {record["sha256"] for record in prism3d.values()}
+            | {ESTONIAN_PRISM3D_SHA256}
+        ),
     }
     for target, hashes in required.items():
         missing = hashes - set(catalog["targets"][target]["sources"])
@@ -128,7 +160,7 @@ def copy_data(release, payload):
     return materialize_data(release, payload)
 
 
-def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_dll):
+def build_payload_manifest(release, payload, game_variants, dx8, prism3d, game_dll, dx8_dll, prism3d_exe):
     components = {}
     data_components = {}
     for mod in release.mods.values():
@@ -165,15 +197,20 @@ def build_payload_manifest(release, payload, game_variants, dx8, game_dll, dx8_d
                 "path": "sys/dx8.dll",
                 "sha256": sha256(dx8_dll),
             },
+            "prism3d_exe": {
+                "path": "prism3d.exe",
+                "sha256": sha256(prism3d_exe),
+            },
         },
         "game_variants": game_variants,
         "dx8": dx8,
+        "prism3d": prism3d,
         "data_components": data_components,
         "payloads": payloads,
     }
 
 
-def build_shell_manifest(release, payload, game_variants, dx8):
+def build_shell_manifest(release, payload, game_variants, dx8, prism3d):
     records = []
 
     def add(kind, relative, expected):
@@ -197,8 +234,10 @@ def build_shell_manifest(release, payload, game_variants, dx8):
         raise BuildError("shell installer requires one curated all-game-components variant")
     add("install-game", "game/sys/game.dll", game_variants[install_all[0]]["sha256"])
     add("install-dx8", "sys/dx8.dll", dx8["vsync"]["sha256"])
+    add("install-prism3d", "prism3d.exe", prism3d["cap"]["sha256"])
     add("install-mods", "-", " ".join(tuple(release.mods)))
     add("stock-dx8", "sys/dx8.dll", dx8["stock"]["sha256"])
+    add("stock-prism3d", "prism3d.exe", prism3d["stock"]["sha256"])
     add("patcher", "htmod.exe", sha256(payload / "htmod.exe"))
     add("migrations", "migrations.json", sha256(payload / "migrations.json"))
     for mod in release.mods.values():
@@ -233,6 +272,11 @@ def parse_args(argv=None):
         type=Path,
         default=default_test_base_file(Path("sys/dx8.dll")),
     )
+    parser.add_argument(
+        "--prism3d-exe",
+        type=Path,
+        default=default_test_base_file(Path("prism3d.exe")),
+    )
     return parser.parse_args(argv)
 
 
@@ -242,11 +286,14 @@ def build(args):
         raise BuildError(f"pristine game DLL not found: {args.game_dll}")
     if not args.dx8_dll.is_file():
         raise BuildError(f"pristine DX8 DLL not found: {args.dx8_dll}")
+    if not args.prism3d_exe.is_file():
+        raise BuildError(f"pristine prism3d executable not found: {args.prism3d_exe}")
     verify_pe64(args.patcher_exe)
     catalog = load_catalog(args.migrations)
     for path, expected, label in (
         (args.game_dll, PRISTINE_GAME_SHA256, "game DLL"),
         (args.dx8_dll, PRISTINE_DX8_SHA256, "DX8 DLL"),
+        (args.prism3d_exe, PRISTINE_PRISM3D_SHA256, "prism3d executable"),
     ):
         actual = sha256(path)
         if actual != expected:
@@ -255,7 +302,10 @@ def build(args):
             )
     variants = build_game_variants(args.game_dll)
     dx8 = build_dx8_payloads(args.dx8_dll)
-    validate_migration_catalog(catalog, release, args.game_dll, args.dx8_dll, variants, dx8)
+    prism3d = build_prism3d_payloads(args.prism3d_exe)
+    validate_migration_catalog(
+        catalog, release, args.game_dll, args.dx8_dll, variants, dx8, prism3d, args.prism3d_exe,
+    )
     for template in (
         TEMPLATE_ROOT / "Setup.bat",
         TEMPLATE_ROOT / "CrashReport.bat",
@@ -299,15 +349,17 @@ def build(args):
                 staging,
                 game_variants=variants,
                 dx8=dx8,
+                prism3d=prism3d,
                 game_dll=args.game_dll,
                 dx8_dll=args.dx8_dll,
+                prism3d_exe=args.prism3d_exe,
             )
             (staging / "manifest.json").write_text(
                 json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
             (staging / "install-manifest.tsv").write_text(
-                build_shell_manifest(release, staging, variants, dx8),
+                build_shell_manifest(release, staging, variants, dx8, prism3d),
                 encoding="utf-8",
             )
 
@@ -347,7 +399,7 @@ def build(args):
     print(
         f"Verified {len(variants)} distinct game variants, "
         f"{len(variants) * game_component_count} game checks, "
-        f"{len(variants)} restore cycles, and 2 DX8 checks"
+        f"{len(variants)} restore cycles, 2 DX8 checks, and 2 prism3d checks"
     )
 
 

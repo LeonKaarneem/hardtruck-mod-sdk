@@ -233,7 +233,7 @@ def encode_catalog(catalog):
 
 
 def add_source(catalog, target, data, pristine):
-    if target not in {"game/sys/game.dll", "sys/dx8.dll"} or target not in catalog["targets"]:
+    if target not in {"game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"} or target not in catalog["targets"]:
         raise MigrationError(f"unknown migration target '{target}'")
     target_record = catalog["targets"][target]
     if len(pristine) != target_record["pristine_length"]:

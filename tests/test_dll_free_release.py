@@ -28,6 +28,7 @@ class DLLFreeReleaseTests(unittest.TestCase):
             output=Path(root) / output_name,
             game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
             dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+            prism3d_exe=build_windows_release.default_test_base_file(Path("prism3d.exe")),
             patcher_exe=patcher,
             migrations=ROOT / "modpack/migrations.json",
         )
@@ -44,9 +45,13 @@ class DLLFreeReleaseTests(unittest.TestCase):
         for record in manifest["dx8"].values():
             self.assertNotIn("file", record)
             self.assertEqual(set(record), {"sha256"})
+        for record in manifest["prism3d"].values():
+            self.assertNotIn("file", record)
+            self.assertEqual(set(record), {"sha256"})
         self.assertFalse(list(release.rglob("*.dll")))
         self.assertFalse(list(payload.glob("game-*")))
         self.assertFalse(list(payload.glob("dx8-*")))
+        self.assertFalse(list(payload.glob("prism3d-*")))
         self.assertEqual(sha256(payload / "htmod.exe"), sha256(patcher))
         self.assertEqual(manifest["payloads"]["htmod.exe"], sha256(patcher))
         self.assertEqual(manifest["payloads"]["migrations.json"], sha256(ROOT / "modpack/migrations.json"))
@@ -65,9 +70,13 @@ class DLLFreeReleaseTests(unittest.TestCase):
         dx8 = build_windows_release.default_test_base_file(Path("sys/dx8.dll"))
         variants = build_windows_release.build_game_variants(game)
         dx8_records = build_windows_release.build_dx8_payloads(dx8)
+        prism3d_records = build_windows_release.build_prism3d_payloads(
+            build_windows_release.default_test_base_file(Path("prism3d.exe"))
+        )
         self.assertEqual(len(variants), 16)
         self.assertTrue(all(set(record) == {"sha256", "components"} for record in variants.values()))
         self.assertTrue(all(set(record) == {"sha256"} for record in dx8_records.values()))
+        self.assertTrue(all(set(record) == {"sha256"} for record in prism3d_records.values()))
 
     def test_deterministic_release_directories_use_identical_patcher_and_catalog(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -165,9 +174,13 @@ class DLLFreeReleaseTests(unittest.TestCase):
             manifest = json.loads((payload / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest["payloads"]["migrations.json"], sha256(args.migrations))
 
-    def test_custom_catalog_requires_both_canonical_targets(self):
+    def test_custom_catalog_requires_all_canonical_targets(self):
         self.assert_catalog_rejected(
             lambda catalog: catalog["targets"].pop("sys/dx8.dll"),
+            "canonical targets",
+        )
+        self.assert_catalog_rejected(
+            lambda catalog: catalog["targets"].pop("prism3d.exe"),
             "canonical targets",
         )
         self.assert_catalog_rejected(
@@ -176,7 +189,7 @@ class DLLFreeReleaseTests(unittest.TestCase):
         )
 
     def test_custom_catalog_pristine_must_match_build_inputs(self):
-        for target in ("game/sys/game.dll", "sys/dx8.dll"):
+        for target in ("game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"):
             for field in ("pristine_length", "pristine_sha256"):
                 with self.subTest(target=target, field=field):
                     def mutate(catalog, target=target, field=field):
@@ -191,7 +204,11 @@ class DLLFreeReleaseTests(unittest.TestCase):
                     self.assert_catalog_rejected(mutate, "pristine.*match|match.*pristine")
 
     def test_custom_catalog_requires_every_supported_source_lineage(self):
-        from tests.estonian_variants import ESTONIAN_DX8_SHA256, ESTONIAN_GAME_SHA256
+        from tests.estonian_variants import (
+            ESTONIAN_DX8_SHA256,
+            ESTONIAN_GAME_SHA256,
+            ESTONIAN_PRISM3D_SHA256,
+        )
 
         release = build_windows_release.load_release(ROOT)
         variants = build_windows_release.build_game_variants(
@@ -204,6 +221,9 @@ class DLLFreeReleaseTests(unittest.TestCase):
             ("dx8-stock", build_windows_release.PRISTINE_DX8_SHA256),
             ("dx8-vsync", json.loads((ROOT / "tests/golden/v3.json").read_text())["dx8"]["vsync"]),
             ("estonian-dx8", ESTONIAN_DX8_SHA256),
+            ("prism3d-stock", build_windows_release.PRISTINE_PRISM3D_SHA256),
+            ("prism3d-cap", "38bd905e7493326788d5e02ff790ce92eac43c7b533b1f9e8dc185ae5de92a63"),
+            ("estonian-prism3d", ESTONIAN_PRISM3D_SHA256),
         )
         for lineage, source_hash in cases:
             with self.subTest(lineage=lineage):
@@ -213,16 +233,21 @@ class DLLFreeReleaseTests(unittest.TestCase):
                 self.assert_catalog_rejected(mutate, "source coverage|missing.*source")
 
     @unittest.skipUnless(os.environ.get("HTMOD_RELEASE_ZIP"), "release ZIP not supplied")
-    def test_zip_has_no_dll_payloads_or_known_complete_dll_binaries(self):
-        from tests.estonian_variants import ESTONIAN_DX8_SHA256, ESTONIAN_GAME_SHA256
-        from tests.release_fixtures import current_binary_images
+    def test_zip_has_no_dll_payloads_or_known_complete_game_binaries(self):
+        from tests.estonian_variants import (
+            ESTONIAN_DX8_SHA256,
+            ESTONIAN_GAME_SHA256,
+            ESTONIAN_PRISM3D_SHA256,
+        )
+        from tests.release_fixtures import current_binary_images, current_prism3d_images
 
         release = build_windows_release.load_release(ROOT)
         game, dx8 = current_binary_images()
         known_hashes = {hashlib.sha256(data).hexdigest() for data in game.values()}
         known_hashes.update(hashlib.sha256(data).hexdigest() for data in dx8.values())
+        known_hashes.update(hashlib.sha256(data).hexdigest() for data in current_prism3d_images().values())
         known_hashes.update(release.legacy_game_sha256)
-        known_hashes.update((ESTONIAN_GAME_SHA256, ESTONIAN_DX8_SHA256))
+        known_hashes.update((ESTONIAN_GAME_SHA256, ESTONIAN_DX8_SHA256, ESTONIAN_PRISM3D_SHA256))
         with zipfile.ZipFile(os.environ["HTMOD_RELEASE_ZIP"]) as archive:
             self.assertIsNone(archive.testzip())
             names = archive.namelist()

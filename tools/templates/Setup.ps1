@@ -430,7 +430,7 @@ function Test-SafeDestination {
         $Manifest
     )
     $relative = Get-SafeRelativePath $RelativePath
-    if ($relative -eq "game/sys/game.dll" -or $relative -eq "sys/dx8.dll") {
+    if ($relative -eq "game/sys/game.dll" -or $relative -eq "sys/dx8.dll" -or $relative -eq "prism3d.exe") {
         return $relative
     }
     if ($relative.StartsWith("game/usr/")) {
@@ -633,7 +633,7 @@ function Invoke-LifecyclePlan {
             }
             $target = [string]$change.target
             $expected = [string]$change.expected_sha256
-            if (($target -ne "game/sys/game.dll" -and $target -ne "sys/dx8.dll") -or
+            if (($target -ne "game/sys/game.dll" -and $target -ne "sys/dx8.dll" -and $target -ne "prism3d.exe") -or
                 $binaryTargets.ContainsKey($target) -or $expected -notmatch "^[0-9a-fA-F]{64}$") {
                 throw "Frozen patcher returned an invalid binary change."
             }
@@ -673,7 +673,7 @@ function Invoke-StagedMods {
         foreach ($job in $BinaryJobs) {
             $arguments += @("--expect", "$($job.relative)=$($job.hash)")
         }
-        Write-Host "Staging selected binary components locally; no original DLL payloads are shipped."
+        Write-Host "Staging selected binary components locally; no original game binary payloads are shipped."
         if ($env:OS -eq "Windows_NT") {
             & $patcher @arguments | Write-Host
         }
@@ -686,7 +686,7 @@ function Invoke-StagedMods {
         foreach ($job in $BinaryJobs) {
             $staged = Join-Path $stageRoot $job.relative
             if (-not (Test-Hash $staged $job.hash)) {
-                throw "Staged DLL hash verification failed; no files were changed."
+                throw "Staged binary hash verification failed; no files were changed."
             }
         }
         if ($null -ne $Plan.selected -and @($Plan.selected) -contains "config") {
@@ -732,7 +732,7 @@ function Install-Mods {
         }
     }
     $jobs = @()
-    foreach ($relative in @("game/sys/game.dll", "sys/dx8.dll")) {
+    foreach ($relative in @("game/sys/game.dll", "sys/dx8.dll", "prism3d.exe")) {
         $destination = Join-Path $script:GamePath $relative
         $hash = if ($binaryChanges.ContainsKey($relative)) {
             [string]$binaryChanges[$relative].expected_sha256
@@ -778,6 +778,7 @@ function Install-Mods {
         $stageRoot = Invoke-StagedMods $plan $Manifest $binaryJobs
         $jobs[0].source = Join-Path $stageRoot "game/sys/game.dll"
         $jobs[1].source = Join-Path $stageRoot "sys/dx8.dll"
+        $jobs[2].source = Join-Path $stageRoot "prism3d.exe"
         if ($selectedIds -contains "config") {
             foreach ($job in $jobs) {
                 if ($job.relative -eq "game/usr/ui/cosetup.sc") {
@@ -1059,6 +1060,11 @@ function Get-ReportComponents {
                         $ids["dx8_vsync"] = $true
                     }
                 }
+                elseif ($relative -eq "prism3d.exe") {
+                    if ($Manifest.prism3d.cap.sha256 -ieq $entry.installed_sha256) {
+                        $ids["frame_cap"] = $true
+                    }
+                }
                 else {
                     if ($relative -eq "game/usr/ui/cosetup.sc") {
                         $quickSetupHashes[[string]$entry.installed_sha256] = $true
@@ -1119,6 +1125,9 @@ function Get-ReportComponents {
         }
         elseif ($id -eq "dx8_vsync") {
             $installed = Test-Hash (Join-Path $GamePath "sys/dx8.dll") ([string]$Manifest.dx8.vsync.sha256)
+        }
+        elseif ($id -eq "frame_cap") {
+            $installed = Test-Hash (Join-Path $GamePath "prism3d.exe") ([string]$Manifest.prism3d.cap.sha256)
         }
         $components += [ordered]@{
             id = $id

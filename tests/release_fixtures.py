@@ -45,6 +45,16 @@ def current_binary_images():
     return game, dx8
 
 
+@functools.lru_cache(maxsize=1)
+def current_prism3d_images():
+    release = load_release(ROOT)
+    source = build_windows_release.default_test_base_file(Path("prism3d.exe")).read_bytes()
+    mod = load_binary_mods(release, ("frame_cap",))[0]
+    images = {"prism3d.exe": bytearray(source)}
+    PatchRunner(images).apply([mod])
+    return {"stock": source, "cap": bytes(images["prism3d.exe"])}
+
+
 def write_current_payload(payload):
     payload = Path(payload)
     payload.mkdir(parents=True, exist_ok=True)
@@ -64,6 +74,8 @@ def write_current_payload(payload):
         filename = f"dx8-{name}.dll"
         (payload / filename).write_bytes(data)
         dx8_records[name] = {"file": filename, "sha256": sha256(data)}
+    for name, data in current_prism3d_images().items():
+        (payload / f"prism3d-{name}.exe").write_bytes(data)
     return variants, dx8_records
 
 
@@ -86,6 +98,7 @@ def build_installer_fixture(output):
         output=Path(output),
         game_dll=builder.default_test_base_file(Path("game/sys/game.dll")),
         dx8_dll=builder.default_test_base_file(Path("sys/dx8.dll")),
+        prism3d_exe=builder.default_test_base_file(Path("prism3d.exe")),
         patcher_exe=Path(patcher),
         migrations=ROOT / "modpack/migrations.json",
     ))

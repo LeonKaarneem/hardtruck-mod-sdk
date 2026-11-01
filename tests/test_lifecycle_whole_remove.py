@@ -44,6 +44,7 @@ class WholeInstallRemovalTests(ApplyFixture):
             with self.subTest(source=name):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 self.write_target("game/sys/game.dll", source)
                 self.write_target("sys/dx8.dll", self.dx8["stock"])
                 installed = self.service().apply(requested=("camera",), exact=True)
@@ -99,9 +100,9 @@ class WholeInstallRemovalTests(ApplyFixture):
         result = self.service().remove(all=True)
 
         self.assertEqual(result.status, "partial")
-        self.assertTrue(result.no_op)
+        self.assertFalse(result.no_op)
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), b"user modified binary")
-        self.assertEqual(len(self.generations()), before_count)
+        self.assertEqual(len(self.generations()), before_count + 1)
         operations = [
             operation for operation in result.operations
             if operation.destination == "game/sys/game.dll"
@@ -131,6 +132,7 @@ class WholeInstallRemovalTests(ApplyFixture):
             with self.subTest(format=format_name):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 source = self.estonian_game if format_name == "json" else self.legacy
                 self.write_target("game/sys/game.dll", self.game_variants["0001"])
                 destination = "game/sys/game.dll"
@@ -176,8 +178,9 @@ class WholeInstallRemovalTests(ApplyFixture):
             with self.subTest(case=case):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 self.write_target("game/sys/game.dll", self.game_variants["0001"])
-                destination = "game/sys/game.dll" if case != "disallowed" else "prism3d.exe"
+                destination = "game/sys/game.dll" if case != "disallowed" else "unmanaged.exe"
                 backup_path = f"files/{destination}" if case != "escaping" else "../escape.dll"
                 generation = self.write_json_history(f"2026-10-30-{case}", [{
                     "destination": destination,
@@ -207,7 +210,7 @@ class WholeInstallRemovalTests(ApplyFixture):
         value = plan.to_dict()
         self.assertEqual(value["mode"], "backup_history")
         self.assertFalse(value["no_op"])
-        self.assertEqual(len(value["history_changes"]), 2)
+        self.assertEqual(len(value["history_changes"]), 3)
         self.assertTrue(all(change["action"] == "restore" for change in value["history_changes"]))
         self.assertNotIn(str(self.game), json.dumps(value))
         self.assertEqual(self.tree_hashes(), before)

@@ -49,6 +49,7 @@ class ReplacementRaceTests(ReviewFixture):
             with self.subTest(posix=posix):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 self.install_binaries()
                 destination = self.game / self.release.mods["config"].files[0].destination
                 created = False

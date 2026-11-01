@@ -30,6 +30,7 @@ COMPONENT_IDS = [
     "physics",
     "ai",
     "ui_keyboard",
+    "frame_cap",
     "dx8_vsync",
 ]
 
@@ -124,9 +125,11 @@ if [ "$command_name" = "stage" ]; then
     if [ "${HTMOD_TEST_WRONG_STAGE:-0}" = "1" ]; then
         printf 'wrong staged game' > "$output_dir/game/sys/game.dll"
         printf 'wrong staged dx8' > "$output_dir/sys/dx8.dll"
+        printf 'wrong staged prism3d' > "$output_dir/prism3d.exe"
     else
         cp "$game_dir/game/sys/game.dll" "$output_dir/game/sys/game.dll"
         cp "$game_dir/sys/dx8.dll" "$output_dir/sys/dx8.dll"
+        cp "$game_dir/prism3d.exe" "$output_dir/prism3d.exe"
     fi
     exit 0
 fi
@@ -146,6 +149,7 @@ exit 64
         manifest = self.manifest(self.package)
         self.assertEqual(sha256(Path(game) / "game/sys/game.dll"), manifest["game_variants"]["0000"]["sha256"])
         self.assertEqual(sha256(Path(game) / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
+        self.assertEqual(sha256(Path(game) / "prism3d.exe"), manifest["prism3d"]["stock"]["sha256"])
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="htmod-installer-test-")
@@ -162,6 +166,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         manifest = self.manifest(self.package)
         self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["1111"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["vsync"]["sha256"])
+        self.assertEqual(sha256(self.game / "prism3d.exe"), manifest["prism3d"]["cap"]["sha256"])
         for component, files in manifest["data_components"].items():
             for payload in files:
                 self.assertEqual(
@@ -173,7 +178,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         installation = json.loads(backups[0].read_text(encoding="utf-8"))
         self.assertEqual(installation["schema_version"], 1)
         self.assertEqual(installation["status"], "Installed")
-        self.assertEqual(len(installation["entries"]), 22)
+        self.assertEqual(len(installation["entries"]), 23)
 
         rerun = self.run_setup(self.package, self.game)
         self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
@@ -191,6 +196,7 @@ class InstallerMetadataRuntimeTests(InstallerCase):
         manifest = self.manifest(self.package)
         self.assertEqual(sha256(self.game / "game/sys/game.dll"), manifest["game_variants"]["0001"]["sha256"])
         self.assertEqual(sha256(self.game / "sys/dx8.dll"), manifest["dx8"]["stock"]["sha256"])
+        self.assertEqual(sha256(self.game / "prism3d.exe"), manifest["prism3d"]["stock"]["sha256"])
         quick_setup = self.game / "game/usr/ui/cosetup.sc"
         self.assertTrue(quick_setup.is_file())
         content = quick_setup.read_bytes()
@@ -411,8 +417,8 @@ class InstallerSafetyTests(InstallerCase):
                 self.assertIn("Not a Hard Truck game folder", result.stdout + result.stderr)
                 self.assertFalse((package / "installer/backups").exists())
 
-    def test_unknown_game_and_dx8_hashes_are_rejected_without_backup(self):
-        for relative in ("game/sys/game.dll", "sys/dx8.dll"):
+    def test_unknown_game_binary_hashes_are_rejected_without_backup(self):
+        for relative in ("game/sys/game.dll", "sys/dx8.dll", "prism3d.exe"):
             with self.subTest(path=relative):
                 root = self.root / relative.replace("/", "-")
                 root.mkdir()
@@ -536,7 +542,7 @@ class InstallerSafetyTests(InstallerCase):
         result = self.run_setup(self.package, self.game, env=environment)
 
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertRegex(result.stdout + result.stderr, r"Staged\s+(?:\|\s+)?DLL\s+hash\s+verification\s+failed")
+        self.assertRegex(result.stdout + result.stderr, r"Staged\s+(?:\|\s+)?binary\s+hash\s+verification\s+failed")
         self.assertFalse(self.backup_manifests(self.package))
         self.assertEqual((self.root / "fake-commands").read_text(encoding="utf-8").splitlines(), ["plan", "stage"])
 
@@ -814,15 +820,19 @@ class LegacyInstallerUpgradeTests(InstallerCase):
         from tests.estonian_variants import (
             ESTONIAN_DX8_SHA256,
             ESTONIAN_GAME_SHA256,
+            ESTONIAN_PRISM3D_SHA256,
             estonian_binary_images,
+            estonian_prism3d_image,
         )
         from tests.release_fixtures import write_current_payload
 
         payload = self.root / "current-payload"
         write_current_payload(payload)
         game_source, dx8_source = estonian_binary_images(payload)
+        prism3d_source = estonian_prism3d_image(payload)
         (self.game / "game/sys/game.dll").write_bytes(game_source)
         (self.game / "sys/dx8.dll").write_bytes(dx8_source)
+        (self.game / "prism3d.exe").write_bytes(prism3d_source)
 
         result = self.run_setup(self.package, self.game, action="InstallAll")
 
@@ -832,12 +842,17 @@ class LegacyInstallerUpgradeTests(InstallerCase):
             sha256(self.game / "sys/dx8.dll"),
             "c900a47f5ac5e05116adea04895b8ac4171522a7812b50fc6a25b931bdb4b519",
         )
+        self.assertEqual(
+            sha256(self.game / "prism3d.exe"),
+            "38bd905e7493326788d5e02ff790ce92eac43c7b533b1f9e8dc185ae5de92a63",
+        )
         backups = self.backup_manifests(self.package)
         self.assertEqual(len(backups), 1)
         installation = json.loads(backups[0].read_text(encoding="utf-8"))
         for relative, source, source_hash in (
             ("game/sys/game.dll", game_source, ESTONIAN_GAME_SHA256),
             ("sys/dx8.dll", dx8_source, ESTONIAN_DX8_SHA256),
+            ("prism3d.exe", prism3d_source, ESTONIAN_PRISM3D_SHA256),
         ):
             with self.subTest(path=relative):
                 entry = next(item for item in installation["entries"] if item["destination"] == relative)
@@ -849,6 +864,7 @@ class LegacyInstallerUpgradeTests(InstallerCase):
         self.assertEqual(uninstall.returncode, 0, uninstall.stdout + uninstall.stderr)
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), game_source)
         self.assertEqual((self.game / "sys/dx8.dll").read_bytes(), dx8_source)
+        self.assertEqual((self.game / "prism3d.exe").read_bytes(), prism3d_source)
 
     def test_every_broken_fixed_eye_variant_upgrades_with_backup(self):
         for name, fixed_eye_hash in FIXED_EYE_GAME_SHA256.items():
@@ -1071,7 +1087,7 @@ class InstallerDetectionTests(InstallerCase):
 @unittest.skipIf(PWSH is None, "PowerShell 7 is required for installer runtime tests")
 class FreshExtractedDeliverableTests(InstallerCase):
     def test_zip_extracted_setup_installs_and_uninstalls_with_batch_entry_point(self):
-        archive = self.root / "HardTruckModern-0.2.0.zip"
+        archive = self.root / "HardTruckModern-0.3.0.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
             for path in sorted(self.release.rglob("*")):
                 if path.is_file():

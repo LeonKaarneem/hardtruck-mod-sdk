@@ -152,7 +152,7 @@ Neither the POSIX nor Windows-compatible mutation path can provide an atomic com
 
 ## Author a migration source
 
-Use `migration-add` to add one known source DLL to an existing schema-1 catalog. Both the new source and the canonical pristine reference come from your legally owned files:
+Use `migration-add` to add one known source binary to an existing schema-1 catalog. Both the new source and the canonical pristine reference come from your legally owned files:
 
 ```sh
 python3 tools/htmod.py migration-add \
@@ -163,9 +163,9 @@ python3 tools/htmod.py migration-add \
   --output /path/to/migrations.json
 ```
 
-For DX8, use `--target sys/dx8.dll` and the matching source and pristine DLLs. `--pristine` is required because a schema-1 catalog contains hashes and splice records, not the pristine DLL bytes needed to author a new mapping.
+For DX8, use `--target sys/dx8.dll`; for the frame cap, use `--target prism3d.exe` with matching source and pristine files. `--pristine` is required because a schema-1 catalog contains hashes and splice records, not the pristine binary bytes needed to author a new mapping.
 
-The command validates the existing catalog, target, regular input files, pristine length and hash, and output containment. It generates only a `length` and `changes` record, then proves that normalization returns the exact pristine bytes. It refuses full-image deltas and results over the existing 512 KiB catalog budget. No DLL or separate binary delta is copied.
+The command validates the existing catalog, target, regular input files, pristine length and hash, and output containment. It generates only a `length` and `changes` record, then proves that normalization returns the exact pristine bytes. It refuses full-image deltas and results over the existing 512 KiB catalog budget. No executable, DLL, or separate binary delta is copied.
 
 Output is deterministic, sorted, two-space JSON with a trailing newline and is replaced atomically. An identical existing record returns `"status":"no_op"` without creating or replacing output. A conflicting duplicate, unknown target, unsafe path, corrupt input, normalization failure, or oversized result returns 1 without changing the source, input catalog, or existing output. Success returns one JSON object with `schema_version`, `status`, `target`, and `source_sha256`.
 

@@ -1,7 +1,7 @@
 import re
 
 
-BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync"})
+BINARY_HANDLERS = frozenset({"camera", "physics", "ai", "ui_keyboard", "dx8_vsync", "frame_cap"})
 
 
 def strip_r_renderer(data):

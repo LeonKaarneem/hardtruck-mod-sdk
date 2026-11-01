@@ -24,6 +24,7 @@ COMPONENT_IDS = {
     "physics",
     "ai",
     "ui_keyboard",
+    "frame_cap",
     "dx8_vsync",
 }
 
@@ -100,7 +101,10 @@ class CrashReportingRuntimeTests(unittest.TestCase):
         self.desktop.mkdir()
         self.home = self.root / "home" / "sensitive_user"
         self.home.mkdir(parents=True)
-        self.write_fake_game()
+        shutil.copyfile(
+            build_windows_release.default_test_base_file(Path("prism3d.exe")),
+            self.game / "prism3d.exe",
+        )
 
     def write_fake_game(self, exit_code=0, newer_crash=False):
         crash = ""

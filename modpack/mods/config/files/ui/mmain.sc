@@ -101,7 +101,7 @@ spawn ui_window {
 		}
 	}
 	spawn txt_common {
-		value:"Hard Truck Modern 0.2.0"
+		value:"Hard Truck Modern 0.3.0"
 		look:"1"
 		coords:"704.000000 716.000000 1008.000000 740.000000"
 		area:"704.000000 716.000000 1008.000000 740.000000"

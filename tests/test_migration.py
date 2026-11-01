@@ -206,7 +206,7 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             write_fixed_eye_variant,
             write_legacy_variant,
         )
-        from tests.estonian_variants import estonian_binary_images
+        from tests.estonian_variants import estonian_binary_images, estonian_prism3d_image
         from tests.release_fixtures import write_current_payload
 
         cls.release = load_release(ROOT)
@@ -233,6 +233,11 @@ class RealCatalogAndStagingTests(unittest.TestCase):
             ("stock", (cls.payload / "dx8-stock.dll").read_bytes()),
             ("vsync", (cls.payload / "dx8-vsync.dll").read_bytes()),
             ("estonian", estonian_dx8),
+        )
+        cls.prism3d_sources = (
+            ("stock", (cls.payload / "prism3d-stock.exe").read_bytes()),
+            ("cap", (cls.payload / "prism3d-cap.exe").read_bytes()),
+            ("estonian", estonian_prism3d_image(cls.payload)),
         )
         cls.catalog_path = ROOT / "modpack/migrations.json"
 
@@ -284,6 +289,19 @@ class RealCatalogAndStagingTests(unittest.TestCase):
         for lineage, source in self.dx8_sources:
             with self.subTest(lineage=lineage):
                 self.assertEqual(normalize_to_pristine(source, "sys/dx8.dll", catalog), pristine_dx8)
+        unique_prism3d_sources = {digest(data): data for _, data in self.prism3d_sources}
+        prism3d = catalog["targets"]["prism3d.exe"]
+        self.assertEqual(set(prism3d["sources"]), set(unique_prism3d_sources))
+        pristine_prism3d = (self.payload / "prism3d-stock.exe").read_bytes()
+        for source_hash, source in unique_prism3d_sources.items():
+            with self.subTest(target="prism3d", source=source_hash):
+                self.assertEqual(
+                    prism3d["sources"][source_hash],
+                    {"length": len(source), "changes": generate_splices(source, pristine_prism3d)},
+                )
+        for lineage, source in self.prism3d_sources:
+            with self.subTest(lineage=lineage):
+                self.assertEqual(normalize_to_pristine(source, "prism3d.exe", catalog), pristine_prism3d)
 
     def test_every_game_source_by_every_selection_stages_expected_current_bytes(self):
         from htmod.cli import stage
@@ -328,6 +346,26 @@ class RealCatalogAndStagingTests(unittest.TestCase):
                     self.assertEqual(
                         (self.output / "sys/dx8.dll").read_bytes(),
                         (self.payload / f"dx8-{expected_name}.dll").read_bytes(),
+                    )
+
+    def test_every_prism3d_source_normalizes_with_and_without_cap(self):
+        from htmod.cli import stage
+
+        for lineage, source in self.prism3d_sources:
+            for selected, expected_name in (([], "stock"), (["frame_cap"], "cap")):
+                with self.subTest(lineage=lineage, selected=selected):
+                    (self.game / "prism3d.exe").write_bytes(source)
+                    stage(
+                        self.release,
+                        self.game,
+                        self.output,
+                        self.catalog_path,
+                        selected,
+                        {"prism3d.exe": self.golden["prism3d"][expected_name]},
+                    )
+                    self.assertEqual(
+                        (self.output / "prism3d.exe").read_bytes(),
+                        (self.payload / f"prism3d-{expected_name}.exe").read_bytes(),
                     )
 
     def test_zero_mods_and_data_only_selection_normalize_without_extra_outputs(self):

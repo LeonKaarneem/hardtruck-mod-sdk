@@ -26,6 +26,7 @@ class SelectiveRemovalTests(ApplyFixture):
         return json.loads((generation / "journal.json").read_text(encoding="utf-8"))
 
     def install_state(self, game="0011", dx8="stock", data=("config",)):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", self.game_variants[game])
         self.write_target("sys/dx8.dll", self.dx8[dx8])
         self.write_data(data)

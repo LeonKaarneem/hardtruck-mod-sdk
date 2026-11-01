@@ -37,6 +37,7 @@ class LifecycleRecoveryTests(ApplyFixture):
             with self.subTest(state=state):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 result, generation = self.apply_camera()
                 journal = self.journal(generation)
                 journal["status"] = state
@@ -59,6 +60,7 @@ class LifecycleRecoveryTests(ApplyFixture):
                 self.assertEqual(len(self.generations()), before_count)
 
     def test_valid_no_op_recovery_updates_evidence_without_new_generation(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         result, generation = self.apply_camera()
         self.write_target("game/sys/game.dll", self.game_variants["0000"])
         journal = self.journal(generation)
@@ -135,8 +137,9 @@ class LifecycleRecoveryTests(ApplyFixture):
         recovered = self.service().recover(result.transaction_id)
 
         self.assertEqual(recovered.status, "partial")
-        self.assertTrue(recovered.no_op)
+        self.assertFalse(recovered.no_op)
         self.assertEqual((self.game / "game/sys/game.dll").read_bytes(), b"external user edit")
+        self.assertEqual((self.game / "prism3d.exe").read_bytes(), (self.payload / "prism3d-cap.exe").read_bytes())
         evidence = self.journal(generation)
         self.assertEqual(evidence["status"], "partial")
         self.assertEqual(evidence["operations"][0]["status"], "rollback_failed")
@@ -149,6 +152,7 @@ class LifecycleRecoveryTests(ApplyFixture):
             with self.subTest(case=case):
                 shutil.rmtree(self.game)
                 self.game.mkdir()
+                self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
                 result, generation = self.apply_camera()
                 journal = self.journal(generation)
                 journal["status"] = "in_progress"
@@ -176,10 +180,10 @@ class LifecycleRecoveryTests(ApplyFixture):
         removed = self.service().remove(all=True)
         generation = self.game / ".htmod/backups" / removed.transaction_id
         journal = self.journal(generation)
-        self.assertEqual(len(journal["operations"]), 2)
+        self.assertEqual(len(journal["operations"]), 3)
         self.assertEqual(
             [item["destination"] for item in journal["operations"]],
-            ["game/sys/game.dll", "game/sys/game.dll"],
+            ["game/sys/game.dll", "game/sys/game.dll", "prism3d.exe"],
         )
         self.write_target("game/sys/game.dll", self.game_variants["0001"])
         journal["status"] = "in_progress"

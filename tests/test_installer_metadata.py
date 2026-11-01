@@ -14,7 +14,7 @@ from tools import build_windows_release
 
 QUICK_SETUP = ROOT / "modpack/mods/config/files/ui/cosetup.sc"
 QUICK_SETUP_VALUE = (
-    "UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>"
+    "UNOFFICIAL MOD - Hard Truck Modern 0.3.0<br>"
     "Better physics, cameras and handling<br>"
     "Improved economy and AI cleanup<br>"
     "Features depend on Setup choices"
@@ -28,10 +28,10 @@ QUICK_SETUP_BLOCK = (
     '\t}\r\n'
 ).encode("utf-8")
 QUICK_SETUP_ENABLED_VALUE = (
-    "UNOFFICIAL MOD - Hard Truck Modern 0.2.0<br>"
+    "UNOFFICIAL MOD - Hard Truck Modern 0.3.0<br>"
     "Enabled: configuration, camera, physics,<br>"
     "handling, economy, driver, AI,<br>"
-    "keyboard, DX8 vsync"
+    "keyboard, frame cap, DX8 vsync"
 )
 QUICK_SETUP_ENABLED_BLOCK = QUICK_SETUP_BLOCK.replace(
     QUICK_SETUP_VALUE.encode("utf-8"),
@@ -67,8 +67,10 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
                 payload,
                 game_variants={},
                 dx8={},
+                prism3d={},
                 game_dll=build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
                 dx8_dll=build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+                prism3d_exe=build_windows_release.default_test_base_file(Path("prism3d.exe")),
             )
 
         self.assertEqual(manifest["schema_version"], 3)
@@ -89,6 +91,7 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
         self.assertEqual(manifest["game_variants"], {})
         self.assertNotIn("legacy_game_sha256", manifest)
         self.assertEqual(manifest["dx8"], {})
+        self.assertEqual(manifest["prism3d"], {})
 
     def test_generated_release_manifest_is_schema_three_with_all_curated_variants(self):
         release = load_release(ROOT)
@@ -101,14 +104,19 @@ class GeneratedInstallerMetadataTests(unittest.TestCase):
             dx8 = build_windows_release.build_dx8_payloads(
                 build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
             )
+            prism3d = build_windows_release.build_prism3d_payloads(
+                build_windows_release.default_test_base_file(Path("prism3d.exe")),
+            )
             build_windows_release.copy_data(release, payload)
             manifest = build_windows_release.build_payload_manifest(
                 release,
                 payload,
                 variants,
                 dx8,
+                prism3d,
                 build_windows_release.default_test_base_file(Path("game/sys/game.dll")),
                 build_windows_release.default_test_base_file(Path("sys/dx8.dll")),
+                build_windows_release.default_test_base_file(Path("prism3d.exe")),
             )
         self.assertEqual(manifest["schema_version"], 3)
         self.assertEqual(list(manifest["components"]), list(release.mods))

@@ -49,6 +49,7 @@ class LifecycleTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root)
         self.game = self.root / "game dir"
         self.game.mkdir()
+        self.write_target("prism3d.exe", (self.payload / "prism3d-cap.exe").read_bytes())
 
     def write_target(self, target, data):
         path = self.game / target
@@ -207,6 +208,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual([item.state for item in config.files[:2]], ["matching", "missing"])
 
     def test_custom_quick_setup_status_and_plan_use_derived_selection(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         selected = ("config", "ui_keyboard")
         custom = materialize_data_bytes(self.release, selected)
         for destination, content in custom["config"].items():
@@ -307,6 +309,7 @@ class LifecycleTests(unittest.TestCase):
             build_plan(release, self.game, self.catalog, ("camera", "physics"), exact=True)
 
     def test_additive_camera_physics_and_exact_physics_plan_expected_variants(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", self.game_variants["0000"])
         self.write_target("sys/dx8.dll", self.dx8["stock"])
         additive = self.plan(("physics", "camera"))
@@ -353,6 +356,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual((dx8_change.variant, dx8_change.components), ("stock", ()))
 
     def test_data_only_additive_plan_leaves_unknown_binaries_untouched(self):
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", b"unknown")
         self.write_target("sys/dx8.dll", b"unknown")
         plan = self.plan(("config",))
@@ -487,6 +491,7 @@ class LifecycleTests(unittest.TestCase):
     def test_cli_camera_plan_is_declarative_and_leaves_game_and_source_unchanged(self):
         from htmod import cli
 
+        self.write_target("prism3d.exe", (self.payload / "prism3d-stock.exe").read_bytes())
         self.write_target("game/sys/game.dll", self.game_variants["0000"])
         self.write_target("sys/dx8.dll", self.dx8["stock"])
         with tempfile.TemporaryDirectory() as temporary:

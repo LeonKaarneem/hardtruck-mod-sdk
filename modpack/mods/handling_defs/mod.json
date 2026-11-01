@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "id": "handling_defs",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "kind": "data",
   "setup": {
     "label": "Handling definitions (new profile required)",
